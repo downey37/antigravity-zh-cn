@@ -1,6 +1,6 @@
 # Antigravity 简体中文汉化补丁 (`antigravity-zh-cn`)
 
-**Antigravity 桌面客户端（Windows）** 全界面简体中文汉化补丁与跟版维护工程，当前适配基线：**`v2.33.0`**。
+**Antigravity 桌面客户端（Windows）** 全界面简体中文汉化补丁与跟版维护工程，当前版本：**`v0.1`**（适配 Antigravity 客户端 `v2.33.0`）。
 
 ## 特性亮点
 
