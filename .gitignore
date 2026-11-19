@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build outputs & extracted app.asar contents (proprietary / generated)
+build/
+
+# Proprietary upstream frontend bundle (can be regenerated locally via `npm run scan`)
+assets/baseline/bundle_main.js
+
+# Local historical archives & legacy dumps
+archive/
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db
