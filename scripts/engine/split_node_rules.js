@@ -56,7 +56,7 @@ function translateSplitTextNode(node, val, parent) {
   // 7. 开发者模式运行参数拆分节点
   if (val === 'Current parameter: ') return '当前参数：';
   if (val === '. Active workspace URI: ') return '。当前工作区 URI：';
-  if (val === ' (still loading\u2026)' || val === ' (still loading...)') return '（仍在加载…）';
+  if (val === ' (still loading\u2026)' || val === ' (still loading...)') return '（仍在加载...）';
 
   // 8. 模型配额剩余百分比拆分节点：{f} + "% left"
   if (/^\s*%\s*left\s*$/i.test(val) && node.previousSibling && /^\d+(?:\.\d+)?$/.test((node.previousSibling.textContent || '').trim())) {
@@ -97,7 +97,7 @@ function translateSplitTextNode(node, val, parent) {
   // 12. 网页搜索域名过滤提示拆分节点
   if (val === 'Web search prioritized results from ') return '网页搜索优先展示了来自 ';
   if (val === '. The LLM decided that this would yield the best results. If this is not desired, you can simply tell the agent to search without a domain filter.') {
-    return ' 的结果。大模型认为这样能获得最佳结果；如果不希望如此，您可以直接要求智能体在搜索时不使用域名过滤。';
+    return ' 的结果。大模型认为这样能获得最佳结果；如果不希望如此，你可以直接要求智能体在搜索时不使用域名过滤。';
   }
 
   // 13. 智能体 / 插件 / 工作目录前缀拆分节点
@@ -133,29 +133,29 @@ function translateSplitTextNode(node, val, parent) {
     return ' 资源';
   }
   if (val === 'Connect your account to browse ') {
-    return '连接您的账号以浏览 ';
+    return '连接你的账号以浏览 ';
   }
-  if (val === '.' && !node.nextSibling && /连接您的账号以浏览|Connect your account to browse/.test(parentText)) {
+  if (val === '.' && !node.nextSibling && /连接[你您]的账号以浏览|Connect your account to browse/.test(parentText)) {
     return '。';
   }
 
   // 17. 插件目录空状态拆分："There are currently no Build with " + category + " plugins available."
   if (val === 'There are currently no Build with ') {
-    return '当前暂无「Build with ';
+    return '当前暂无“Build with ';
   }
   if (
     val === ' plugins available.' &&
-    (parentText.includes('There are currently no Build with') || parentText.includes('当前暂无「Build with'))
+    (parentText.includes('There are currently no Build with') || parentText.includes('当前暂无“Build with'))
   ) {
-    return '」相关可用插件。';
+    return '”相关可用插件。';
   }
 
   // 18. 终端/代码块上方隐藏行拆分："(" + n + " " + "line(s)" + " above hidden)"
-  if ((val === 'line' || val === 'lines' || val === '行') && node.nextSibling && /above hidden|上方内容已隐藏/i.test(node.nextSibling.textContent || '')) {
+  if ((val === 'line' || val === 'lines' || val === '行') && node.nextSibling && /above hidden|上方内容已隐藏|上方已隐藏/i.test(node.nextSibling.textContent || '')) {
     return '行';
   }
   if (/^\s*above hidden\)?\s*$/i.test(val) && node.previousSibling) {
-    return val.includes(')') ? '上方内容已隐藏)' : '上方内容已隐藏';
+    return val.includes(')') ? '，上方已隐藏)' : '，上方已隐藏';
   }
 
   return null;

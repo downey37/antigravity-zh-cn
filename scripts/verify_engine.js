@@ -183,10 +183,9 @@ function runVerification() {
       ['dist/deviceChooser.js', '连接设备'],
       ['dist/webauthn.js', '选择通行密钥'],
       ['dist/cablev2.js', '使用手机或平板电脑'],
-      ['dist/remote/disconnectedPage.js', '正在重新连接…'],
-      ['dist/remote/signInCallback.js', '已完成登录，您可以关闭此标签页。'],
-      ['dist/remote/sshPrompts.js', '请触碰您的安全密钥'],
-      ['dist/remote/sshPromptPreload.js', '请求确认：'],
+      ['dist/remote/disconnectedPage.js', '正在重新连接...'],
+      ['dist/remote/signInCallback.js', '登录成功'],
+      ['dist/remote/sshPrompts.js', '请触碰你的安全密钥'],
       ['dist/remote/sshErrorText.js', '错误代码：'],
       ['dist/remote/sshArgs.js', 'SSH 身份验证失败'],
       ['dist/remote/remoteManager.js', '选择 SSH 配置文件']
@@ -230,7 +229,7 @@ function runVerification() {
   // 2. Recent UI fixes + regressions + dynamic rule spacing/tightening
   const cases = [
     ['Add Resource', '添加资源'],
-    ['Environment', '运行环境'],
+    ['Environment', '环境'],
     ['Display', '显示'],
     ['Auto Pin', '自动置顶'],
     ['Archived Only', '仅已归档'],
@@ -239,7 +238,7 @@ function runVerification() {
     ['Worktree', '工作树'],
     ['Decorations', '状态标记'],
     ['Add GitHub resources', '添加 GitHub 资源'],
-    ['Connect your account to browse GitHub.', '连接您的账号以浏览 GitHub。'],
+    ['Connect your account to browse GitHub.', '连接你的账号以浏览 GitHub。'],
     ["A project's private resources must all belong to one owner (acme).", '同一项目中的私有资源必须全部归属于同一所有者 (acme)。'],
     ['Choose icon and color', '选择图标与颜色'],
     ['Icon', '图标'],
@@ -259,21 +258,21 @@ function runVerification() {
     ['Generation Steps (', '生成步骤 ('],
     ['Not referenced by any feature (', '未被任何功能引用 ('],
     ['Models within this group: Gemini 4 Hydrogen, Gemini 3.8 Flash', '此分组包含的模型：Gemini 4 Hydrogen, Gemini 3.8 Flash'],
-    ['Argon that may offload routine steps to Hydrogen. Same Argon-level quality, fewer tokens used.', '可将常规步骤分流给 Hydrogen 执行的 Argon 模式。同等 Argon 级质量，消耗更少 Token。'],
-    ['GPT-OSS will be removed from Antigravity on November 18, 2026.', 'GPT-OSS 将于 2026 年 11 月 18 日从 Antigravity 中移除。'],
-    ['Gemini 4 Carbon is currently available to Ultra plan subscribers.', 'Gemini 4 Carbon 目前仅面向 Ultra 方案订阅用户开放。'],
+    ['Argon that may offload routine steps to Hydrogen. Same Argon-level quality, fewer tokens used.', 'Argon，可将常规步骤分流至 Hydrogen。同等 Argon 级质量，消耗更少 Token。'],
+    ['GPT-OSS will be removed from Antigravity on November 18, 2026.', 'GPT-OSS 将于 2026年11月18日从 Antigravity 中移除。'],
+    ['Gemini 4 Carbon is currently available to Ultra plan subscribers.', 'Gemini 4 Carbon 目前仅面向 Ultra 套餐订阅用户开放。'],
     ['New Project', '新建项目'],
     ['Name', '名称'],
     ['Color', '颜色'],
     ['Built In', '内置'],
-    ['Marketplace', '扩展市场'],
+    ['Marketplace', '插件市场'],
     ['by Google', '由 Google 提供'],
     ['Executed notebook', '已执行 Notebook'],
     ['Executing notebook cells', '正在执行 Notebook 单元格'],
     ['Failed to execute notebook cells', '执行 Notebook 单元格失败'],
     ['Failed to execute notebook', '执行 Notebook 失败'],
-    ['Failed to load settings.', '加载系统设置失败'],
-    ['Failed to delete your project.', '删除您的项目失败。'],
+    ['Failed to load settings.', '加载设置失败'],
+    ['Failed to delete your project.', '删除你的项目失败。'],
     ['Failed to delete "my-proj"', '删除“my-proj”失败'],
     ['Failed to delete project: EACCES', '删除项目失败：EACCES'],
     ['Failed to load shared conversation', '加载共享会话失败'],
@@ -292,13 +291,16 @@ function runVerification() {
     ['Copy sign-in link', '复制登录链接'],
     ['Copy gh auth login command', '复制 gh auth login 命令'],
     ['Stop all agents', '停止所有智能体'],
-    ['Stop recording', '停止录制'],
+    ['Stop recording', '停止录音'],
+    ['Stop Recording', '停止语音输入'],
+    ['Record Audio', '语音输入'],
+    ['Stop Recording and Send', '停止语音并发送'],
     ['Stop execution', '停止执行'],
     ['Resume environment', '恢复环境'],
     ['Resume 1 comment draft', '恢复 1 条批注草稿'],
     ['Toggle file diff', '切换文件差异'],
     ['Toggle checkerboard background', '切换棋盘格背景'],
-    ['Allow Next Non-Corp Prompt', '允许下一次非企业提示'],
+    ['Allow Next Non-Corp Prompt', '允许下次非企业密码输入'],
     ['Runs on this computer', '在本机上运行'],
     ['Creates a local automation that runs on this computer', '创建在本机上运行的本地自动化任务'],
     ['Allow running this command?', '是否允许运行此命令？'],
@@ -315,14 +317,36 @@ function runVerification() {
     ['Old files deleted', 'Old files deleted'],
     ['Project deleted', '项目已删除'],
     ['1 Draft', '1 份草稿'],
-    ['FILES CHANGED', '改动文件'],
-    ['You have used some of your weekly limit, it will fully refresh in 5 days, 21 hours.', '您已使用部分每周配额，将在 5 天 21 小时后完全重置。'],
-    ['You have used some of your 5-hour limit, it will fully refresh in 4 hours, 26 minutes.', '您已使用部分 5 小时配额，将在 4 小时 26 分钟后完全重置。'],
-    ['You have hit your weekly limit, it refreshes in 4 days, 8 hours. If on a supported paid plan, you can use AI credits in the interim or upgrade to a higher tier.', '您已达到每周配额上限，将在 4 天 8 小时后重置。如果您使用的是受支持的付费方案，在此期间可使用 AI 额度，或升级至更高级别方案。'],
-    ['You have hit your weekly limit, the 5-hour limit does not currently apply. Your weekly limit will fully refresh in 4 days, 8 hours.', '您已达到每周配额上限，当前不适用 5 小时配额限制。您的每周配额将在 4 天 8 小时后完全重置。'],
-    ['You have hit your 5-hour limit, it refreshes in 2 hours, 15 minutes.', '您已达到 5 小时配额上限，将在 2 小时 15 分钟后重置。'],
-    ['You have hit your weekly limit, it refreshes in less than a minute. If on a supported paid plan, you can use AI credits in the interim.', '您已达到每周配额上限，将在不到 1 分钟后重置。如果您使用的是受支持的付费方案，在此期间可使用 AI 额度。'],
-    ['If on a supported paid plan, you can use AI credits in the interim or upgrade to a higher tier.', '如果您使用的是受支持的付费方案，在此期间可使用 AI 额度，或升级至更高级别方案。'],
+    ['FILES CHANGED', '已更改文件'],
+    ['1 file changed', '1 个文件已更改'],
+    ['3 active conversations and 2 archived conversations', '3 个活跃会话和 2 个已归档会话'],
+    ['Settings', '设置'],
+    ['Projects', '项目'],
+    ['Browser', '浏览器'],
+    ['Output', '输出'],
+    ['Artifacts', '产物'],
+    ['Sidecar', '后台服务'],
+    ['Side Question', '临时提问'],
+    ['Side Question: test', '临时提问：test'],
+    ['Fork', '分支 (Fork)'],
+    ['Forked from "Main"', '分支自“Main”'],
+    ['Hooks', '钩子 (Hooks)'],
+    ['Issues', '议题 (Issue)'],
+    ['Pull Requests', '拉取请求 (PR)'],
+    ['Amend', '修订提交 (Amend)'],
+    ['MCP Server', 'MCP 服务'],
+    ['Install IDE', '安装 IDE'],
+    ['Disconnect GitHub', '断开与 GitHub 的连接'],
+    ['Weekly on Monday at 9:00 AM', '每周一 9:00 AM'],
+    ['The MCP server "demo" from plugin "ext" failed to start.', '插件“ext”中的 MCP 服务“demo”启动失败。'],
+    ['Manage project resources, agent settings, and permissions.', '管理项目资源、智能体设置及权限。'],
+    ['You have used some of your weekly limit, it will fully refresh in 5 days, 21 hours.', '你已使用部分每周配额，将在 5 天 21 小时后完全重置。'],
+    ['You have used some of your 5-hour limit, it will fully refresh in 4 hours, 26 minutes.', '你已使用部分 5 小时配额，将在 4 小时 26 分钟后完全重置。'],
+    ['You have hit your weekly limit, it refreshes in 4 days, 8 hours. If on a supported paid plan, you can use AI credits in the interim or upgrade to a higher tier.', '你已达到每周配额上限，将在 4 天 8 小时后重置。如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级至更高级别套餐。'],
+    ['You have hit your weekly limit, the 5-hour limit does not currently apply. Your weekly limit will fully refresh in 4 days, 8 hours.', '你已达到每周配额上限，当前不适用 5 小时配额限制。你的每周配额将在 4 天 8 小时后完全重置。'],
+    ['You have hit your 5-hour limit, it refreshes in 2 hours, 15 minutes.', '你已达到 5 小时配额上限，将在 2 小时 15 分钟后重置。'],
+    ['You have hit your weekly limit, it refreshes in less than a minute. If on a supported paid plan, you can use AI credits in the interim.', '你已达到每周配额上限，将在不到 1 分钟后重置。如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度。'],
+    ['If on a supported paid plan, you can use AI credits in the interim or upgrade to a higher tier.', '如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级至更高级别套餐。'],
     ['Antigravity', 'Antigravity'],
     ['Google Drive', 'Google Drive'],
     ['just now', '刚刚'],
@@ -411,8 +435,40 @@ function runVerification() {
   const modelPanel = makeEl({ testid: 'model-selector-panel' });
   const newPill = makeEl({ cls: 'bg-secondary rounded-full', parent: modelPanel });
   const sidecarNew = makeEl({ testid: 'sidecar-new-button' });
-  assert.strictEqual(api.translateString('New', newPill), '新上线');
+  assert.strictEqual(api.translateString('New', newPill), '新');
   assert.strictEqual(api.translateString('New', sidecarNew), '新建');
+
+  // 3b. Home greeting carousel (named + unnamed)
+  assert.strictEqual(api.translateString('Hey Downey, what should we build today?'), '嗨 Downey，今天想做点什么？');
+  assert.strictEqual(api.translateString('Hey there, what should we build today?'), '你好，今天想做点什么？');
+  assert.strictEqual(api.translateString('Welcome back, Downey. Where should we pick up?'), '欢迎回来，Downey。我们从哪里继续？');
+  assert.strictEqual(api.translateString('Welcome back. Where should we pick up?'), '欢迎回来，我们从哪里继续？');
+  assert.strictEqual(api.translateString("Good to see you, Downey. What's next?"), '很高兴见到你，Downey。接下来要做什么？');
+  assert.strictEqual(api.translateString("Good to see you. What's next?"), '很高兴见到你，接下来要做什么？');
+
+  // 3c. Permission preset bilingual parenthetical labels preserved ("Default" stays pure Chinese)
+  const presetOpt = makeEl({
+    tag: 'DIV',
+    cls: 'agy-overlay-item',
+    text: 'Request Review Every command requires approval.'
+  });
+  assert.strictEqual(api.translateString('Request Review', presetOpt), '请求审核 (Request Review)');
+  assert.strictEqual(api.translateString('Turbo', presetOpt), '全自动 (Turbo)');
+  assert.strictEqual(api.translateString('Default', presetOpt), '默认');
+  assert.strictEqual(api.translateString('Auto', presetOpt), '自动 (Auto)');
+
+  // 3d. v2.33.0 Keyboard Shortcuts & Keybinding Scheme translations
+  assert.strictEqual(api.translateString('Keybinding Scheme'), '按键绑定方案');
+  assert.strictEqual(api.translateString('VS Code Default'), 'VS Code 默认');
+  assert.strictEqual(api.translateString('Antigravity (AGY) Style'), 'Antigravity (AGY) 风格');
+  assert.strictEqual(api.translateString('Customize Shortcuts'), '自定义快捷键');
+  assert.strictEqual(api.translateString('VS Code Keyboard Shortcuts'), 'VS Code 键盘快捷键');
+  assert.strictEqual(api.translateString('Terminal: Select All'), '终端：全选');
+  assert.strictEqual(api.translateString('Side Question Selection'), '对选中内容发起临时提问');
+  assert.strictEqual(
+    api.translateString('Inspect live bindings or record custom key chords filtered to'),
+    '查看实时按键绑定或录制自定义组合键，已自动筛选'
+  );
 
   // 4. Split text nodes (including out-of-order translation)
   const t1 = makeTextNode('Add ');
@@ -439,8 +495,8 @@ function runVerification() {
   const bw2 = makeTextNode('Google');
   const bw3 = makeTextNode(' plugins available.');
   const divBw = makeEl({ tag: 'DIV', children: [bw1, bw2, bw3] });
-  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(bw1, 'There are currently no Build with ', divBw), '当前暂无「Build with ');
-  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(bw3, ' plugins available.', divBw), '」相关可用插件。');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(bw1, 'There are currently no Build with ', divBw), '当前暂无“Build with ');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(bw3, ' plugins available.', divBw), '”相关可用插件。');
 
   const ah1 = makeTextNode('(');
   const ah2 = makeTextNode('12');
@@ -449,7 +505,7 @@ function runVerification() {
   const ah5 = makeTextNode(' above hidden)');
   const divAh = makeEl({ tag: 'DIV', children: [ah1, ah2, ah3, ah4, ah5] });
   assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ah4, 'lines', divAh), '行');
-  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ah5, ' above hidden)', divAh), '上方内容已隐藏)');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ah5, ' above hidden)', divAh), '，上方已隐藏)');
 
   const docLink = makeEl({ tag: 'A', text: '文档指南' });
   const docPeriod = makeTextNode('.');
@@ -488,14 +544,15 @@ function runVerification() {
   const swarmApi = loadEngineInSandbox(i18nCode, 'plugin:', 'Swarm');
   assert.strictEqual(swarmApi.translateString('To worker-1', makeEl({ tag: 'DIV' })), '发送给 worker-1');
 
-  // 7. Prototype safety on attributes & full-dictionary idempotency (incl. theme paren entries)
+  // 7. Prototype safety on attributes, preset themes kept in English, & full-dictionary idempotency
   const protoEl = makeEl({ tag: 'BUTTON', attrs: { title: 'toString', 'aria-label': 'constructor' } });
   api.translateNode(protoEl);
   assert.strictEqual(protoEl.getAttribute('title'), 'toString');
   assert.strictEqual(protoEl.getAttribute('aria-label'), 'constructor');
 
-  assert.strictEqual(api.translateString('Catppuccin', coordEl), 'Catppuccin (马卡龙)');
-  assert.strictEqual(api.translateString('Catppuccin (马卡龙)', coordEl), 'Catppuccin (马卡龙)');
+  for (const themeName of ['Catppuccin', 'One Light', 'Solarized Light', 'Dracula', 'Monokai', 'One Dark Pro', 'Tokyo Night', 'Solarized Dark']) {
+    assert.strictEqual(api.translateString(themeName, coordEl), themeName, `Preset theme should stay English: ${themeName}`);
+  }
   for (const [k, v] of Object.entries(api.EXACT_DICT)) {
     assert.strictEqual(api.translateString(v, coordEl), v, `EXACT_DICT not idempotent for ${k} => ${v}`);
   }
@@ -687,7 +744,7 @@ function runDomLifecycleVerification(i18nCode) {
   const strSpan = new DomElement('SPAN');
   rootDiv.appendChild(strSpan);
   strSpan.append('Settings');
-  assert.strictEqual(strSpan.firstChild.nodeValue, '系统设置');
+  assert.strictEqual(strSpan.firstChild.nodeValue, '设置');
 
   // 3. attachShadow observes & translates shadowRoot contents
   const hostEl = new DomElement('DIV');

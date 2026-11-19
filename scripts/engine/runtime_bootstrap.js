@@ -80,6 +80,7 @@ function antigravityI18nBootstrap(
     isNewBadgeContext,
     isGroupByNoneContext,
     isThinkingNoneContext,
+    isPermissionPresetContext,
     shouldIgnoreElement,
     shouldIgnoreTextParent,
     shouldIgnoreAttrElement,
@@ -123,9 +124,9 @@ function antigravityI18nBootstrap(
       return str;
     }
 
-    // 模型选择器 / 新功能徽章中的 "New" 指“新上线”（区别于创建按钮“新建”）
+    // 模型选择器 / 新功能徽章中的 "New" 指“新”（区别于创建按钮“新建”）
     if ((norm === 'New' || norm === 'new' || norm === '新建') && isNewBadgeContext(contextEl)) {
-      return leadWs + '新上线' + trailWs;
+      return leadWs + '新' + trailWs;
     }
 
     // "None" 根据所在菜单上下文区分：“分组方式”为“不分组”，思考深度选择器为“关闭思考”，其余默认为“无”
@@ -143,6 +144,26 @@ function antigravityI18nBootstrap(
       }
       if (norm === '关闭思考') {
         return leadWs + '无' + trailWs;
+      }
+    }
+
+    // 权限预设选择器中为模式标题附带括号英文原词（“默认”保持纯中文），其余位置保持纯中文
+    if (
+      (
+        norm === 'Request Review' || norm === 'Request review' || norm === '请求审核' ||
+        norm === 'Turbo' || norm === '全自动' ||
+        norm === 'Auto' || norm === '自动'
+      ) &&
+      isPermissionPresetContext(contextEl)
+    ) {
+      if (norm === 'Request Review' || norm === 'Request review' || norm === '请求审核') {
+        return leadWs + '请求审核 (Request Review)' + trailWs;
+      }
+      if (norm === 'Turbo' || norm === '全自动') {
+        return leadWs + '全自动 (Turbo)' + trailWs;
+      }
+      if (norm === 'Auto' || norm === '自动') {
+        return leadWs + '自动 (Auto)' + trailWs;
       }
     }
 
@@ -246,9 +267,8 @@ function antigravityI18nBootstrap(
       const stem = norm.slice(0, -3).trim();
       const stemHit = stem ? lookupExact(stem, stem) : null;
       if (stemHit) {
-        const suffix = (trimmed.endsWith('\u2026') ? '…' : '...');
         const hasEllipsis = stemHit.endsWith('...') || stemHit.endsWith('…');
-        return leadWs + stemHit + (hasEllipsis ? '' : suffix) + trailWs;
+        return leadWs + stemHit + (hasEllipsis ? '' : '...') + trailWs;
       }
     }
     if (norm.endsWith('.')) {

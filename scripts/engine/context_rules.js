@@ -1,6 +1,6 @@
 /**
  * DOM 上下文保护与同词消歧匹配器。
- * 区分代码块/终端/文件名与真实 UI 控件，以及 "New"（新建 vs 新上线）和 "None"（不分组 vs 关闭思考 vs 无）等语境。
+ * 区分代码块/终端/文件名与真实 UI 控件，以及 "New"（新建 vs 新）和 "None"（不分组 vs 关闭思考 vs 无）等语境。
  */
 function createContextRules() {
   const IGNORE_CLOSEST_SELECTOR = [
@@ -67,6 +67,48 @@ function createContextRules() {
     if (listbox && /Thinking Level|思考深度/.test(listbox.textContent || '')) {
       return true;
     }
+    return false;
+  }
+
+  const PERMISSION_PRESET_DESC_RE =
+    /Every command requires approval|每条命令执行前都需要批准|Run all commands without restrictions|无限制直接运行所有命令|无限制地直接运行所有命令|Ask before sensitive operations|执行敏感操作前先询问|Automatically decide if commands run|由智能体自动判断命令是否可执行/;
+
+  const PERMISSION_PRESET_LABEL_RE =
+    /^(?:This Computer|此电脑|Remote|远程|Permission Preset|权限预设)$/;
+
+  const PERMISSION_PRESET_ARIA_DESC_RE =
+    /Controls what the agent is allowed to do|控制智能体允许执行的操作范围|Controls permissions for remote conversations|控制远程会话的运行权限/;
+
+  function isPermissionPresetContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+
+    const item = contextEl.closest('.agy-overlay-item, [role="option"], [role="menuitem"], [role="menuitemradio"]');
+    if (item && PERMISSION_PRESET_DESC_RE.test(item.textContent || '')) {
+      return true;
+    }
+
+    const trigger = contextEl.closest('.agy-select-trigger, button[aria-labelledby], button[aria-describedby]');
+    if (trigger && typeof document !== 'undefined' && typeof document.getElementById === 'function') {
+      const labelledBy = (trigger.getAttribute('aria-labelledby') || '').trim();
+      if (labelledBy) {
+        for (const id of labelledBy.split(/\s+/)) {
+          const ref = id && document.getElementById(id);
+          if (ref && PERMISSION_PRESET_LABEL_RE.test((ref.textContent || '').trim())) {
+            return true;
+          }
+        }
+      }
+      const describedBy = (trigger.getAttribute('aria-describedby') || '').trim();
+      if (describedBy) {
+        for (const id of describedBy.split(/\s+/)) {
+          const ref = id && document.getElementById(id);
+          if (ref && PERMISSION_PRESET_ARIA_DESC_RE.test(ref.textContent || '')) {
+            return true;
+          }
+        }
+      }
+    }
+
     return false;
   }
 
@@ -215,6 +257,7 @@ function createContextRules() {
     isNewBadgeContext,
     isGroupByNoneContext,
     isThinkingNoneContext,
+    isPermissionPresetContext,
     shouldIgnoreElement,
     shouldIgnoreTextParent,
     shouldIgnoreAttrElement,

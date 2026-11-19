@@ -69,17 +69,38 @@ function createDynamicRules(helpers) {
   function translateScope(scope) {
     const nk = normalizeKey(scope);
     const map = {
-      'your plan': '您当前的套餐',
-      'your organization': '您的组织',
-      'enterprise accounts': '企业账户',
-      'google ai pro accounts': 'Google AI Pro 账户',
-      'google ai ultra accounts': 'Google AI Ultra 账户',
-      'google ai plus accounts': 'Google AI Plus 账户',
-      'antigravity business accounts': 'Antigravity Business 账户'
+      'your plan': '你当前的套餐',
+      'your organization': '你的组织',
+      'enterprise accounts': '企业账号',
+      'google ai pro accounts': 'Google AI Pro 账号',
+      'google ai ultra accounts': 'Google AI Ultra 账号',
+      'google ai plus accounts': 'Google AI Plus 账号',
+      'antigravity business accounts': 'Antigravity Business 账号'
     };
     const low = nk.toLowerCase();
     const res = map[low] || lookupExact(scope, nk) || scope;
     return prefixSpaceIfAscii(res);
+  }
+
+  function translateScheduleDay(raw) {
+    const clean = String(raw || '').trim();
+    const weekMap = {
+      monday: '星期一', mon: '周一',
+      tuesday: '星期二', tue: '周二', tues: '周二',
+      wednesday: '星期三', wed: '周三',
+      thursday: '星期四', thu: '周四', thur: '周四', thurs: '周四',
+      friday: '星期五', fri: '周五',
+      saturday: '星期六', sat: '周六',
+      sunday: '星期日', sun: '周日'
+    };
+    const low = clean.toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(weekMap, low)) return weekMap[low];
+    const ord = clean.match(/^(\d{1,2})(?:st|nd|rd|th)$/i);
+    if (ord) return `${ord[1]} 日`;
+    const monthMap = { jan: '1月', feb: '2月', mar: '3月', apr: '4月', may: '5月', jun: '6月', jul: '7月', aug: '8月', sep: '9月', oct: '10月', nov: '11月', dec: '12月' };
+    const md = clean.match(/^(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?$/i);
+    if (md) return `${monthMap[md[1].slice(0, 3).toLowerCase()] || md[1]}${md[2]}日`;
+    return clean;
   }
 
   function translateEntityNoun(word) {
@@ -97,6 +118,8 @@ function createDynamicRules(helpers) {
     if (low === 'agent' || low === 'agents') return '智能体';
     if (low === 'plugin' || low === 'plugins') return '插件';
     if (low === 'hook' || low === 'hooks') return '钩子';
+    if (low === 'artifact' || low === 'artifacts') return '产物';
+    if (low === 'sidecar' || low === 'sidecars') return '后台服务';
     return lookupExact(clean, normalizeKey(clean)) || clean;
   }
 
@@ -195,13 +218,13 @@ function createDynamicRules(helpers) {
         const modelZh = /^this model$/i.test(model.trim()) ? '此模型' : model.trim();
         return `发送消息还需要${needZh} AI 额度。如需立即继续使用 ${modelZh}，请购买更多 AI 额度。`;
       })
-      .replace(/Your plan's baseline quota will refresh on\s+(.+?)\./gi, (_, d) => `您当前方案的基础配额将于 ${d.trim()} 刷新。`)
+      .replace(/Your plan's baseline quota will refresh on\s+(.+?)\./gi, (_, d) => `你当前套餐的基础配额将于 ${d.trim()} 刷新。`)
       .replace(/To continue using this model now,\s*enable AI Credit overages\.?/gi, '如需立即继续使用此模型，请开启 AI 额度超额使用。')
-      .replace(/You can upgrade to a Google AI Ultra plan to receive higher rate limits\.?/gi, '您可以升级到 Google AI Ultra 方案以获取更高的请求速率上限。')
+      .replace(/You can upgrade to a Google AI Ultra plan to receive higher rate limits\.?/gi, '你可以升级到 Google AI Ultra 套餐以获取更高的请求速率上限。')
       .replace(/(?:If|If you(?:'re| are))\s+on a supported paid plan,\s*you can use AI credits in the interim(?:\s+or\s+upgrade to a higher tier)?\.?/gi, (m) =>
         /upgrade to a higher tier/i.test(m)
-          ? '如果您使用的是受支持的付费方案，在此期间可使用 AI 额度，或升级至更高级别方案。'
-          : '如果您使用的是受支持的付费方案，在此期间可使用 AI 额度。'
+          ? '如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级至更高级别套餐。'
+          : '如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度。'
       )
       .replace(/([。！？])\s+/g, '$1')
       .replace(/\s+/g, ' ')
@@ -218,20 +241,21 @@ function createDynamicRules(helpers) {
     // 文件变更、代码行统计、会话数、预算与工具计数
     [/^(\d+)\s+files?\s+changed$/i, '$1 个文件已更改'],
     [/^(\d+)\s+lines?\s+added,\s+(\d+)\s+lines?\s+removed$/i, '新增 $1 行，删除 $2 行'],
+    [/^(\d+)\s+active conversations?\s+and\s+(\d+)\s+archived conversations?\.?$/i, '$1 个活跃会话和 $2 个已归档会话'],
     [/^(\d+)\s+active conversations?\.?$/i, '$1 个活跃会话'],
     [/^(\d+)\s+archived conversations?\.?$/i, '$1 个已归档会话'],
     [/^(\d+)\s+pinned\s+conversations?$/i, '$1 个置顶会话'],
     [/^Marked\s+(\d+)\s+conversations?\s+as read$/i, '已将 $1 个会话标为已读'],
     [/^Sort and filter conversations\s*\((\d+)\s+active\)$/i, '排序与筛选会话（$1 个活跃）'],
-    [/^No more older messages,\s+showing\s+(\d+)\s+of\s+(\d+)$/i, '没有更早的消息了，当前显示 $1 / $2 条'],
+    [/^No more older messages,\s+showing\s+(\d+)\s+of\s+(\d+)$/i, '没有更早的消息，显示 $1 / $2 条'],
     [/^Showing first\s+(\d+)\s+references$/i, '仅显示前 $1 个引用'],
     [/^(\d+(?:\.\d+)?%?)\s+of the customization budget is available\.?$/i, '自定义配置预算剩余 $1 可用。'],
     [/^%\s+of the customization budget is available\.?$/i, '% 的自定义配置预算可用。'],
     [/^(\d+)\s+rules?\s+exceeded the rules budget and\s+(?:was|were)\s+demoted from full inline content to a file-path pointer\.$/i, '$1 条规则超出规则预算，已从完整内联内容降级为文件路径指针。'],
     [/^(\d+)\s+items?\s+in\s+(.+?)\s+exceeded the customization budget and\s+(?:was|were)\s+excluded from context\.$/i, '$2 中的 $1 项配置超出自定义预算，已从上下文中排除。'],
     [/^Exceeded the rules token budget\.\s+Full rule content\s+\(([\d,]+)\s+tokens?\)\s+was replaced with a lightweight file-path pointer in context\.$/i, '已超出规则 Token 预算。完整规则内容（$1 个 Token）已在上下文中替换为轻量级文件路径指针。'],
-    [/^All tools in this MCP server\s+\(([\d,]+)\s+tokens?\)\s+exceeded the customization budget and were excluded from context\.$/i, '此 MCP 服务器中的所有工具（$1 个 Token）已超出自定义配置预算并从上下文中排除。'],
-    [/^(\d+)\s+tools?\s+in this MCP server\s+\(([\d,]+)\s+tokens?\)\s+exceeded the customization budget and were excluded from context\.$/i, '此 MCP 服务器中的 $1 个工具（$2 个 Token）已超出自定义配置预算并从上下文中排除。'],
+    [/^All tools in this MCP server\s+\(([\d,]+)\s+tokens?\)\s+exceeded the customization budget and were excluded from context\.$/i, '此 MCP 服务中的所有工具（$1 个 Token）已超出自定义配置预算并从上下文中排除。'],
+    [/^(\d+)\s+tools?\s+in this MCP server\s+\(([\d,]+)\s+tokens?\)\s+exceeded the customization budget and were excluded from context\.$/i, '此 MCP 服务中的 $1 个工具（$2 个 Token）已超出自定义配置预算并从上下文中排除。'],
     [/^Exceeded the customization token budget\s+\(([\d,]+)\s+tokens?\)\s+and was excluded from context\.$/i, '已超出自定义配置 Token 预算（$1 个 Token）并从上下文中排除。'],
     [/^(\d+)\s+rules?\s+exceed(?:ed|s)?\s+(?:the\s+)?(?:rules\s+)?budget(.*)$/i, '有 $1 条规则超出了规则预算$2'],
     [/^(\d+)\s+rules?\s+(?:are\s+)?over\s+(?:the\s+)?(?:rules\s+)?budget(.*)$/i, '有 $1 条规则超出了预算$2'],
@@ -265,7 +289,7 @@ function createDynamicRules(helpers) {
     [/^Show\s+(\d+)\s+more\s+subagents?$/i, '显示另外 $1 个子智能体'],
     [/^Turn\s+(\d+)\s+of\s+(\d+)$/i, '第 $1 / $2 轮'],
     [/^Turn\s+(\d+)$/i, '第 $1 轮'],
-    [/^Side Question:\s*(.+)$/i, '衍生提问：$1'],
+    [/^Side Question:\s*(.+)$/i, '临时提问：$1'],
     [/^Open Subagent:\s*(.+)$/i, '打开子智能体：$1'],
     [/^Open conversation\s+(.+)$/i, '打开会话 $1'],
     [/^Moved conversation\s+(.+)$/i, '已移动会话 $1'],
@@ -290,7 +314,7 @@ function createDynamicRules(helpers) {
     [/^View Diff for\s+(.+)$/i, '查看 $1 的差异'],
     [/^Unfold lines\s+(.+)$/i, '展开第 $1 行'],
     [/^Waiting for command completion\s*\(up to\s+(\d+)\s+seconds\)$/i, '等待命令完成（最多 $1 秒）'],
-    [/^Waiting for your input:\s*(.+)$/i, '等待您的输入：$1'],
+    [/^Waiting for your input:\s*(.+)$/i, '等待你的输入：$1'],
     [/^Wants to run:\s*(.+)$/i, '请求运行：$1'],
     [/^Running:\s*(.+)$/i, '正在运行：$1'],
     [/^Ran command:\s*(.+)$/i, '已运行命令：$1'],
@@ -312,36 +336,36 @@ function createDynamicRules(helpers) {
     [/^Started voice chat\s*·\s*(.*)$/i, '已开始语音对话 · $1'],
     [/^Stopped voice chat\s*·\s*(.*)$/i, '已结束语音对话 · $1'],
 
-    // 配额、套餐、积分、隐私与引导文案
-    [/^Your quota for\s+(.+?)\s+has been reached\.\s+Switch to another available model to continue\.?(.*)$/i, (_, model, tail) => `您在 ${model} 的配额已用尽，请切换至其他可用模型以继续。${translateQuotaTail(tail)}`.trim()],
-    [/^Your quota for\s+(.+?)\s+will reset on\s+(.+?)\.\s+Switch to another available model to continue\.?(.*)$/i, (_, model, date, tail) => `您在 ${model} 的配额将于 ${date} 重置，请切换至其他可用模型以继续。${translateQuotaTail(tail)}`.trim()],
-    [/^You have used some of your\s+(weekly|monthly|daily|\d+-hour)\s+limit,\s*it will fully refresh in\s+(.+)$/i, (_, kind, d) => `您已使用部分${prefixSpaceIfAscii(translateLimitKind(kind))}，将在${prefixSpaceIfAscii(translateDuration(d))}后完全重置。`],
+    // 配额、套餐、额度、隐私与引导文案
+    [/^Your quota for\s+(.+?)\s+has been reached\.\s+Switch to another available model to continue\.?(.*)$/i, (_, model, tail) => `你在 ${model} 的配额已用尽，请切换至其他可用模型以继续。${translateQuotaTail(tail)}`.trim()],
+    [/^Your quota for\s+(.+?)\s+will reset on\s+(.+?)\.\s+Switch to another available model to continue\.?(.*)$/i, (_, model, date, tail) => `你在 ${model} 的配额将于 ${date} 重置，请切换至其他可用模型以继续。${translateQuotaTail(tail)}`.trim()],
+    [/^You have used some of your\s+(weekly|monthly|daily|\d+-hour)\s+limit,\s*it will fully refresh in\s+(.+)$/i, (_, kind, d) => `你已使用部分${prefixSpaceIfAscii(translateLimitKind(kind))}，将在${prefixSpaceIfAscii(translateDuration(d))}后完全重置。`],
     [/^You have hit your\s+(weekly|monthly|daily|\d+-hour)\s+limit,\s*(?:the|your)\s+(weekly|monthly|daily|\d+-hour)\s+limit\s+does not currently apply\.\s+(?:Your\s+(weekly|monthly|daily|\d+-hour)\s+limit|It)\s+(will\s+fully\s+refresh|will\s+refresh|refreshes)\s+in\s+(.+?)(?:\.(?:\s+(.*))?|$)/i, (_, hitKind, suppressedKind, refreshKind, verb, d, tail) => {
       const hitZh = prefixSpaceIfAscii(translateLimitKind(hitKind));
       const suppressedZh = prefixSpaceIfAscii(translateLimitKind(suppressedKind));
-      const refreshSubject = refreshKind ? `您的${prefixSpaceIfAscii(translateLimitKind(refreshKind))}` : '它';
+      const refreshSubject = refreshKind ? `你的${prefixSpaceIfAscii(translateLimitKind(refreshKind))}` : '它';
       const resetVerb = /fully/i.test(verb) ? '完全重置' : '重置';
-      return `您已达到${hitZh}上限，当前不适用${suppressedZh}限制。${refreshSubject}将在${prefixSpaceIfAscii(translateDuration(d))}后${resetVerb}。${translateQuotaTail(tail)}`.trim();
+      return `你已达到${hitZh}上限，当前不适用${suppressedZh}限制。${refreshSubject}将在${prefixSpaceIfAscii(translateDuration(d))}后${resetVerb}。${translateQuotaTail(tail)}`.trim();
     }],
     [/^You have hit your\s+(weekly|monthly|daily|\d+-hour)\s+limit,\s*it\s+(will\s+fully\s+refresh|will\s+refresh|refreshes)\s+in\s+(.+?)(?:\.(?:\s+(.*))?|$)/i, (_, kind, verb, d, tail) => {
       const kindZh = prefixSpaceIfAscii(translateLimitKind(kind));
       const resetVerb = /fully/i.test(verb) ? '完全重置' : '重置';
-      return `您已达到${kindZh}上限，将在${prefixSpaceIfAscii(translateDuration(d))}后${resetVerb}。${translateQuotaTail(tail)}`.trim();
+      return `你已达到${kindZh}上限，将在${prefixSpaceIfAscii(translateDuration(d))}后${resetVerb}。${translateQuotaTail(tail)}`.trim();
     }],
-    [/^You have hit your\s+(weekly|monthly|daily|\d+-hour)\s+limit(?:\.(?:\s+(.*))?|$)/i, (_, kind, tail) => `您已达到${prefixSpaceIfAscii(translateLimitKind(kind))}上限。${translateQuotaTail(tail)}`.trim()],
+    [/^You have hit your\s+(weekly|monthly|daily|\d+-hour)\s+limit(?:\.(?:\s+(.*))?|$)/i, (_, kind, tail) => `你已达到${prefixSpaceIfAscii(translateLimitKind(kind))}上限。${translateQuotaTail(tail)}`.trim()],
     [/^(.+?)\s+(Weekly|Daily|Monthly|(\d+)-hour)\s+Limit(?:\s+Remaining)?$/i, (_, model, kind, hours) => {
       const low = kind.toLowerCase();
-      const suffix = low === 'weekly' ? '每周限额'
-        : low === 'daily' ? '每日限额'
-        : low === 'monthly' ? '每月限额'
-        : `${hours} 小时限额`;
+      const suffix = low === 'weekly' ? '每周配额'
+        : low === 'daily' ? '每日配额'
+        : low === 'monthly' ? '每月配额'
+        : `${hours} 小时配额`;
       return `${model.trim()} ${suffix}`;
     }],
-    [/^(\d+)\s*([smhd])\s+limit$/i, (_, n, u) => `${n} ${({ s: '秒', m: '分钟', h: '小时', d: '天' }[u.toLowerCase()] || u)}限额`],
+    [/^(\d+)\s*([smhd])\s+limit$/i, (_, n, u) => `${n} ${({ s: '秒', m: '分钟', h: '小时', d: '天' }[u.toLowerCase()] || u)}配额`],
     [/^(?:(Daily|Weekly)|(\d+)\s*([smhd]))\s+limit,\s*resets in\s+(.+)$/i, (_, kind, n, u, d) => {
       const limitLabel = kind
-        ? (kind.toLowerCase() === 'daily' ? '每日限额' : '每周限额')
-        : `${n} ${({ s: '秒', m: '分钟', h: '小时', d: '天' }[u.toLowerCase()] || u)}限额`;
+        ? (kind.toLowerCase() === 'daily' ? '每日配额' : '每周配额')
+        : `${n} ${({ s: '秒', m: '分钟', h: '小时', d: '天' }[u.toLowerCase()] || u)}配额`;
       const timeText = /^<\s*1\s*m$/i.test(d.trim()) ? '1 分钟内' : `${translateDuration(d)} 后`;
       return `${limitLabel}，将在 ${timeText}重置`;
     }],
@@ -375,23 +399,28 @@ function createDynamicRules(helpers) {
     [/^Your plan's baseline quota will refresh on\s+.*$/i, (match) => translateQuotaTextParts(match)],
     [/^(?:If|If you(?:'re| are))\s+on a supported paid plan,\s*you can use AI credits in the interim(?:\s+or\s+upgrade to a higher tier)?\.?$/i, (match) => translateQuotaTextParts(match)],
     [/^When toggled on,\s+(.+?)\s+collects usage data to help Google enhance performance and features\.?$/i, '开启后，$1 会收集使用数据以帮助 Google 改进性能和功能。'],
-    [/^When toggled on,\s+(.+?)\s+will use your AI credits to fulfill model requests once you're out of model quota\.\s+(.+?)\s+will always use your model quota first before using AI credits\.?$/i, '开启后，当模型配额用尽时，$1 将使用您的 AI 积分来完成模型请求。$2 会始终优先使用您的模型配额。'],
+    [/^When toggled on,\s+(.+?)\s+will use your AI credits to fulfill model requests once you're out of model quota\.\s+(.+?)\s+will always use your model quota first before using AI credits\.?$/i, '开启后，当模型配额用尽时，$1 将使用你的 AI 额度来完成模型请求。$2 会始终优先使用你的模型配额。'],
     [/^Receive product updates,\s*tips,\s*and promotions from Google\s+(.+?)\s+via email\.?$/i, '通过电子邮件接收来自 Google $1 的产品更新、使用技巧和优惠活动。'],
     [/^Welcome back,\s+(.+?)\.\s+Where should we pick up\?$/i, '欢迎回来，$1。我们从哪里继续？'],
     [/^Welcome back,\s+(.+?)(?:!|\.)?$/i, '欢迎回来，$1！'],
+    [/^Good to see you,\s+(.+?)\.\s+What's next\?$/i, '很高兴见到你，$1。接下来要做什么？'],
     [/^Good to see you,\s+(.+?)(?:!|\.)?$/i, '很高兴见到你，$1！'],
-    [/^Hey\s+(.+?),\s+what should we build today\?$/i, '嗨 $1，今天我们要构建什么？'],
+    [/^Hey\s+(.+?),\s+what should we build today\?$/i, '嗨 $1，今天想做点什么？'],
     [/^Help us improve\s+(.+?)\.?$/i, '帮助我们改进 $1。'],
     [/^Build with\s+(.+?)\s+Plugins$/i, '使用 $1 插件构建'],
     [/^Choose\s+(.+?)'s Voice$/i, '选择 $1 的语音音色'],
     [/^Release channel:\s*(.+)$/i, '发布渠道：$1'],
     [/^Send feedback as\s+(.+)$/i, '以 $1 的身份发送反馈'],
     [/^Learn more about\s+(.+)$/i, '了解更多关于 $1'],
-    [/^By using this app,\s+you agree to its\s+(.+)$/i, '使用此应用即表示您同意其 $1'],
+    [/^By using this app,\s+you agree to its\s+(.+)$/i, '使用此应用即表示你同意其 $1'],
     [/^Select model with\s+(.+)$/i, '使用 $1 选择模型'],
 
     // 项目管理与权限规则
-    [/^Manage\s+(.+?)\s+(?:resources|folders),\s*agent settings,\s*and permissions\.?$/i, '管理 $1 文件夹、智能体设置及权限。'],
+    [/^Manage\s+(.+?)\s+(resources|folders),\s*agent settings,\s*and permissions\.?$/i, (_, target, noun) => {
+      const targetZh = translateEntityNoun(target);
+      const nounZh = noun.toLowerCase() === 'resources' ? '资源' : '文件夹';
+      return `${joinZhSegment('管理', targetZh, '')}${nounZh}、智能体设置及权限。`;
+    }],
     [/^Manage\s+(.+?)\s+(?:resources|folders)\s+and settings\.?$/i, '管理 $1 与设置。'],
     [/^Manage\s+(.+?)\s+app settings\.?$/i, '管理 $1 应用设置。'],
     [/^Settings for conversations outside of\s+(.+?)\.?$/i, '在 $1 之外创建的独立会话设置。'],
@@ -400,17 +429,17 @@ function createDynamicRules(helpers) {
     [/^Permanently delete\s+(.+?)\.?$/i, '永久删除 $1。'],
     [/^Reset\s+(\d+)\s+overrides?\.?$/i, '重置 $1 项覆盖设置'],
     [/^Reset\s+(.+?)\s+to default$/i, '将 $1 重置为默认'],
-    [/^Yes,\s*(?:and\s*)?(?:always allow|始终允许)\s*'(.*)'\s*in this conversation$/i, '是的，并在此会话中始终允许“$1”'],
-    [/^Yes,\s*(?:and\s*)?(?:always allow|始终允许)\s*'(.*)'\s*in this project$/i, '是的，并在此项目中始终允许“$1”'],
-    [/^Yes,\s*(?:and\s*)?(?:always allow|始终允许)\s*'(.*)'$/i, '是的，并始终允许“$1”'],
-    [/^Yes,\s*save rule for\s*'(.*)'\s*globally$/i, '是的，全局保存“$1”的规则'],
-    [/^Yes,\s*save rule for\s*'(.*)'\s*in this conversation$/i, '是的，并在此会话中保存规则“$1”'],
-    [/^Yes,\s*save rule for\s*'(.*)'\s*in this project$/i, '是的，并在此项目中保存规则“$1”'],
-    [/^Yes,\s*allow\s+(.+?)\s+in this conversation$/i, '是的，在此会话中允许 $1'],
-    [/^Yes,\s*allow downloads from\s+(.+?)\s+for this run$/i, '是的，本次运行中允许来自 $1 的下载'],
-    [/^Yes,\s*allow downloads from\s+(.+?)\s+in this conversation$/i, '是的，在此会话中允许来自 $1 的下载'],
-    [/^Yes,\s*always allow downloads from\s+(.+)$/i, '是的，始终允许来自 $1 的下载'],
-    [/^Yes,\s*always allow\s+(.+)$/i, '是的，始终允许 $1'],
+    [/^Yes,\s*(?:and\s*)?(?:always allow|始终允许)\s*'(.*)'\s*in this conversation$/i, '是，在此会话中始终允许“$1”'],
+    [/^Yes,\s*(?:and\s*)?(?:always allow|始终允许)\s*'(.*)'\s*in this project$/i, '是，在此项目中始终允许“$1”'],
+    [/^Yes,\s*(?:and\s*)?(?:always allow|始终允许)\s*'(.*)'$/i, '是，始终允许“$1”'],
+    [/^Yes,\s*save rule for\s*'(.*)'\s*globally$/i, '是，全局保存“$1”的规则'],
+    [/^Yes,\s*save rule for\s*'(.*)'\s*in this conversation$/i, '是，在此会话中保存规则“$1”'],
+    [/^Yes,\s*save rule for\s*'(.*)'\s*in this project$/i, '是，在此项目中保存规则“$1”'],
+    [/^Yes,\s*allow\s+(.+?)\s+in this conversation$/i, '是，在此会话中允许 $1'],
+    [/^Yes,\s*allow downloads from\s+(.+?)\s+for this run$/i, '是，本次运行允许来自 $1 的下载'],
+    [/^Yes,\s*allow downloads from\s+(.+?)\s+in this conversation$/i, '是，在此会话中允许来自 $1 的下载'],
+    [/^Yes,\s*always allow downloads from\s+(.+)$/i, '是，始终允许来自 $1 的下载'],
+    [/^Yes,\s*always allow\s+(.+)$/i, '是，始终允许 $1'],
     [/^Save rule to always allow\s+(.+?)\?$/i, (_, t) => `是否保存规则以始终允许${prefixSpaceIfAscii(translatePermissionTarget(t))}？`],
     [/^Allow\s+(.+?)\?$/i, (_, t) => `是否允许${prefixSpaceIfAscii(translatePermissionTarget(t))}？`],
     [/^Review permissions for\s+(.+)$/i, '查看 $1 的权限'],
@@ -432,11 +461,11 @@ function createDynamicRules(helpers) {
     [/^New secret for\s+(.+)$/i, '$1 的新密钥'],
     [/^Secret for\s+(.+)$/i, '$1 的密钥'],
     [/^Make\s+(.+?)\s+the default\s+(.+?)\s+account$/i, '将 $1 设为默认 $2 账号'],
-    [/^MCP server\s+(.+?)\s+requires authentication:\s*sign in to "(.+?)" in the Accounts section of plugin "(.+?)"$/i, 'MCP 服务器 $1 需要身份验证：请在插件“$3”的账号部分登录“$2”'],
-    [/^MCP server\s+(.+?)\s+requires authentication$/i, 'MCP 服务器 $1 需要身份验证'],
-    [/^The\s+(.+?)\s+MCP server requires configuration parameters before it can be started\.?$/i, '$1 MCP 服务器需要先配置参数才能启动。'],
-    [/^The MCP server "(.+?)"(?:\s+from plugin "(.+?)")?\s+failed to start\.?$/i, 'MCP 服务器“$1”启动失败。'],
-    [/^Server "(.+?)" not found in config$/i, '配置中未找到服务器“$1”'],
+    [/^MCP server\s+(.+?)\s+requires authentication:\s*sign in to "(.+?)" in the Accounts section of plugin "(.+?)"$/i, 'MCP 服务 $1 需要身份验证：请在插件“$3”的账号部分登录“$2”'],
+    [/^MCP server\s+(.+?)\s+requires authentication$/i, 'MCP 服务 $1 需要身份验证'],
+    [/^The\s+(.+?)\s+MCP server requires configuration parameters before it can be started\.?$/i, '$1 MCP 服务需要先配置参数才能启动。'],
+    [/^The MCP server "(.+?)"(?:\s+from plugin "(.+?)")?\s+failed to start\.?$/i, (_, srv, plugin) => plugin ? `插件“${plugin}”中的 MCP 服务“${srv}”启动失败。` : `MCP 服务“${srv}”启动失败。`],
+    [/^Server "(.+?)" not found in config$/i, '配置中未找到服务“$1”'],
     [/^MCP error\s+([^:]+):\s*(.+)$/i, 'MCP 错误 $1：$2'],
     [/^More actions for\s+(.+)$/i, '$1 的更多操作'],
     [/^More for\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `更多：${translateTargetOrKeep(t)}` : m],
@@ -445,16 +474,16 @@ function createDynamicRules(helpers) {
     [/^Opens external link:\s*(.+)$/i, '打开外部链接：$1'],
     [/^Open\s+([^\s]+)\s+link\?$/i, '打开 $1 链接？'],
     [/^Daily at\s+(.+)$/i, '每天 $1'],
-    [/^Weekly on\s+(.+?)\s+at\s+(.+)$/i, '每周 $1 $2'],
-    [/^Monthly on the\s+(.+?)\s+at\s+(.+)$/i, '每月 $1 $2'],
+    [/^Weekly on\s+(.+?)\s+at\s+(.+)$/i, (_, day, time) => `每周${translateScheduleDay(day).replace(/^星期/, '')} ${time}`],
+    [/^Monthly on the\s+(.+?)\s+at\s+(.+)$/i, (_, day, time) => `每月 ${translateScheduleDay(day)} ${time}`],
     [/^Every\s+(\d+)\s+minutes?$/i, '每 $1 分钟'],
     [/^Every\s+(\d+)\s+hours?$/i, '每 $1 小时'],
     [/^Next run\s+today\s+around\s+(.+)$/i, '下次运行：今天约 $1'],
     [/^Next run\s+tomorrow\s+around\s+(.+)$/i, '下次运行：明天约 $1'],
-    [/^Next run\s+on\s+(.+?)\s+around\s+(.+)$/i, '下次运行：$1 约 $2'],
+    [/^Next run\s+on\s+(.+?)\s+around\s+(.+)$/i, (_, day, time) => `下次运行：${translateScheduleDay(day)} 约 ${time}`],
 
     // PDF、媒体与表单校验
-    [/^Zoom\s+(\d+)%,\s*reset to fit$/i, '缩放 $1%，点击重置为适应页面'],
+    [/^Zoom\s+(\d+)%,\s*reset to fit$/i, '缩放 $1%，点击适应页面'],
     [/^Playback speed\s+(.+)$/i, '播放速度 $1'],
     [/^Page\s+(\d+)\s+failed to load$/i, '第 $1 页加载失败'],
     [/^Multiple markers near page\s+(\d+)$/i, '第 $1 页附近有多个标记'],
@@ -478,30 +507,30 @@ function createDynamicRules(helpers) {
     [/^Low contrast ratio\s*\((.+?)\)\.\s+Text may be hard to read\.?$/i, '对比度过低 ($1)，文字可能难以辨认。'],
 
     // 设置页与模态框动态词条
-    [/^Available AI Credits:\s*(.+)$/i, '可用 AI 积分：$1'],
+    [/^Available AI Credits:\s*(.+)$/i, '可用 AI 额度：$1'],
     [/^Your Plan:\s*(.+)$/i, (_, plan) => `当前套餐：${lookupExact(plan, normalizeKey(plan)) || plan}`],
-    [/^For\s+(.+?),\s+telemetry is force disabled\.$/i, (_, s) => `对于${translateScope(s)}，已强制禁用遥测。`],
+    [/^For\s+(.+?),\s+telemetry is force disabled\.$/i, (_, s) => `${translateScope(s).trim()}已强制禁用遥测。`],
     [/^(?:(.+?)\s+)?For\s+(.+?),\s+this setting is disabled\.\s+This means\s+(.+?)\s+does not collect any of your prompts,\s+content,\s+or model responses,\s+but will still collect general usage patterns\s+\(e\.g\.,\s+feature adoption,\s+active user counts\)\.?$/i, (_, prefix, s, prod) => {
       const p = prefix ? `${lookupExact(prefix.trim(), normalizeKey(prefix.trim())) || prefix.trim()}\n\n` : '';
-      return `${p}对于${translateScope(s)}，此设置已禁用。这意味着 ${prod} 不会收集您的任何提示词、内容或模型回复，但仍会收集常规使用模式（例如功能采用率和活跃用户数）。`;
+      return `${p}${translateScope(s).trim()}已禁用此设置。这意味着 ${prod} 不会收集你的任何提示词、内容或模型回复，但仍会收集常规使用模式（例如功能采用率和活跃用户数）。`;
     }],
-    [/^For\s+(.+?),\s+this setting is disabled\.$/i, (_, s) => `对于${translateScope(s)}，此设置已禁用。`],
+    [/^For\s+(.+?),\s+this setting is disabled\.$/i, (_, s) => `${translateScope(s).trim()}已禁用此设置。`],
     [/^(\d+)\s+demoted$/i, '$1 项已降级'],
     [/^(\d+)\s+excluded$/i, '$1 项已排除'],
     [/^(\d+)\s+tools?\s+excluded$/i, '已排除 $1 个工具'],
     [/^(?:\(([\d,]+)\s+tokens?\)|([\d,]+)\s+tokens?)$/i, (_, pNum, rawNum) => pNum ? `（${pNum} 个 Token）` : `${rawNum} 个 Token`],
-    [/^No MCP servers found for\s+"(.+?)"$/i, '未找到与“$1”匹配的 MCP 服务器'],
-    [/^Give each Best of N fork a full clone of your workspace, including its local commit history\. Choosing a winner then gives your workspace that fork's state, so the commits it made are kept\. Forks take longer to create than the default CitC clone\.(?:\s+See\s+(.+?)\.)?$/i, (_, url) => `为每个 Best of N 分支提供工作区的完整克隆（包含本地提交历史）。选定胜出方案后，您的工作区将应用该分支的状态，从而保留其创建的提交。创建分支所需时间会比默认 CitC 克隆更长。${url ? `请参阅 ${url}。` : ''}`],
-    [/^Give each Best of N fork its own clone of your Git repository instead of a copy-on-write overlay\. Each fork is then a real repository, so commits it makes are kept when you choose it as the winner\. Forks take longer to create, and the wait grows with the size of your repository\.(?:\s+See\s+(.+?)\.)?$/i, (_, url) => `为每个 Best of N 分支提供独立的 Git 仓库克隆，而非写时复制叠加层。每个分支都是一个真实的仓库，因此您选择它作为胜出方案时会保留其创建的提交。分支创建耗时更长，且等待时间随仓库规模增大而增加。${url ? `请参阅 ${url}。` : ''}`],
+    [/^No MCP servers found for\s+"(.+?)"$/i, '未找到与“$1”匹配的 MCP 服务'],
+    [/^Give each Best of N fork a full clone of your workspace, including its local commit history\. Choosing a winner then gives your workspace that fork's state, so the commits it made are kept\. Forks take longer to create than the default CitC clone\.(?:\s+See\s+(.+?)\.)?$/i, (_, url) => `为每个 Best of N 分支提供工作区的完整克隆（包含本地提交历史）。选定胜出方案后，你的工作区将应用该分支的状态，从而保留其创建的提交。创建分支所需时间会比默认 CitC 克隆更长。${url ? `请参阅 ${url}。` : ''}`],
+    [/^Give each Best of N fork its own clone of your Git repository instead of a copy-on-write overlay\. Each fork is then a real repository, so commits it makes are kept when you choose it as the winner\. Forks take longer to create, and the wait grows with the size of your repository\.(?:\s+See\s+(.+?)\.)?$/i, (_, url) => `为每个 Best of N 分支提供独立的 Git 仓库克隆，而非写时复制叠加层。每个分支都是一个真实的仓库，因此你选择它作为胜出方案时会保留其创建的提交。分支创建耗时更长，且等待时间随仓库规模增大而增加。${url ? `请参阅 ${url}。` : ''}`],
     [/^(.+?)\s+\(Experimental\)$/i, (_, label) => `${lookupExact(label, normalizeKey(label)) || label}（实验性）`],
     [/^(\d+)\s+calls?\s*·\s*(.+)$/i, '$1 次通话 · $2'],
-    [/^This deletes\s+(\d+)\s+call recordings?\s+\((.+?)\)\s+from your machine\.\s+You can't undo this\.$/i, '此操作将从您的设备上删除 $1 条通话录音（$2），且无法撤销。'],
+    [/^This deletes\s+(\d+)\s+call recordings?\s+\((.+?)\)\s+from your machine\.\s+You can't undo this\.$/i, '此操作将从你的设备上删除 $1 条通话录音（$2），且无法撤销。'],
     [/^Deleted\s+(\d+)\s+recordings?\s+\((.+?)\)$/i, '已删除 $1 条录音（$2）'],
     [/^Failed to delete recordings:\s*(.+)$/i, '删除录音失败：$1'],
     [/^Conflicts with "(.+?)"\s*\(press Enter to replace\)$/i, '与“$1”冲突（按 Enter 替换）'],
     [/^Conflict:\s+also assigned to\s+(.+)$/i, '冲突：也已分配给 $1'],
     [/^Add shortcut for\s+(.+)$/i, '为 $1 添加快捷键'],
-    [/^Conflicts with your configured Ask permission:\s*(.+)$/i, '与您配置的询问权限冲突：$1'],
+    [/^Conflicts with your configured Ask permission:\s*(.+)$/i, '与你配置的询问权限冲突：$1'],
     [/^Requires manual confirmation:\s*(.+)$/i, '需要手动确认：$1'],
     [/^(\d+)\s+selected$/i, '$1 项已选'],
     [/^Select all in\s+(.+)$/i, '全选 $1 中的项目'],
@@ -529,7 +558,7 @@ function createDynamicRules(helpers) {
     [/^(.+?)\s+\(you\)\s*·\s*(.+)$/i, '$1（你）· $2'],
     [/^(\d+)\s+messages?$/i, '$1 条消息'],
     [/^(\d+)\s+unread$/i, '$1 条未读'],
-    [/^(\d+)\s+working$/i, '$1 个工作中'],
+    [/^(\d+)\s+working$/i, '$1 个运行中'],
     [/^(\d+)\s+waiting$/i, '$1 个等待中'],
     [/^(\d+)\s+stopped$/i, '$1 个已停止'],
     [/^(\d+)\s+killed$/i, '$1 个已终止'],
@@ -593,9 +622,9 @@ function createDynamicRules(helpers) {
     [/^(\d+)\s+tools$/i, '$1 个工具'],
     [/^\+(\d+)\s+attachments?$/i, '+$1 个附件'],
     [/^(\d+)\s+attachment\(s\)$/i, '$1 个附件'],
-    [/^(\d+)\s+Files?\s+With\s+Changes$/i, '$1 个有更改的文件'],
+    [/^(\d+)\s+Files?\s+With\s+Changes$/i, '$1 个已更改文件'],
     [/^Voice speed,\s*(.+)$/i, '语音倍速：$1'],
-    [/^(?:Live chat|Voice mode),\s*(.+)$/i, (_, status) => `语音通话：${lookupExact(status.trim(), normalizeKey(status.trim())) || status.trim()}`],
+    [/^(Live chat|Voice mode),\s*(.+)$/i, (_, mode, status) => `${mode.toLowerCase() === 'live chat' ? '实时语音' : '语音模式'}：${lookupExact(status.trim(), normalizeKey(status.trim())) || status.trim()}`],
     [/^Unmute\s+(.+)$/i, (_, target) => `取消静音 ${lookupExact(target.trim(), normalizeKey(target.trim())) || target.trim()}`],
     [/^Mute\s+(.+)$/i, (_, target) => `静音 ${lookupExact(target.trim(), normalizeKey(target.trim())) || target.trim()}`],
     [/^(?:Send|Queue)\s+Message\s+(Enter|\u23ce)$/i, (m, k) => /^send/i.test(m) ? `发送消息 (${k})` : `排队发送消息 (${k})`],
@@ -607,7 +636,7 @@ function createDynamicRules(helpers) {
     [/^Environment:\s*(.+)$/i, '环境：$1'],
     [/^Select Environment\s*\((.+)\)$/i, '选择环境 ($1)'],
     [/^Select project,\s*current:\s*(.+)$/i, '选择项目，当前：$1'],
-    [/^(\d+)\s+MCP servers? failed to start$/i, '$1 个 MCP 服务器启动失败'],
+    [/^(\d+)\s+MCP servers? failed to start$/i, '$1 个 MCP 服务启动失败'],
     [/^(Disable|Enable)\s+(.+?)\s+tool for\s+(.+)$/i, (_, act, tool, target) => `为 ${target} ${act.toLowerCase() === 'disable' ? '禁用' : '启用'} ${tool} 工具`],
     [/^Open\s+(.+?)\s+skill$/i, '打开 $1 技能'],
     [/^Run\s+(.+?)\s+now$/i, '立即运行 $1'],
@@ -617,7 +646,7 @@ function createDynamicRules(helpers) {
     [/^Resume\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `恢复 ${translateTargetOrKeep(t)}` : m],
     [/^Restart\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `重启 ${translateTargetOrKeep(t)}` : m],
     [/^Install\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `安装 ${translateTargetOrKeep(t)}` : m],
-    [/^Disconnect\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `断开连接 ${translateTargetOrKeep(t)}` : m],
+    [/^Disconnect\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `断开与 ${translateTargetOrKeep(t)} 的连接` : m],
     [/^Close\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `关闭 ${translateTargetOrKeep(t)}` : m],
     [/^Unpin\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `取消置顶 ${translateTargetOrKeep(t)}` : m],
     [/^Remove\s+(.+?)\s+from Recent$/i, '从最近记录中移除 $1'],
@@ -629,19 +658,19 @@ function createDynamicRules(helpers) {
     [/^Show\s+(.+?)\s+in the list again$/i, '重新在列表中显示 $1'],
     [/^Remove\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `移除 ${translateTargetOrKeep(t)}` : m],
     [/^Copy\s+(.+)$/i, (m, t) => isSafeDynamicTarget(t) ? `复制 ${translateTargetOrKeep(t)}` : m],
-    [/^View\s+(\d+)\s+help(?:\s+items?)?\s+and\s+(\d+)\s+side questions?$/i, '查看 $1 项帮助与 $2 个旁路提问'],
+    [/^View\s+(\d+)\s+help(?:\s+items?)?\s+and\s+(\d+)\s+side questions?$/i, '查看 $1 项帮助与 $2 个临时提问'],
     [/^View\s+(\d+)\s+help(?:\s+items?)?$/i, '查看 $1 项帮助'],
-    [/^View\s+(\d+)\s+side questions?$/i, '查看 $1 个旁路提问'],
-    [/^(\d+)\s+Help\s*·\s*(\d+)\s+Side Questions?$/i, '$1 项帮助 · $2 个旁路提问'],
+    [/^View\s+(\d+)\s+side questions?$/i, '查看 $1 个临时提问'],
+    [/^(\d+)\s+Help\s*·\s*(\d+)\s+Side Questions?$/i, '$1 项帮助 · $2 个临时提问'],
     [/^(\d+)\s+Help$/i, '$1 项帮助'],
-    [/^(\d+)\s+Side Questions?$/i, '$1 个旁路提问'],
+    [/^(\d+)\s+Side Questions?$/i, '$1 个临时提问'],
     [/^Question\s+(\d+)\s+of\s+(\d+)$/i, '第 $1 / $2 个问题'],
     [/^Edit:\s*(.+)$/i, '编辑：$1'],
     [/^Delete:\s*(.+)$/i, '删除：$1'],
     [/^Send now:\s*(.+)$/i, '立即发送：$1'],
     [/^Models within this group:\s*(.+)$/i, '此分组包含的模型：$1'],
-    [/^Forked from\s+"(.+?)"$/i, '派生自“$1”'],
-    [/^Forked from\s+(.+)$/i, '派生自 $1'],
+    [/^Forked from\s+"(.+?)"$/i, '分支自“$1”'],
+    [/^Forked from\s+(.+)$/i, '分支自 $1'],
     [/^(\d+)\s+tasks?\s+running$/i, '$1 个任务运行中'],
     [/^Updated\s+(.+)$/i, (m, rest) => {
       const t = String(rest).trim();
@@ -677,20 +706,20 @@ function createDynamicRules(helpers) {
     [/^Approved\s*\u00b7\s*Code-Review\s*\+(\d+)$/i, '已批准 · 代码评审 +$1'],
 
     // 模型标签说明 (i) 动态模板
-    [/^(.+?)\s+that may offload routine steps to\s+(.+?)\.\s*Same\s+(.+?)-level quality,\s*fewer tokens used\.?$/i, '可将常规步骤分流给 $2 执行的 $1 模式。同等 $3 级质量，消耗更少 Token。'],
+    [/^(.+?)\s+that may offload routine steps to\s+(.+?)\.\s*Same\s+(.+?)-level quality,\s*fewer tokens used\.?$/i, '$1，可将常规步骤分流至 $2。同等 $3 级质量，消耗更少 Token。'],
     [/^(.+?)\s+will be removed from\s+Antigravity\s+on\s+([A-Z][a-z]+)\s+(\d{1,2}),\s*(\d{4})\.?$/i, (_, model, month, day, year) => {
       const mMap = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12, jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
       const mNum = mMap[month.toLowerCase()];
-      const dateStr = mNum ? `${year} 年 ${mNum} 月 ${day} 日` : `${month} ${day}, ${year}`;
+      const dateStr = mNum ? `${year}年${mNum}月${day}日` : `${month} ${day}, ${year}`;
       return `${model} 将于 ${dateStr}从 Antigravity 中移除。`;
     }],
     [/^(.+?)\s+will be removed from\s+Antigravity\s+on\s+(.+?)\.?$/i, '$1 将于 $2 从 Antigravity 中移除。'],
-    [/^(.+?)\s+is currently available to\s+(.+?)\s+plan subscribers\.?$/i, '$1 目前仅面向 $2 方案订阅用户开放。'],
+    [/^(.+?)\s+is currently available to\s+(.+?)\s+plan subscribers\.?$/i, '$1 目前仅面向 $2 套餐订阅用户开放。'],
     [/^(.+?)\s+is currently only available to\s+(.+?)\.?$/i, '$1 目前仅面向 $2 开放。'],
 
     // 云端资源接入、Notebook 与草稿计数动态模板
     [/^Add\s+(.+?)\s+resources$/i, '添加 $1 资源'],
-    [/^Connect your account to browse\s+(.+?)\.?$/i, '连接您的账号以浏览 $1。'],
+    [/^Connect your account to browse\s+(.+?)\.?$/i, '连接你的账号以浏览 $1。'],
     [/^A project's private resources must all belong to one owner \(([^)]+)\)\.?$/i, '同一项目中的私有资源必须全部归属于同一所有者 ($1)。'],
     [/^(Failed to execute|Executing|Executed)\s+notebook(?:\s+cells)?$/i, (m, act) => {
       const cells = /cells$/i.test(m) ? '单元格' : '';

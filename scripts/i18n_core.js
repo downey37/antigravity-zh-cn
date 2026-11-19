@@ -219,9 +219,18 @@ function _getAntigravityI18nCode() {
     console.warn(' [警告] utils.js 注入钩子未命中，请检查官方代码是否变更！');
   }
 
-  // 2. 注入 menu.js (系统菜单栏递归翻译 + 异步 WSL 菜单兼容)
+  // 2. 注入 menu.js (系统菜单栏递归翻译 + 异步 WSL 菜单兼容 + 已打补丁增量升级)
   if (patchFile(tempDir, 'dist/menu.js', (code) => {
-    if (code.includes('MENU_I18N')) return code;
+    if (code.includes('MENU_I18N')) {
+      return applyPairs(code, [
+        [/'Toggle Full Screen':\s*'全屏模式'/g, "'Toggle Full Screen': '切换全屏'"],
+        [/'Toggle Fullscreen':\s*'全屏模式'/g, "'Toggle Fullscreen': '切换全屏'"],
+        [/'Zoom':\s*'最大化\/缩放'/g, "'Zoom': '缩放'"],
+        [/'Docs':\s*'文档指南'/g, "'Docs': '文档'"],
+        [/'Update Available':\s*'发现可用更新'/g, "'Update Available': '有可用更新'"],
+        [/label:\s*'文档指南'/g, "label: '文档'"]
+      ]);
+    }
     const menuHook = `
 const MENU_I18N = {
     'File': '文件', 'Edit': '编辑', 'View': '视图', 'Window': '窗口', 'Help': '帮助',
@@ -229,13 +238,13 @@ const MENU_I18N = {
     'Cut': '剪切', 'Copy': '复制', 'Paste': '粘贴', 'Paste and Match Style': '粘贴并匹配样式',
     'Delete': '删除', 'Select All': '全选', 'Reload': '重新加载', 'Force Reload': '强制重新加载',
     'Toggle Developer Tools': '开发者工具', 'Actual Size': '实际大小', 'Reset Zoom': '重置缩放',
-    'Zoom In': '放大', 'Zoom Out': '缩小', 'Toggle Full Screen': '全屏模式', 'Toggle Fullscreen': '全屏模式',
+    'Zoom In': '放大', 'Zoom Out': '缩小', 'Toggle Full Screen': '切换全屏', 'Toggle Fullscreen': '切换全屏',
     'Minimize': '最小化', 'Maximize': '最大化', 'Unmaximize': '还原窗口', 'Toggle Maximize': '最大化/还原',
-    'Zoom': '最大化/缩放', 'Front': '前置全部窗口', 'Bring All to Front': '前置全部窗口',
-    'Docs': '文档指南', 'Connect to WSL': '连接到 WSL', 'Reopen Locally': '在本地重新打开',
+    'Zoom': '缩放', 'Front': '前置全部窗口', 'Bring All to Front': '前置全部窗口',
+    'Docs': '文档', 'Connect to WSL': '连接到 WSL', 'Reopen Locally': '在本地重新打开',
     'About Antigravity': '关于 Antigravity', 'Check for Updates': '检查更新',
     'Check for Updates...': '检查更新...', 'Checking for Updates...': '正在检查更新...',
-    'Update Available': '发现可用更新', 'Downloading Update...': '正在下载更新...',
+    'Update Available': '有可用更新', 'Downloading Update...': '正在下载更新...',
     'Restart to Update': '重启以更新', 'Update Ready to Install': '更新已就绪',
     'Services': '服务', 'Hide Antigravity': '隐藏 Antigravity',
     'Hide Others': '隐藏其他', 'Show All': '显示全部', 'Quit Antigravity': '退出 Antigravity', 'Quit': '退出'
@@ -251,7 +260,7 @@ function translateMenuRecursively(menu) {
     return applyPairs(code, [
       [/(exports\.setupApplicationMenu\s*=\s*setupApplicationMenu;)/, `$1\n${menuHook}`],
       [/label:\s*'New Window'/g, "label: '新建窗口'"],
-      [/label:\s*'Docs'/g, "label: '文档指南'"],
+      [/label:\s*'Docs'/g, "label: '文档'"],
       [/label:\s*'Connect to WSL'/g, "label: '连接到 WSL'"],
       [/label:\s*'Reopen Locally'/g, "label: '在本地重新打开'"],
       [/appMenu\.items\.find\(\(item\)\s*=>\s*item\.label\s*===\s*submenuLabel\)/g, "appMenu.items.find((item) => item.label === submenuLabel || (MENU_I18N[submenuLabel] && item.label === MENU_I18N[submenuLabel]))"],
@@ -262,17 +271,17 @@ function translateMenuRecursively(menu) {
   }
 
   // 3. 注入 tray.js
-  if (patchFile(tempDir, 'dist/tray.js', (code) => code.replace(
-    /\(count > 0 \? `\$\{count\}` : 'No'\)\s*\+\s*' agent'\s*\+\s*\(count === 1 \? '' : 's'\)\s*\+\s*' running'/,
-    "(count > 0 ? `${count} 个智能体正在运行` : '当前无运行中的智能体')"
-  ))) {
+  if (patchFile(tempDir, 'dist/tray.js', (code) => applyPairs(code, [
+    [/\(count > 0 \? `\$\{count\}` : 'No'\)\s*\+\s*' agent'\s*\+\s*\(count === 1 \? '' : 's'\)\s*\+\s*' running'/, "(count > 0 ? `${count} 个智能体正在运行` : '暂无运行中的智能体')"],
+    [/'当前无运行中的智能体'/g, "'暂无运行中的智能体'"]
+  ]))) {
     console.log(' - tray.js 托盘文字汉化完成');
   }
 
   // 4. 注入 main.js
   if (patchFile(tempDir, 'dist/main.js', (code) => applyPairs(code, [
     [/label:\s*'New Window'/g, "label: '新建窗口'"],
-    [/label:\s*'No agents running'/g, "label: '当前无运行中的智能体'"],
+    [/label:\s*'(?:No agents running|当前无运行中的智能体)'/g, "label: '暂无运行中的智能体'"],
     [/label:\s*`Open \$\{electron_1\.app\.getName\(\)\}`/g, "label: `打开 ${electron_1.app.getName()}`"],
     [/label:\s*'Quit'/g, "label: '退出'"],
     [/buttons:\s*\['Cancel',\s*'Quit'\]/g, "buttons: ['取消', '退出']"],
@@ -281,7 +290,7 @@ function translateMenuRecursively(menu) {
     [/detail:\s*'There may be agents or background tasks running\.'/g, "detail: '当前可能有智能体或后台任务正在运行。'"],
     [/showErrorBox\('Binary not found'/g, "showErrorBox('未找到核心程序'"],
     [/title:\s*'WSL distro not found'/g, "title: '未找到 WSL 发行版'"],
-    [/message:\s*`The WSL distro "\$\{WSL_DISTRO\}" is no longer installed\.`/g, "message: `WSL 发行版“${WSL_DISTRO}”已不再安装。`"],
+    [/message:\s*`(?:The WSL distro "\$\{WSL_DISTRO\}" is no longer installed\.|WSL 发行版“\$\{WSL_DISTRO\}”已不再安装。)`/g, "message: `WSL 发行版“${WSL_DISTRO}”未安装或已被卸载。`"],
     [/detail:\s*'Antigravity opened on Windows instead\.'/g, "detail: '已改为在 Windows 本地打开 Antigravity。'"],
     [/showErrorBox\('WSL setup failed'/g, "showErrorBox('WSL 配置失败'"],
     [/showErrorBox\('Startup failed'/g, "showErrorBox('启动失败'"]
@@ -430,13 +439,13 @@ function translateContextMenuLabel(rawLabel) {
         const exact = {
             'Requesting your permission in Terminal:': '请求终端执行权限：',
             'Requesting your permission to open URL:': '请求打开链接权限：',
-            'The agent has questions for you:': '智能体有多个问题需要您确认：',
-            'The agent has a question for you:': '智能体有一个问题需要您确认：',
+            'The agent has questions for you:': '智能体有多个问题需要你确认：',
+            'The agent has a question for you:': '智能体有一个问题需要你确认：',
             'Click to respond to the questions.': '点击回复这些问题。',
             'Click to respond to the question.': '点击回复此问题。',
-            'Requesting your permission:': '请求您的授权：',
-            'Action requires your attention': '需要您处理的操作',
-            'The agent is waiting for your input.': '智能体正在等待您的输入。',
+            'Requesting your permission:': '请求你的授权：',
+            'Action requires your attention': '需要你的操作',
+            'The agent is waiting for your input.': '智能体正在等待你的输入。',
             'Agent finished': '智能体已完成'
         };
         if (Object.prototype.hasOwnProperty.call(exact, t)) return exact[t];
@@ -450,6 +459,14 @@ function translateContextMenuLabel(rawLabel) {
       next = next.replace(notifRegex, (_m, head, mid1, mid2, mid3, mid4, tail) => {
         return `${notifHelper}    ${head}        const rawTitle = translateNativeNotificationText(options?.title);\n        const rawBody = translateNativeNotificationText(options?.body);\n${mid1}rawTitle${mid2}rawTitle${mid3}rawBody${mid4}rawBody${tail}`;
       });
+    } else {
+      next = applyPairs(next, [
+        [/'智能体有多个问题需要您确认：'/g, "'智能体有多个问题需要你确认：'"],
+        [/'智能体有一个问题需要您确认：'/g, "'智能体有一个问题需要你确认：'"],
+        [/'请求您的授权：'/g, "'请求你的授权：'"],
+        [/'需要您处理的操作'/g, "'需要你的操作'"],
+        [/'智能体正在等待您的输入。'/g, "'智能体正在等待你的输入。'"]
+      ]);
     }
     return next;
   });
@@ -461,10 +478,10 @@ function translateContextMenuLabel(rawLabel) {
   }
 
   if (patchFile(tempDir, 'dist/webviewPopupSecurity.js', (code) => applyPairs(code, [
-    [/'Your connection to this site is not secure'/g, "'您与该网站的连接不安全'"],
+    [/'(?:Your connection to this site is not secure|您与该网站的连接不安全)'/g, "'你与该网站的连接不安全'"],
     [/'You should not enter any sensitive information on this site \(for '\s*\+\s*\r?\n\s*'example, passwords or credit cards\), because it could be stolen by '\s*\+\s*\r?\n\s*'attackers\.'/g, "'请勿在此网站上输入任何敏感信息（例如密码或信用卡信息），否则可能会被攻击者窃取。'"],
     [/'Connection is secure'/g, "'连接安全'"],
-    [/'Your information \(for example, passwords or credit card numbers\) is '\s*\+\s*\r?\n\s*'private when it is sent to this site\.'/g, "'您的信息（例如密码或信用卡号）在发送到此网站时会保持私密。'"],
+    [/'(?:Your information \(for example, passwords or credit card numbers\) is '\s*\+\s*\r?\n\s*'private when it is sent to this site\.|您的信息（例如密码或信用卡号）在发送到此网站时会保持私密。)'/g, "'你的信息（例如密码或信用卡号）在发送到此网站时会保持私密。'"],
     [/'Connection security information is not available for this page'/g, "'此页面暂无连接安全信息'"],
     [/'⚠ Not secure'/g, "'⚠ 不安全'"],
     [/'Not secure'/g, "'不安全'"],
@@ -474,11 +491,12 @@ function translateContextMenuLabel(rawLabel) {
     [/`Issued to: \$\{certificate\.subjectName\}`/g, "`颁发给：${certificate.subjectName}`"],
     [/`Issued by: \$\{certificate\.issuer\}`/g, "`颁发者：${certificate.issuer}`"],
     [/`Valid from: \$\{formatDate\(certificate\.validFromMs\)\}`/g, "`生效时间：${formatDate(certificate.validFromMs)}`"],
-    [/`Valid until: \$\{formatDate\(certificate\.validToMs\)\}`/g, "`过期时间：${formatDate(certificate.validToMs)}`"],
+    [/`(?:Valid until|过期时间):?\s*\$\{formatDate\(certificate\.validToMs\)\}`/g, "`有效期至：${formatDate(certificate.validToMs)}`"],
+    [/`过期时间：\$\{formatDate\(certificate\.validToMs\)\}`/g, "`有效期至：${formatDate(certificate.validToMs)}`"],
     [/`Protocol: \$\{certificate\.protocol\}`/g, "`协议：${certificate.protocol}`"],
     [/:\s*'unknown'/g, ": '未知'"],
     [/'This page'/g, "'此页面'"],
-    [/'Connection info…'/g, "'连接信息…'"],
+    [/'(?:Connection info…|连接信息…)'/g, "'连接信息...'"],
     [/'Connection info\.\.\.'/g, "'连接信息...'"],
     [/'Connection info'/g, "'连接信息'"],
     [/buttons:\s*\['OK'\]/g, "buttons: ['确定']"]
@@ -488,10 +506,10 @@ function translateContextMenuLabel(rawLabel) {
 
   if (patchFile(tempDir, path.join('dist', 'ideInstall', 'wizardHtml.js'), (code) => applyPairs(code, [
     [/>Welcome to Antigravity</g, '>欢迎使用 Antigravity<'],
-    [/>Setting up…</g, '>正在配置…<'],
+    [/>(?:Setting up…|正在配置…)</g, '>正在配置...<'],
     [/>Setting up\.\.\.</g, '>正在配置...<'],
     [/>Welcome to the new Antigravity!</g, '>欢迎体验全新 Antigravity！<'],
-    [/<p>Antigravity has been redesigned to put agents first with new capabilities\. If you'd still like a code editor, you can download it as a separate app named <b>Antigravity IDE<\/b>\.<\/p>/g, '<p>Antigravity 已全新重构，以智能体为核心并提供全新能力。如果您仍需要传统代码编辑器，可将其作为名为 <b>Antigravity IDE</b> 的独立应用下载。</p>'],
+    [/<p>(?:Antigravity has been redesigned to put agents first with new capabilities\. If you'd still like a code editor, you can download it as a separate app named <b>Antigravity IDE<\/b>\.|Antigravity 已全新重构，以智能体为核心并提供全新能力。如果您仍需要传统代码编辑器，可将其作为名为 <b>Antigravity IDE<\/b> 的独立应用下载。)<\/p>/g, '<p>Antigravity 已全新重构，以智能体为核心并提供全新能力。如果你仍需要传统代码编辑器，可单独下载 <b>Antigravity IDE</b> 应用。</p>'],
     [/>Download the Antigravity IDE</g, '>下载 Antigravity IDE<'],
     [/>Explore the new Antigravity</g, '>探索全新 Antigravity<']
   ]))) {
@@ -558,14 +576,24 @@ function translateContextMenuLabel(rawLabel) {
     [/<p class="mechanism-header">Use your phone or tablet<\/p>/g, '<p class="mechanism-header">使用手机或平板电脑</p>'],
     [/Scan this QR code with the camera on the device that has your passkey for \$\{safeRpId\}/g, '使用存有 ${safeRpId} 通行密钥的设备摄像头扫描此二维码'],
     [/>Cancel<\/button>/g, '>取消</button>'],
-    [/'Connecting to your device…'/g, "'正在连接到您的设备…'"],
-    [/'Verify on your device to continue…'/g, "'请在您的设备上完成验证以继续…'"]
+    [/'(?:Connecting to your device…|正在连接到您的设备…)'/g, "'正在连接到你的设备...'"],
+    [/'(?:Verify on your device to continue…|请在您的设备上完成验证以继续…)'/g, "'请在你的设备上完成验证以继续...'"]
   ]))) extraMainPatched++;
 
   if (patchFile(tempDir, path.join('dist', 'remote', 'disconnectedPage.js'), (code) => applyPairs(code, [
-    [/connecting \? 'Reconnecting…' : 'Disconnected'/g, "connecting ? '正在重新连接…' : '连接已断开'"],
-    [/`Reconnecting to \$\{host\}…`/g, "`正在重新连接到 ${host}…`"],
+    [/reconnect:\s*'Reconnect'/g, "reconnect: '重新连接'"],
+    [/stop:\s*'Stop Server'/g, "stop: '停止服务端'"],
+    [/close:\s*'Close'/g, "close: '关闭'"],
+    [/connecting \? 'Reconnecting…' : 'Disconnected'/g, "connecting ? '正在重新连接...' : '连接已断开'"],
+    [/'Restarting…'/g, "'正在重启...'"],
+    [/'Reconnecting…'/g, "'正在重新连接...'"],
+    [/'Disconnected'/g, "'连接已断开'"],
+    [/`Restarting the Antigravity server on \$\{host\}…`/g, "`正在重启 ${host} 上的 Antigravity 服务端...`"],
+    [/`(?:Reconnecting to \$\{host\}…|正在重新连接到 \$\{host\}…)`/g, "`正在重新连接到 ${host}...`"],
     [/`Disconnected from \$\{host\}`/g, "`已断开与 ${host} 的连接`"],
+    [/'This window opens it again once it has started\.'/g, "'启动完成后此窗口将自动重新打开。'"],
+    [/`Its server on \$\{host\} stopped, and its agents with it\.`/g, "`${host} 上的服务端已停止，对应的智能体也随之停止。`"],
+    [/`Its agents on \$\{host\} stopped with it\.`/g, "`${host} 上的智能体也随之停止。`"],
     [/`Agents keep running on \$\{host\}\.`/g, "`智能体仍会继续在 ${host} 上运行。`"],
     [/`Agents keep running on \$\{host\} unless its server stopped\.`/g, "`除非服务端已停止，否则智能体仍会继续在 ${host} 上运行。`"],
     [/>Reconnect<\/a>/g, '>重新连接</a>'],
@@ -573,17 +601,25 @@ function translateContextMenuLabel(rawLabel) {
   ]))) extraMainPatched++;
 
   if (patchFile(tempDir, path.join('dist', 'remote', 'signInCallback.js'), (code) => applyPairs(code, [
-    [/page\('Signed in',\s*'Signed in\. You can close this tab\.'\)/g, "page('登录成功', '已完成登录，您可以关闭此标签页。')"],
+    [/page\('Signed in',\s*'Signed in\. You can close this tab\.'\)/g, "page('登录成功', '已完成登录，你可以关闭此标签页。')"],
+    [/page\('You have successfully authenticated\.',\s*'You can close this tab and return to Antigravity\.'\)/g, "page('登录成功', '已完成身份验证，你可以关闭此标签页并返回 Antigravity。')"],
+    [/'已完成登录，您可以关闭此标签页。'/g, "'已完成登录，你可以关闭此标签页。'"],
     [/'Sign-in did not complete'/g, "'登录未完成'"],
+    [/"Sign-in didn't finish"/g, "'登录未完成'"],
     [/'The Antigravity server on the SSH host could not be reached\. '\s*\+\s*\r?\n\s*'Sign in again from Antigravity\.'/g, "'无法连接到 SSH 主机上的 Antigravity 服务。请从 Antigravity 重新发起登录。'"],
-    [/`The Antigravity server on the SSH host answered with HTTP \$\{status\}\. `\s*\+\s*\r?\n\s*'Sign in again from Antigravity\.'/g, "`SSH 主机上的 Antigravity 服务返回了 HTTP ${status}。请从 Antigravity 重新发起登录。`"]
+    [/`Antigravity couldn't reach \$\{host\} to finish signing in\. `\s*\+\s*\r?\n\s*'Sign in again from Antigravity\.'/g, "`Antigravity 无法连接到 ${host} 以完成登录。请从 Antigravity 重新发起登录。`"],
+    [/'This sign-in came back from another server than the sign-in page you '\s*\+\s*\r?\n\s*`agreed to, so Antigravity didn't pass it on to \$\{host\}\.`/g, "`此次登录来自与你同意的登录页不同的服务器，因此 Antigravity 未将其传递给 ${host}。`"],
+    [/`The Antigravity server on the SSH host answered with HTTP \$\{status\}\. `\s*\+\s*\r?\n\s*'Sign in again from Antigravity\.'/g, "`SSH 主机上的 Antigravity 服务返回了 HTTP ${status}。请从 Antigravity 重新发起登录。`"],
+    [/`Antigravity on \$\{host\} couldn't finish signing in \(HTTP \$\{status\}\)\. `\s*\+\s*\r?\n\s*'Sign in again from Antigravity\.'/g, "`${host} 上的 Antigravity 无法完成登录 (HTTP ${status})。请从 Antigravity 重新发起登录。`"]
   ]))) extraMainPatched++;
 
   if (patchFile(tempDir, path.join('dist', 'remote', 'sshPrompts.js'), (code) => applyPairs(code, [
-    [/Asked again: your last answer may not have worked\./g, '再次提示：您上次的输入可能未通过验证。'],
+    [/(?:Asked again: your last answer may not have worked\.|再次提示：您上次的输入可能未通过验证。)/g, '再次提示：你上次的输入可能未通过验证。'],
     [/That's too long\./g, '输入内容过长。'],
     [/>Cancel<\/button><button id="continue">Continue<\/button>/g, '>取消</button><button id="continue">继续</button>'],
-    [/confirm \? `\$\{label\} asks:` : 'Touch your security key'/g, "confirm ? `${label} 请求确认：` : '请触碰您的安全密钥'"],
+    [/confirm \? `\$\{label\} asks:` : 'Touch your security key'/g, "confirm ? `${label} 请求确认：` : '请触碰你的安全密钥'"],
+    [/'Touch your security key'/g, "'请触碰你的安全密钥'"],
+    [/'请触碰您的安全密钥'/g, "'请触碰你的安全密钥'"],
     [/confirm \? \['Yes', 'No'\] : \['Cancel'\]/g, "confirm ? ['是', '否'] : ['取消']"]
   ]))) extraMainPatched++;
 
@@ -594,7 +630,7 @@ function translateContextMenuLabel(rawLabel) {
   if (patchFile(tempDir, path.join('dist', 'remote', 'sshErrorText.js'), (code) => applyPairs(code, [
     [/`Error code: \$\{err\.code\}\\nLogs: \$\{logPath\(\)\}`/g, "`错误代码：${err.code}\\n日志：${logPath()}`"],
     [/`\$\{label\} reported: \$\{text\}`/g, "`${label} 返回：${text}`"],
-    [/'The connection was closed before it finished\.'/g, "'连接在完成前已关闭。'"],
+    [/'(?:The connection was closed before it finished\.|连接在完成前已关闭。)'/g, "'连接尚未完成即已断开。'"],
     [/`\$\{what\}\\nFile: \$\{note\} on \$\{label\}`/g, "`${what}\\n文件：${label} 上的 ${note}`"],
     [/`\$\{text\}\\nLogs: \$\{logPath\(\)\}`/g, "`${text}\\n日志：${logPath()}`"]
   ]))) extraMainPatched++;
@@ -603,12 +639,12 @@ function translateContextMenuLabel(rawLabel) {
     [/`Couldn't connect to the SSH host \(\$\{String\(code\)\}\)\.`/g, "`无法连接到 SSH 主机 (${String(code)})。`"],
     [/yes:\s*'SSH authentication failed\. Check your password, code or keys, then try again\.'/g, "yes: 'SSH 身份验证失败。请检查密码、验证码或密钥后重试。'"],
     [/onReconnect:\s*'SSH authentication failed\. Click Reconnect to sign in again\.'/g, "onReconnect: 'SSH 身份验证失败。请点击“重新连接”再次登录。'"],
-    [/no:\s*"SSH authentication failed\. Antigravity can't answer password or code prompts on Windows yet: set up key-based login with ssh-agent, then try again\."/g, 'no: "SSH 身份验证失败。Windows 暂不支持自动响应密码或验证码提示：请先通过 ssh-agent 配置密钥登录后重试。"'],
+    [/no:\s*"(?:SSH authentication failed\. Antigravity can't answer password or code prompts on Windows yet: set up key-based login with ssh-agent, then try again\.|SSH 身份验证失败。Windows 暂不支持自动响应密码或验证码提示：请先通过 ssh-agent 配置密钥登录后重试。)"/g, 'no: "SSH 身份验证失败。Antigravity 在 Windows 上暂不支持密码或验证码交互提示：请先通过 ssh-agent 配置密钥登录后重试。"'],
     [/"That SSH host isn't valid\. Enter an alias from your SSH config or a host like user@host or user@host:2222\."/g, '"该 SSH 主机地址无效。请输入 SSH 配置中的别名，或形如 user@host / user@host:2222 的地址。"'],
     [/"The host's SSH key is unknown or has changed\. Save it with ssh in a terminal\. If it changed, ask the host's owner first: the connection may be intercepted\."/g, '"该主机的 SSH 密钥未知或已变更。请先在终端中使用 ssh 保存密钥；如果密钥发生变更，请先向主机管理员确认，连接可能正被拦截。"'],
     [/"The host's SSH key has changed or isn't trusted\. If it changed, ask the host's owner first: the connection may be intercepted\."/g, '"该主机的 SSH 密钥已变更或未受信任。如果密钥发生变更，请先向主机管理员确认，连接可能正被拦截。"'],
     [/`Couldn't connect to the SSH host\. Check its name, your network and ssh config \(e\.g\. a ProxyCommand\), and that ssh to it works in a terminal\$\{prompts === 'no' \? ' without a prompt' : ''\}\.`/g, "`无法连接到 SSH 主机。请检查主机名、网络和 SSH 配置（例如 ProxyCommand），并确认在终端中可执行 ssh 连接${prompts === 'no' ? '且无需交互提示' : ''}。`"],
-    [/'SSH port forwarding failed\. Make sure the server allows TCP forwarding \(AllowTcpForwarding\) for your account, then try again\.'/g, "'SSH 端口转发失败。请确认服务器允许您的账号使用 TCP 转发（AllowTcpForwarding）后重试。'"],
+    [/'(?:SSH port forwarding failed\. Make sure the server allows TCP forwarding \(AllowTcpForwarding\) for your account, then try again\.|SSH 端口转发失败。请确认服务器允许您的账号使用 TCP 转发（AllowTcpForwarding）后重试。)'/g, "'SSH 端口转发失败。请确认服务器允许你的账号使用 TCP 转发（AllowTcpForwarding）后重试。'"],
     [/"The SSH host isn't supported\. Antigravity needs Linux on x64 or arm64 with glibc 2\.26 or newer\."/g, '"不支持此 SSH 主机。Antigravity 需要 glibc 2.26 及以上版本的 x64 或 arm64 Linux 系统。"'],
     [/'Another host that shares your home directory runs the Antigravity server\. Connect to that host instead\.'/g, "'共享同一主目录的另一台主机正在运行 Antigravity 服务端，请改为连接到该主机。'"],
     [/"Couldn't install the Antigravity server on the SSH host\. Make sure it has free disk space, and that it or this computer can download from the internet\."/g, '"无法在 SSH 主机上安装 Antigravity 服务端。请确保磁盘空间充足，且该主机或本机可正常访问互联网下载组件。"'],
@@ -622,6 +658,7 @@ function translateContextMenuLabel(rawLabel) {
   if (patchFile(tempDir, path.join('dist', 'remote', 'remoteManager.js'), (code) => applyPairs(code, [
     [/title:\s*'Choose an SSH config file'/g, "title: '选择 SSH 配置文件'"],
     [/title:\s*'SSH connection failed'/g, "title: 'SSH 连接失败'"],
+    [/buttons:\s*\['Choose Another File…',\s*'Cancel'\]/g, "buttons: ['选择其他文件...', '取消']"],
     [/buttons:\s*\['Stop Server',\s*'Cancel'\]/g, "buttons: ['停止服务端', '取消']"],
     [/title:\s*'Stop SSH server'/g, "title: '停止 SSH 服务端'"],
     [/`Stop the Antigravity server on \$\{entry\.label\}\?`/g, "`确定要停止 ${entry.label} 上的 Antigravity 服务端吗？`"],
@@ -631,8 +668,8 @@ function translateContextMenuLabel(rawLabel) {
     [/'Reconnect first, then stop its server\.'/g, "'请先重新连接，然后再停止其服务端。'"],
     [/buttons:\s*\['Sign In',\s*'Cancel'\]/g, "buttons: ['登录', '取消']"],
     [/title:\s*'Sign in'/g, "title: '登录'"],
-    [/`Sign in to your organization for \$\{entry\.label\}\?`/g, "`是否为 ${entry.label} 登录您的组织？`"],
-    [/'Continue only if you just chose to sign in with your organization '\s*\+\s*\r?\n\s*`in this window\. \$\{entry\.label\} will get access to your `\s*\+\s*\r?\n\s*"organization's Google Cloud account\.\\n"\s*\+/g, "`仅当您刚刚在此窗口中主动选择使用组织账号登录时才继续。${entry.label} 将获得您组织的 Google Cloud 账号访问权限。\\n` +"],
+    [/`(?:Sign in to your organization for \$\{entry\.label\}\?|是否为 \$\{entry\.label\} 登录您的组织？)`/g, "`是否为 ${entry.label} 登录你的组织？`"],
+    [/(?:'Continue only if you just chose to sign in with your organization '\s*\+\s*\r?\n\s*`in this window\. \$\{entry\.label\} will get access to your `\s*\+\s*\r?\n\s*"organization's Google Cloud account\.\\n"|`仅当您刚刚在此窗口中主动选择使用组织账号登录时才继续。\$\{entry\.label\} 将获得您组织的 Google Cloud 账号访问权限。\\n`)\s*\+/g, "`仅当你刚刚在此窗口中主动选择使用组织账号登录时才继续。${entry.label} 将获得你组织的 Google Cloud 账号访问权限。\\n` +"],
     [/`Workforce pool: \$\{names\[1\]\}  Provider: \$\{names\[2\]\}`/g, "`员工身份池：${names[1]}  身份提供商：${names[2]}`"],
     [/`Identity provider: \$\{provider\}`/g, "`身份提供商：${provider}`"]
   ]))) extraMainPatched++;

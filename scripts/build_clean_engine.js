@@ -16,18 +16,7 @@ const preservePath = path.join(assetsDir, 'preserve_list.json');
 
 function cleanDictObject(rawDict, preserveList) {
   const cleaned = { ...rawDict };
-  // 内存清洗：去除冗余的 "(原文)" 后缀并剔除保留白名单项，确保运行时查表纯净
-  for (const [k, v] of Object.entries(cleaned)) {
-    if (k.length > 1 && typeof v === 'string') {
-      const match = v.match(/^(.+?)\s*\(([^)]+)\)$/);
-      if (match) {
-        const insideParen = match[2].trim().toLowerCase();
-        if (insideParen === k.toLowerCase() || insideParen.includes(k.toLowerCase())) {
-          cleaned[k] = match[1].trim();
-        }
-      }
-    }
-  }
+  // 剔除保留白名单项，确保品牌与专有名词不被覆盖
   for (const p of preserveList) {
     delete cleaned[p];
   }
