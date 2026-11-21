@@ -11,16 +11,40 @@ const asarPath = path.join(installDir, 'app.asar');
 const projectRoot = path.resolve(__dirname, '..');
 const buildDir = path.join(projectRoot, 'build');
 
+function hasAnyPatchArtifacts(targetAsar = asarPath) {
+  if (!fs.existsSync(targetAsar)) return false;
+  try {
+    try { asar.uncache(targetAsar); } catch (_) {}
+    try {
+      if (asar.statFile(targetAsar, path.join('dist', 'i18n.js'))) return true;
+    } catch (_) {}
+    try {
+      if (asar.extractFile(targetAsar, path.join('dist', 'menu.js')).includes('translateMenuRecursively')) return true;
+    } catch (_) {}
+    try {
+      if (asar.extractFile(targetAsar, path.join('dist', 'utils.js')).includes('_getAntigravityI18nCode')) return true;
+    } catch (_) {}
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
 /**
- * 极速检测 app.asar 是否处于已注入汉化状态
+ * 极速检测 app.asar 是否处于已完整注入汉化状态
  */
 function isAsarPatched(targetAsar = asarPath) {
   if (!fs.existsSync(targetAsar)) return false;
   try {
+    try { asar.uncache(targetAsar); } catch (_) {}
     const i18nStat = asar.statFile(targetAsar, path.join('dist', 'i18n.js'));
     if (!i18nStat) return false;
     const menuBuf = asar.extractFile(targetAsar, path.join('dist', 'menu.js'));
-    return menuBuf.includes('translateMenuRecursively');
+    if (!menuBuf.includes('translateMenuRecursively')) return false;
+    const utilsBuf = asar.extractFile(targetAsar, path.join('dist', 'utils.js'));
+    if (!utilsBuf.includes('__antigravityTranslateAll') || !utilsBuf.includes('did-frame-finish-load')) return false;
+    const updaterBuf = asar.extractFile(targetAsar, path.join('dist', 'updater.js'));
+    return updaterBuf.includes('spawnAutoPatcherOnUpdate');
   } catch (_) {
     return false;
   }
@@ -97,8 +121,8 @@ async function patchAsar() {
     currentVersion = JSON.parse(asar.extractFile(asarPath, 'package.json').toString('utf8')).version || 'unknown';
   } catch (_) {}
 
-  const alreadyPatched = isAsarPatched(asarPath);
-  if (alreadyPatched && fs.existsSync(backupAsar) && !isAsarPatched(backupAsar)) {
+  const hasPatchedFiles = hasAnyPatchArtifacts(asarPath);
+  if (hasPatchedFiles && fs.existsSync(backupAsar) && !hasAnyPatchArtifacts(backupAsar)) {
     try {
       const bakVersion = JSON.parse(asar.extractFile(backupAsar, 'package.json').toString('utf8')).version || 'unknown';
       if (bakVersion === currentVersion) {
@@ -106,7 +130,7 @@ async function patchAsar() {
         console.log(` - 检测到同版本干净备份 (${backupAsar})，将从原版重新生成纯净补丁`);
       }
     } catch (_) {}
-  } else if (!alreadyPatched) {
+  } else if (!hasPatchedFiles) {
     try {
       fs.copyFileSync(asarPath, backupAsar);
       console.log(' - 已备份官方原版至 app.asar.bak');
@@ -167,42 +191,54 @@ function _getAntigravityI18nCode() {
 }
 `;
     const hook = `
-    win.webContents.on('dom-ready', () => {
-        const code = _getAntigravityI18nCode();
-        if (code) {
-            win.webContents.executeJavaScript(code).catch(console.error);
-        }
-    });
-    win.webContents.on('did-finish-load', () => {
-        win.webContents.executeJavaScript(\`
-            if (window.__antigravityTranslateAll) {
-                window.__antigravityTranslateAll();
+    const _i18nWc = typeof hubContents !== 'undefined' ? hubContents : win.webContents;
+    if (_i18nWc) {
+        _i18nWc.on('dom-ready', () => {
+            if (_i18nWc.isDestroyed && _i18nWc.isDestroyed()) return;
+            const code = _getAntigravityI18nCode();
+            if (code) {
+                _i18nWc.executeJavaScript(code).catch(console.error);
             }
-        \`).catch(console.error);
-    });
-    win.webContents.on('did-frame-finish-load', (_event, isMainFrame, frameProcessId, frameRoutingId) => {
-        if (isMainFrame) return;
-        try {
-            const { webFrameMain } = require('electron');
-            const frame = webFrameMain && webFrameMain.fromId(frameProcessId, frameRoutingId);
-            const frameUrl = frame && frame.url ? frame.url : '';
-            let mainOrigin = '';
-            let frameOrigin = '';
-            try { mainOrigin = new URL(win.webContents.getURL()).origin; } catch (_) {}
-            try { frameOrigin = new URL(frameUrl).origin; } catch (_) {}
-            if (
-                frameUrl.startsWith('plugin://') ||
-                frameUrl.startsWith('vscode-webview://') ||
-                (mainOrigin && mainOrigin !== 'null' && frameOrigin === mainOrigin)
-            ) {
-                const i18nCode = _getAntigravityI18nCode();
-                if (i18nCode) {
-                    frame.executeJavaScript(i18nCode).catch(() => {});
+        });
+        _i18nWc.on('did-finish-load', () => {
+            if (_i18nWc.isDestroyed && _i18nWc.isDestroyed()) return;
+            _i18nWc.executeJavaScript(\`
+                if (window.__antigravityTranslateAll) {
+                    window.__antigravityTranslateAll();
+                    true;
+                } else {
+                    false;
                 }
-            }
-        } catch (_) {}
-    });
-    void win.loadURL(url);`;
+            \`).then((ran) => {
+                if (!ran && !(_i18nWc.isDestroyed && _i18nWc.isDestroyed())) {
+                    const code = _getAntigravityI18nCode();
+                    if (code) _i18nWc.executeJavaScript(code).catch(console.error);
+                }
+            }).catch(console.error);
+        });
+        _i18nWc.on('did-frame-finish-load', (_event, isMainFrame, frameProcessId, frameRoutingId) => {
+            if (isMainFrame || (_i18nWc.isDestroyed && _i18nWc.isDestroyed())) return;
+            try {
+                const { webFrameMain } = require('electron');
+                const frame = webFrameMain && webFrameMain.fromId(frameProcessId, frameRoutingId);
+                const frameUrl = frame && frame.url ? frame.url : '';
+                let mainOrigin = '';
+                let frameOrigin = '';
+                try { mainOrigin = new URL(_i18nWc.getURL()).origin; } catch (_) {}
+                try { frameOrigin = new URL(frameUrl).origin; } catch (_) {}
+                if (
+                    frameUrl.startsWith('plugin://') ||
+                    frameUrl.startsWith('vscode-webview://') ||
+                    (mainOrigin && mainOrigin !== 'null' && frameOrigin === mainOrigin)
+                ) {
+                    const i18nCode = _getAntigravityI18nCode();
+                    if (i18nCode) {
+                        frame.executeJavaScript(i18nCode).catch(() => {});
+                    }
+                }
+            } catch (_) {}
+        });
+    }`;
     let next = code;
     if (!next.includes('function _getAntigravityI18nCode')) {
       next = next.replace(
@@ -210,7 +246,11 @@ function _getAntigravityI18nCode() {
         `$1\n${moduleCacheHelper}`
       );
     }
-    return next.replace(/void\s+win\.loadURL\(url\);/, hook);
+    const hubLoadRe = /void\s+loadHubWindowUrl\(win,\s*url(?:,\s*\{[^}]*\})?\);/;
+    if (hubLoadRe.test(next)) {
+      return next.replace(hubLoadRe, (matched) => `${hook}\n    ${matched}`);
+    }
+    return next.replace(/void\s+win\.loadURL\(url\);/, (matched) => `${hook}\n    ${matched}`);
   });
   const utilsPatched = fs.readFileSync(path.join(tempDir, 'dist', 'utils.js'), 'utf8');
   if (utilsPatched.includes('__antigravityTranslateAll') && utilsPatched.includes('did-frame-finish-load')) {
@@ -351,13 +391,16 @@ function spawnAutoPatcherOnUpdate(shouldRelaunch = true) {
     }
 }
 `;
-      const updaterHook = `${spawnHelper}function quitAndInstall() {
-    spawnAutoPatcherOnUpdate(true);
-    electron_updater_1.autoUpdater.quitAndInstall();
-}`;
-      next = next.replace(/function\s+quitAndInstall\(\)\s*\{[\s\S]*?electron_updater_1\.autoUpdater\.quitAndInstall\(\);\s*\}/, updaterHook);
       next = next.replace(
-        /(electron_updater_1\.autoUpdater\.autoInstallOnAppQuit\s*=\s*electron_1\.app\.isPackaged;)/,
+        /((?:async\s+)?function\s+quitAndInstall\s*\()/,
+        `${spawnHelper}$1`
+      );
+      next = next.replace(
+        /(electron_updater_1\.autoUpdater\.quitAndInstall\([^)]*\);)/g,
+        `spawnAutoPatcherOnUpdate(true);\n            $1`
+      );
+      next = next.replace(
+        /(electron_updater_1\.autoUpdater\.autoInstallOnAppQuit\s*=\s*[\s\S]*?;)/,
         `$1\n    electron_1.app.once('will-quit', () => { if (lastState && lastState.type === types_1.UpdateState.Ready) spawnAutoPatcherOnUpdate(false); });`
       );
     }
@@ -701,6 +744,7 @@ function translateContextMenuLabel(rawLabel) {
   });
 
   fs.copyFileSync(outputAsar, asarPath);
+  try { asar.uncacheAll(); } catch (_) {}
   fs.rmSync(tempDir, { recursive: true, force: true });
   const buildUnpackedDir = path.join(buildDir, 'app.asar.unpacked');
   if (fs.existsSync(buildUnpackedDir)) {

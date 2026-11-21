@@ -470,6 +470,44 @@ function runVerification() {
     '查看实时按键绑定或录制自定义组合键，已自动筛选'
   );
 
+  // 3e. v2.34.0 Orchestrator settings (preserve "Orchestrator" as model name), model menu effort labels, outside-of dynamic nouns, & builtin skill/plugin descriptions
+  assert.strictEqual(api.PRESERVE_SET.has('Orchestrator'), true);
+  assert.strictEqual(api.translateString('Orchestrator'), 'Orchestrator');
+  assert.strictEqual(api.translateString('Orchestrator Settings'), 'Orchestrator 设置');
+  assert.strictEqual(
+    api.translateString('Choose the models Orchestrator uses. A larger, smarter orchestrator model with a faster, cheaper executor gives high quality for fewer tokens.'),
+    '选择 Orchestrator 使用的模型。用更强、更聪明的 Orchestrator 模型搭配更快、更实惠的执行器模型，可在消耗更少 Token 的情况下获得高质量结果。'
+  );
+  assert.strictEqual(api.translateString('Orchestrator Model'), 'Orchestrator 模型');
+  assert.strictEqual(
+    api.translateString('Plans the work, makes design decisions, and reviews the result. Pick a top-tier model. You can also pick one per conversation from the Orchestrator row in the model menu.'),
+    '负责规划工作、做出设计决策并审查结果。建议选择顶级模型。你也可以在模型菜单的“Orchestrator”行中为每个会话单独选择。'
+  );
+  assert.strictEqual(api.translateString('Executor Model'), '执行器模型');
+  assert.strictEqual(
+    api.translateString('Carries out the plan: searches, edits, builds, and tests. Pick a faster, cheaper model.'),
+    '负责执行计划：搜索、编辑、构建与测试。建议选择更快、更实惠的模型。'
+  );
+  assert.strictEqual(api.translateString("The Orchestrator's own planner"), 'Orchestrator 自带规划器');
+  assert.strictEqual(api.translateString('Extra High'), '超高');
+  assert.strictEqual(api.translateString('Thinking effort'), '思考深度');
+  assert.strictEqual(api.translateString('Settings for conversations outside of projects.'), '在项目之外创建的独立会话设置。');
+  assert.strictEqual(api.translateString('Settings for conversations outside of workspaces.'), '在工作区之外创建的独立会话设置。');
+  assert.strictEqual(api.translateString('Manage project folders and settings.'), '管理项目文件夹与设置。');
+  assert.strictEqual(api.translateString('Unlock the power of agent swarms.'), '解锁多智能体 Swarm 协作的强大能力。');
+  assert.strictEqual(
+    api.translateString("Build, package, and debug MCP Apps for Antigravity: MCP server tools whose results render as interactive UI in the conversation, in the side pane, or full-page from the sidebar. Use when adding a UI to an MCP tool, building or theming the app itself, packaging it as a plugin, or debugging an app that doesn't render or behave as expected."),
+    '为 Antigravity 构建、打包与调试 MCP 应用（将 MCP 服务工具的结果以交互式 UI 渲染在对话、侧边面板或全页中），适用于为 MCP 工具添加界面、定制主题、打包插件或排查渲染异常。'
+  );
+  assert.strictEqual(
+    api.translateString('ONLY for the native-swarm worker whose brief says it is the monitor. On a timer, it checks whether the whole swarm has stalled and calls on the one member who can unstick it. Coordinators and other workers: do not load this.'),
+    '仅限任务简报指定为监控员的原生 Swarm 协作工作节点使用。定时检查整个 Swarm 是否停滞并唤醒可推进任务的成员；协调器与其他工作节点请勿加载。'
+  );
+  assert.strictEqual(
+    api.translateString("What the coordinator writes so the Swarm UI's Overview can show the swarm's goal, its groups of work and a screenshot timeline. Load it before you brief and add the first workers to a swarm."),
+    '指导协调器编写 Swarm 界面概览所需的目标、工作分组与截图时间线信息，请在分配任务并添加首批工作节点前加载。'
+  );
+
   // 4. Split text nodes (including out-of-order translation)
   const t1 = makeTextNode('Add ');
   const t2 = makeTextNode('GitHub');

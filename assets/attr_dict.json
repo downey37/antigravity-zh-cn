@@ -361,5 +361,6 @@
   "Create a project on this computer or remotely.": "在此电脑或远程环境中创建项目。",
   "Keybinding Scheme": "按键绑定方案",
   "VS Code Default": "VS Code 默认",
-  "Antigravity (AGY) Style": "Antigravity (AGY) 风格"
+  "Antigravity (AGY) Style": "Antigravity (AGY) 风格",
+  "Controls how much time and quota the model spends reasoning before responding. Higher effort improves accuracy on hard problems, at the cost of slower responses and higher quota use.": "控制模型在回复前投入多少思考时间与配额。更高的思考深度可提升复杂问题的准确度，但会增加响应时间与配额消耗。"
 }

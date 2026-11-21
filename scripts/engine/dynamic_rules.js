@@ -221,6 +221,8 @@ function createDynamicRules(helpers) {
       .replace(/Your plan's baseline quota will refresh on\s+(.+?)\./gi, (_, d) => `你当前套餐的基础配额将于 ${d.trim()} 刷新。`)
       .replace(/To continue using this model now,\s*enable AI Credit overages\.?/gi, '如需立即继续使用此模型，请开启 AI 额度超额使用。')
       .replace(/You can upgrade to a Google AI Ultra plan to receive higher rate limits\.?/gi, '你可以升级到 Google AI Ultra 套餐以获取更高的请求速率上限。')
+      .replace(/Free users and Google AI Plus users receive the minimum base limits on Antigravity\.\s*You can upgrade to Google AI Pro or above to receive higher rate limits\.?/gi, '免费用户和 Google AI Plus 用户在 Antigravity 上享有最低基础额度。你可以升级到 Google AI Pro 或更高级别套餐以获取更高的请求速率上限。')
+      .replace(/You can upgrade to Google AI Pro or above to receive higher rate limits\.?/gi, '你可以升级到 Google AI Pro 或更高级别套餐以获取更高的请求速率上限。')
       .replace(/(?:If|If you(?:'re| are))\s+on a supported paid plan,\s*you can use AI credits in the interim(?:\s+or\s+upgrade to a higher tier)?\.?/gi, (m) =>
         /upgrade to a higher tier/i.test(m)
           ? '如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级至更高级别套餐。'
@@ -421,9 +423,14 @@ function createDynamicRules(helpers) {
       const nounZh = noun.toLowerCase() === 'resources' ? '资源' : '文件夹';
       return `${joinZhSegment('管理', targetZh, '')}${nounZh}、智能体设置及权限。`;
     }],
-    [/^Manage\s+(.+?)\s+(?:resources|folders)\s+and settings\.?$/i, '管理 $1 与设置。'],
+    [/^Manage\s+(.+?)\s+(resources|folders)\s+and settings\.?$/i, (_, target, noun) => {
+      const targetZh = translateEntityNoun(target);
+      const nounZh = noun.toLowerCase() === 'resources' ? '资源' : '文件夹';
+      return `${joinZhSegment('管理', targetZh, '')}${nounZh}与设置。`;
+    }],
     [/^Manage\s+(.+?)\s+app settings\.?$/i, '管理 $1 应用设置。'],
-    [/^Settings for conversations outside of\s+(.+?)\.?$/i, '在 $1 之外创建的独立会话设置。'],
+    [/^Agent settings and permissions for conversations outside of\s+(.+?)\.?$/i, (_, target) => joinZhSegment('配置未归属于任何', translateEntityNoun(target), '的独立会话的智能体设置与权限策略。')],
+    [/^Settings for conversations outside of\s+(.+?)\.?$/i, (_, target) => joinZhSegment('在', translateEntityNoun(target), '之外创建的独立会话设置。')],
     [/^Permanently delete\s+(.+?)\s+including\s+(\d+)\s+active conversations?\.?$/i, '永久删除 $1 及其包含的 $2 个活跃会话。'],
     [/^Permanently delete\s+(.+?)\s+including\s+(\d+)\s+conversations?\.?$/i, '永久删除 $1 及其包含的 $2 个会话。'],
     [/^Permanently delete\s+(.+?)\.?$/i, '永久删除 $1。'],
