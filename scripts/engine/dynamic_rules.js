@@ -522,6 +522,10 @@ function createDynamicRules(helpers) {
       return `${p}${translateScope(s).trim()}已禁用此设置。这意味着 ${prod} 不会收集你的任何提示词、内容或模型回复，但仍会收集常规使用模式（例如功能采用率和活跃用户数）。`;
     }],
     [/^For\s+(.+?),\s+this setting is disabled\.$/i, (_, s) => `${translateScope(s).trim()}已禁用此设置。`],
+    [/^(?:(.+?)\s+)?Telemetry is turned off for your account\.\s+This means\s+(.+?)\s+does not collect any of your prompts,\s+content,\s+or model responses,\s+but will still collect general usage patterns\s+\(e\.g\.,\s+feature adoption,\s+active user counts\)\.?$/i, (_, prefix, prod) => {
+      const p = prefix ? `${lookupExact(prefix.trim(), normalizeKey(prefix.trim())) || prefix.trim()}\n\n` : '';
+      return `${p}你的账号已关闭遥测功能。这意味着 ${prod} 不会收集你的任何提示词、内容或模型回复，但仍会收集常规使用模式（例如功能采用率和活跃用户数）。`;
+    }],
     [/^(\d+)\s+demoted$/i, '$1 项已降级'],
     [/^(\d+)\s+excluded$/i, '$1 项已排除'],
     [/^(\d+)\s+tools?\s+excluded$/i, '已排除 $1 个工具'],
@@ -736,6 +740,12 @@ function createDynamicRules(helpers) {
       return cells ? `执行 Notebook ${cells}失败` : '执行 Notebook 失败';
     }],
     [/^(\d+)\s+Drafts?$/i, '$1 份草稿'],
+    [/^(\d+)\s+cookies?$/i, '$1 个 Cookie'],
+    [/^Delete cookies for\s+(.+)$/i, '删除 $1 的 Cookie'],
+    [/^Adding plugins from\s+(.+)$/i, '正在从 $1 添加插件'],
+    [/^Add bundle\s+(.+)$/i, '添加插件包 $1'],
+    [/^This plugin in\s+(.+?)\s+may have looser code review\.\s+Review its contents before adding the bundle\.?$/i, '$1 中的此插件代码审查可能较宽松，请在添加插件包前先查看其内容。'],
+    [/^These plugins in\s+(.+?)\s+may have looser code review\.\s+Review its contents before adding the bundle\.?$/i, '$1 中的这些插件代码审查可能较宽松，请在添加插件包前先查看其内容。'],
     [/^Running for\s+(\d+\s*[smhd](?:\s+\d+\s*[smhd])*)$/i, (_, d) => `已运行 ${translateDuration(d)}`],
     [/^Up\s+(\d+\s*[smhd](?:\s+\d+\s*[smhd])*)$/, (_, d) => `已运行 ${translateDuration(d)}`]
   ];

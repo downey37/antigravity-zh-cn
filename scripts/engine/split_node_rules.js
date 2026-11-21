@@ -158,6 +158,57 @@ function translateSplitTextNode(node, val, parent) {
     return val.includes(')') ? '，上方已隐藏)' : '，上方已隐藏';
   }
 
+  // 19. 外部链接确认弹窗拆分："Always open" + " " + <code>p:</code> + " links without asking"
+  if (val === 'Always open' && /links without asking|链接且不再询问/.test(parentText)) {
+    return '始终打开';
+  }
+  if (val === ' links without asking' && /Always open|始终打开/.test(parentText)) {
+    return ' 链接且不再询问';
+  }
+
+  // 20. 内置浏览器网站数据 / Cookie 清理拆分节点
+  if (val === 'Clearing cookies and site data for ') {
+    return '清除 ';
+  }
+  if (val === ' may sign you out of this site.' && /Clearing cookies and site data for|清除 /.test(parentText)) {
+    return ' 的 Cookie 和网站数据可能会使你退出该网站的登录状态。';
+  }
+  if (val === 'Site data cleared for ') {
+    return '已清除以下网站的站点数据：';
+  }
+  if (val === 'Could not clear site data for ') {
+    return '无法清除以下网站的站点数据：';
+  }
+  if (val === "Couldn't delete cookies for ") {
+    return '无法删除以下网站的 Cookie：';
+  }
+  if (val === '. Try again.' && /Couldn't delete cookies for|无法删除以下网站的 Cookie/.test(parentText)) {
+    return '，请重试。';
+  }
+  if (val === 'No sites match \u201c') {
+    return '没有与“';
+  }
+  if (val === '\u201d.' && /No sites match|没有与“/.test(parentText)) {
+    return '”匹配的网站。';
+  }
+
+  // 21. 删除技能 / 删除 MCP 服务确认弹窗拆分节点
+  if (val === 'Delete ' && /\? This removes it from your config directory\.|？这会将其从你的配置目录中移除。/.test(parentText)) {
+    return '删除 ';
+  }
+  if (val === '? This removes it from your config directory.') {
+    return '？这会将其从你的配置目录中移除。';
+  }
+  if (val === 'Are you sure you want to delete ' && /\? This will remove it from your MCP configuration\.|？这会将其从你的 MCP 配置中移除。/.test(parentText)) {
+    return '确定要删除 ';
+  }
+  if (val === '? This will remove it from your MCP configuration.') {
+    return '？这会将其从你的 MCP 配置中移除。';
+  }
+  if (val === ' Copy the folder elsewhere first if you might want it back.') {
+    return ' 如果以后可能还需要它，请先将该文件夹复制到其他位置。';
+  }
+
   return null;
 }
 

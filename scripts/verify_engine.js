@@ -508,6 +508,31 @@ function runVerification() {
     '指导协调器编写 Swarm 界面概览所需的目标、工作分组与截图时间线信息，请在分配任务并添加首批工作节点前加载。'
   );
 
+  // 3f. v2.34.0 General Input Box, Browsing Data & Cookies, Sidebar Customization, Bundles & Approvals
+  assert.strictEqual(api.translateString('Input Box'), '输入框');
+  assert.strictEqual(api.translateString('Choose which key sends a message in the chat composer.'), '选择在聊天输入框中发送消息的快捷键。');
+  assert.strictEqual(api.translateString('Press Ctrl+Enter to send, Enter for a new line.'), '按 Ctrl+Enter 发送，按 Enter 换行。');
+  assert.strictEqual(api.translateString('Browsing Data'), '浏览数据');
+  assert.strictEqual(api.translateString('Cookies by Site'), '按网站管理 Cookie');
+  assert.strictEqual(api.translateString('3 cookies'), '3 个 Cookie');
+  assert.strictEqual(api.translateString('Delete cookies for example.com'), '删除 example.com 的 Cookie');
+  assert.strictEqual(api.translateString('Customize Sidebar'), '自定义侧边栏');
+  assert.strictEqual(api.translateString('Filter and Sort'), '筛选与排序');
+  assert.strictEqual(api.translateString('Show Automation Conversations'), '显示自动化会话');
+  assert.strictEqual(api.translateString('Select Sidebar Item 1'), '选择侧边栏第 1 项');
+  assert.strictEqual(api.translateString('Review bundle before adding'), '添加前请审查此插件包');
+  assert.strictEqual(api.translateString('Add bundle Starter Pack'), '添加插件包 Starter Pack');
+  assert.strictEqual(
+    api.translateString('This plugin in Starter Pack may have looser code review. Review its contents before adding the bundle.'),
+    'Starter Pack 中的此插件代码审查可能较宽松，请在添加插件包前先查看其内容。'
+  );
+  assert.strictEqual(api.translateString('Deny with note'), '拒绝并附说明');
+  assert.strictEqual(api.translateString('Insert into main conversation'), '插入主会话');
+  assert.strictEqual(
+    api.translateString('Telemetry is turned off for your account. This means Antigravity does not collect any of your prompts, content, or model responses, but will still collect general usage patterns (e.g., feature adoption, active user counts).'),
+    '你的账号已关闭遥测功能。这意味着 Antigravity 不会收集你的任何提示词、内容或模型回复，但仍会收集常规使用模式（例如功能采用率和活跃用户数）。'
+  );
+
   // 4. Split text nodes (including out-of-order translation)
   const t1 = makeTextNode('Add ');
   const t2 = makeTextNode('GitHub');
@@ -549,6 +574,28 @@ function runVerification() {
   const docPeriod = makeTextNode('.');
   const spanDoc = makeEl({ tag: 'SPAN', children: [makeTextNode('请阅读'), docLink, docPeriod] });
   assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(docPeriod, '.', spanDoc), '。');
+
+  const ext1 = makeTextNode('Always open');
+  const ext2 = makeTextNode(' ');
+  const extCode = makeEl({ tag: 'CODE', text: 'mailto:' });
+  const ext3 = makeTextNode(' links without asking');
+  const spanExt = makeEl({ tag: 'SPAN', children: [ext1, ext2, extCode, ext3] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ext1, 'Always open', spanExt), '始终打开');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ext3, ' links without asking', spanExt), ' 链接且不再询问');
+
+  const ck1 = makeTextNode('Clearing cookies and site data for ');
+  const ck2 = makeTextNode('example.com');
+  const ck3 = makeTextNode(' may sign you out of this site.');
+  const spanCk = makeEl({ tag: 'SPAN', children: [ck1, ck2, ck3] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ck1, 'Clearing cookies and site data for ', spanCk), '清除 ');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ck3, ' may sign you out of this site.', spanCk), ' 的 Cookie 和网站数据可能会使你退出该网站的登录状态。');
+
+  const ds1 = makeTextNode('Delete ');
+  const ds2 = makeEl({ tag: 'STRONG', text: 'my-skill' });
+  const ds3 = makeTextNode('? This removes it from your config directory.');
+  const divDs = makeEl({ tag: 'DIV', children: [ds1, ds2, ds3] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ds1, 'Delete ', divDs), '删除 ');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ds3, '? This removes it from your config directory.', divDs), '？这会将其从你的配置目录中移除。');
 
   // 5. DOM translateNode + ATTR_DICT + context ignore guards
   const inputEl = makeEl({ tag: 'INPUT', attrs: { placeholder: 'Search conversations...', 'aria-label': 'Antigravity' } });
