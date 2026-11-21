@@ -1,10 +1,25 @@
 # Antigravity 简体中文汉化补丁 (`antigravity-zh-cn`)
 
-**Antigravity 桌面客户端（Windows）** 全界面简体中文汉化补丁与跟版维护工程，当前版本：**`v0.2`**（适配 Antigravity 客户端 `v2.34.0`）。
+[![Release](https://img.shields.io/github/v/release/downey37/antigravity-zh-cn?label=当前版本)](https://github.com/downey37/antigravity-zh-cn/releases)
+[![Antigravity](https://img.shields.io/badge/适配客户端-Antigravity%20v2.34.0-blue)](https://github.com/downey37/antigravity-zh-cn/releases)
+[![Discussions](https://img.shields.io/github/discussions/downey37/antigravity-zh-cn?label=讨论区)](https://github.com/downey37/antigravity-zh-cn/discussions)
+[![License](https://img.shields.io/github/license/downey37/antigravity-zh-cn?label=协议)](LICENSE)
+
+**Antigravity 桌面客户端（Windows）** 全界面简体中文汉化补丁与跟版维护工程，当前版本：**`v0.2.1`**（适配 Antigravity 客户端 `v2.34.0`）。
+
+## 界面效果预览
+
+| 主界面 | 常规设置 |
+| :---: | :---: |
+| ![主界面汉化效果](docs/images/preview-home.png) | ![常规设置汉化效果](docs/images/preview-settings-general.png) |
+
+**模型与用量（含 Orchestrator 设置）**
+
+![模型与用量汉化效果](docs/images/preview-settings-models.png)
 
 ## 特性亮点
 
-- **全界面高覆盖翻译**：涵盖主进程原生菜单、系统托盘、弹窗、设置页、侧边栏、Tooltip 浮层与动态提示（3810+ 条静态词库 + 360+ 条属性译文 + 动态模板规则）。
+- **全界面高覆盖翻译**：涵盖主进程原生菜单、系统托盘、弹窗、设置页、侧边栏、Tooltip 浮层与动态提示（3960+ 条静态词库 + 380+ 条属性译文 + 动态模板规则）。
 - **上下文精准消歧**：针对同词多义（如 `New`、`None` 等）按 DOM 上下文精确区分，避免全局替换误伤。
 - **代码与专有名词保护**：自动避开代码块、终端输出与用户输入区域；保留 `Antigravity`、`Google Drive` 及模型原名（`Gemini`、`Claude`、`GPT-OSS` 等）。
 - **无损备份与自动校验**：首次打补丁自动备份官方原版 `app.asar` 为 `app.asar.bak`，部署完成后自动执行 Node VM 沙箱回归校验。
@@ -70,7 +85,7 @@ npm run deploy
 
 ## 参与贡献与跟版维护
 
-欢迎提交 Issue 或 Pull Request 一起完善翻译！
+欢迎提交 [Issue](https://github.com/downey37/antigravity-zh-cn/issues)、[Pull Request](https://github.com/downey37/antigravity-zh-cn/pulls)，或前往 [Discussions](https://github.com/downey37/antigravity-zh-cn/discussions) 交流翻译建议与使用反馈！
 
 ### 目录结构
 
