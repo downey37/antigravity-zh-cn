@@ -56,6 +56,53 @@ function createDynamicRules(helpers) {
     return translateDuration(s);
   }
 
+  const EFFORT_LEVEL_MAP = {
+    minimal: '极简',
+    low: '低',
+    medium: '中',
+    high: '高',
+    extra: '超高',
+    'extra high': '超高',
+    xhigh: '超高',
+    max: '最高'
+  };
+
+  function translateEffortLevel(effort) {
+    const key = String(effort || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return EFFORT_LEVEL_MAP[key] || null;
+  }
+
+  function translateModelWithEffort(str) {
+    const s = String(str || '').trim();
+    if (!s) return null;
+
+    // 1. 纯思考深度（可选附带上下文窗口后缀），如 "Extra High" / "Extra High · 1M"
+    const pureMatch = s.match(/^(Extra\s+High|XHigh|Minimal|Low|Medium|High|Extra|Max)(?:\s*\u00b7\s*(.+))?$/i);
+    if (pureMatch) {
+      const effZh = translateEffortLevel(pureMatch[1]);
+      if (!effZh) return null;
+      if (pureMatch[2]) {
+        const ctxRaw = pureMatch[2].trim();
+        const ctxZh = lookupExact(ctxRaw, normalizeKey(ctxRaw)) || ctxRaw;
+        return `${effZh} \u00b7 ${ctxZh}`;
+      }
+      return effZh;
+    }
+
+    // 2. "模型名 + 思考深度"（可选附带上下文窗口后缀），如 "Gemini 4 Neon Extra High" / "Orchestrator Gemini 4 Neon Extra High · 1M"
+    const modelMatch = s.match(/^(.+?)\s+(Extra\s+High|XHigh|Minimal|Low|Medium|High|Extra|Max)(?:\s*\u00b7\s*(.+))?$/i);
+    if (!modelMatch) return null;
+    const base = modelMatch[1].trim();
+    const effZh = translateEffortLevel(modelMatch[2]);
+    if (!base || !effZh) return null;
+    if (modelMatch[3]) {
+      const ctxRaw = modelMatch[3].trim();
+      const ctxZh = lookupExact(ctxRaw, normalizeKey(ctxRaw)) || ctxRaw;
+      return `${base} ${effZh} \u00b7 ${ctxZh}`;
+    }
+    return `${base} ${effZh}`;
+  }
+
   function translateLimitKind(kind) {
     const low = String(kind || '').trim().toLowerCase();
     if (low === 'weekly') return '每周配额';
@@ -379,11 +426,20 @@ function createDynamicRules(helpers) {
     [/^Worktree from\s+(.+)$/i, '从 $1 创建工作树'],
     [/^Work in\s+(.+)$/i, '运行于 $1'],
     [/^Select Worktree\s*\((.+)\)$/i, '选择工作树 ($1)'],
-    [/^(Low|Medium|High|Extra|Max)\s*·\s*(.+)$/i, (_, eff, ctx) => {
-      const effMap = { low: '低', medium: '中', high: '高', extra: '超高', max: '最高' };
-      return `${effMap[eff.toLowerCase()] || eff} · ${lookupExact(ctx, normalizeKey(ctx)) || ctx}`;
+    [/^(Extra\s+High|XHigh|Minimal|Low|Medium|High|Extra|Max)\s*·\s*(.+)$/i, (_, eff, ctx) => {
+      const effZh = translateEffortLevel(eff) || eff;
+      const ctxRaw = ctx.trim();
+      return `${effZh} · ${lookupExact(ctxRaw, normalizeKey(ctxRaw)) || ctxRaw}`;
     }],
-    [/^Select model,\s*current:\s*(.+)$/i, '选择模型，当前：$1'],
+    [/^Select model,\s*current:\s*(.+)$/i, (_, current) => {
+      const raw = current.trim();
+      const exact = lookupExact(raw, normalizeKey(raw));
+      if (exact) return `选择模型，当前：${exact}`;
+      const countMatch = raw.match(/^(\d+)\s+models\s+selected$/i);
+      if (countMatch) return `选择模型，当前：已选 ${countMatch[1]} 个模型`;
+      const effortTranslated = translateModelWithEffort(raw);
+      return `选择模型，当前：${effortTranslated || raw}`;
+    }],
     [/^Agent permissions preset selector,\s*current:\s*(.+)$/i, (_, p) => `智能体权限预设选择器，当前：${lookupExact(p.trim(), normalizeKey(p.trim())) || p.trim()}`],
     [/^Agent permissions preset:\s*(.+?),\s*(.+)$/i, (_, p, reason) => `智能体权限预设：${lookupExact(p.trim(), normalizeKey(p.trim())) || p.trim()}，${lookupExact(reason.trim(), normalizeKey(reason.trim())) || reason.trim()}`],
     [/^(.+?)\s+needs?\s+the terminal sandbox,\s*which isn't available on this host\.$/i, (_, names) => {
@@ -755,6 +811,8 @@ function createDynamicRules(helpers) {
     translateDuration,
     translateCompactRelativeTime,
     translateCompactDuration,
+    translateEffortLevel,
+    translateModelWithEffort,
     translateLimitKind,
     translateScope,
     translateEntityNoun,

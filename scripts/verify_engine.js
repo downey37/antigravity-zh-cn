@@ -490,7 +490,71 @@ function runVerification() {
   );
   assert.strictEqual(api.translateString("The Orchestrator's own planner"), 'Orchestrator 自带规划器');
   assert.strictEqual(api.translateString('Extra High'), '超高');
+  assert.strictEqual(api.translateString('XHigh'), '超高');
   assert.strictEqual(api.translateString('Thinking effort'), '思考深度');
+  assert.strictEqual(
+    api.translateString('Offloads routine steps to a faster executor. Same quality, fewer tokens used.'),
+    '将常规步骤分流给更快的执行器。同等质量，消耗更少 Token。'
+  );
+
+  // 3e-2. Model selector Orchestrator row & trigger combined "Model + Effort" strings
+  const orchModelEl = makeEl({ testid: 'model-selector-orchestrator-model' });
+  assert.strictEqual(api.translateString('Gemini 4 Neon Extra High', orchModelEl), 'Gemini 4 Neon 超高');
+  assert.strictEqual(api.translateString('Gemini 4 Neon High', orchModelEl), 'Gemini 4 Neon 高');
+  assert.strictEqual(api.translateString('Gemini 4 Neon Medium', orchModelEl), 'Gemini 4 Neon 中');
+  assert.strictEqual(api.translateString('Gemini 4 Neon Low', orchModelEl), 'Gemini 4 Neon 低');
+  assert.strictEqual(api.translateString('Gemini 4 Neon Extra', orchModelEl), 'Gemini 4 Neon 超高');
+  assert.strictEqual(api.translateString('Gemini 4 Neon XHigh', orchModelEl), 'Gemini 4 Neon 超高');
+  assert.strictEqual(api.translateString('Gemini 4 Neon Max', orchModelEl), 'Gemini 4 Neon 最高');
+  assert.strictEqual(api.translateString('Gemini 4 Neon Minimal', orchModelEl), 'Gemini 4 Neon 极简');
+  assert.strictEqual(api.translateString('Claude Opus 5.5 Extra High', orchModelEl), 'Claude Opus 5.5 超高');
+  assert.strictEqual(api.translateString('GPT-OSS 120B Medium', orchModelEl), 'GPT-OSS 120B 中');
+  assert.strictEqual(api.translateString("The Orchestrator's own planner", orchModelEl), 'Orchestrator 自带规划器');
+  assert.strictEqual(api.translateString('Gemini 4 Carbon', orchModelEl), 'Gemini 4 Carbon');
+  assert.strictEqual(api.translateString('Gemini 4 Neon 超高', orchModelEl), 'Gemini 4 Neon 超高');
+
+  const modelTriggerBtn = makeEl({ tag: 'BUTTON', testid: 'model-selector-trigger' });
+  const triggerSubSpan = makeEl({ tag: 'SPAN', cls: 'opacity-70', parent: modelTriggerBtn });
+  const triggerLabelSpan = makeEl({ tag: 'SPAN', parent: modelTriggerBtn });
+  assert.strictEqual(api.translateString('Gemini 4 Neon Extra High', triggerSubSpan), 'Gemini 4 Neon 超高');
+  assert.strictEqual(api.translateString(' Gemini 4 Neon Extra High', triggerSubSpan), ' Gemini 4 Neon 超高');
+  assert.strictEqual(api.translateString('Extra High', triggerSubSpan), '超高');
+  assert.strictEqual(api.translateString('Extra High · 1M', triggerSubSpan), '超高 · 1M');
+  assert.strictEqual(api.translateString('XHigh · 1M', triggerSubSpan), '超高 · 1M');
+  assert.strictEqual(api.translateString('Medium · 200K', triggerSubSpan), '中 · 200K');
+  assert.strictEqual(api.translateString('Orchestrator', triggerLabelSpan), 'Orchestrator');
+  assert.strictEqual(api.translateString('My Custom High', triggerLabelSpan), 'My Custom High');
+
+  // Negative isolation outside model-selector effort context
+  assert.strictEqual(api.translateString('Gemini 4 Neon Extra High'), 'Gemini 4 Neon Extra High');
+  assert.strictEqual(api.translateString('Volume High'), 'Volume High');
+  assert.strictEqual(api.translateString('Priority Medium'), 'Priority Medium');
+
+  // Dynamic aria-label for model selector trigger
+  assert.strictEqual(
+    api.translateString('Select model, current: Orchestrator Gemini 4 Neon Extra High'),
+    '选择模型，当前：Orchestrator Gemini 4 Neon 超高'
+  );
+  assert.strictEqual(
+    api.translateString('Select model, current: Gemini 4 Neon Medium'),
+    '选择模型，当前：Gemini 4 Neon 中'
+  );
+  assert.strictEqual(
+    api.translateString('Select model, current: Gemini 4 Neon Extra High · 1M'),
+    '选择模型，当前：Gemini 4 Neon 超高 · 1M'
+  );
+  assert.strictEqual(
+    api.translateString('Select model, current: No Model Selected'),
+    '选择模型，当前：未选择模型'
+  );
+  assert.strictEqual(
+    api.translateString('Select model, current: 3 models selected'),
+    '选择模型，当前：已选 3 个模型'
+  );
+  assert.strictEqual(
+    api.translateString('Select model, current: Gemini 4 Carbon'),
+    '选择模型，当前：Gemini 4 Carbon'
+  );
   assert.strictEqual(api.translateString('Settings for conversations outside of projects.'), '在项目之外创建的独立会话设置。');
   assert.strictEqual(api.translateString('Settings for conversations outside of workspaces.'), '在工作区之外创建的独立会话设置。');
   assert.strictEqual(api.translateString('Manage project folders and settings.'), '管理项目文件夹与设置。');
@@ -888,6 +952,17 @@ function runDomLifecycleVerification(i18nCode) {
   timeText.nodeValue = '2mo';
   observerCb([{ type: 'characterData', target: timeText }]);
   assert.strictEqual(timeText.nodeValue, '2 个月前');
+
+  // 8. Orchestrator model selector combined "Model + Effort" appends & characterData updates translate seamlessly
+  const orchModelSpan = new DomElement('SPAN');
+  orchModelSpan.setAttribute('data-testid', 'model-selector-orchestrator-model');
+  const orchModelText = makeText('Gemini 4 Neon Extra High');
+  orchModelSpan.appendChild(orchModelText);
+  rootDiv.appendChild(orchModelSpan);
+  assert.strictEqual(orchModelText.nodeValue, 'Gemini 4 Neon 超高');
+  orchModelText.nodeValue = 'Claude Opus 5.5 High';
+  observerCb([{ type: 'characterData', target: orchModelText }]);
+  assert.strictEqual(orchModelText.nodeValue, 'Claude Opus 5.5 高');
 }
 
 runVerification();

@@ -251,6 +251,20 @@ function createContextRules() {
     return false;
   }
 
+  function isModelEffortContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    if (contextEl.closest('[data-testid="model-selector-orchestrator-model"]')) {
+      return true;
+    }
+    if (
+      contextEl.closest('[data-testid="model-selector-trigger"]') &&
+      contextEl.closest('.opacity-70')
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   return {
     isFileTreeFilename,
     isInsideTooltipOrHover,
@@ -263,7 +277,8 @@ function createContextRules() {
     shouldIgnoreAttrElement,
     isSwarmContext,
     isRelativeTimestampContext,
-    isElapsedDurationContext
+    isElapsedDurationContext,
+    isModelEffortContext
   };
 }
 

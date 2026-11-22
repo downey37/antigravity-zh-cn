@@ -74,7 +74,8 @@ function antigravityI18nBootstrap(
   const {
     DYNAMIC_RULES,
     translateCompactRelativeTime,
-    translateCompactDuration
+    translateCompactDuration,
+    translateModelWithEffort
   } = DYNAMIC_RULES_FACTORY({ normalizeKey, lookupExact });
   const {
     isNewBadgeContext,
@@ -86,7 +87,8 @@ function antigravityI18nBootstrap(
     shouldIgnoreAttrElement,
     isSwarmContext,
     isRelativeTimestampContext,
-    isElapsedDurationContext
+    isElapsedDurationContext,
+    isModelEffortContext
   } = CONTEXT_RULES_FACTORY();
 
   const TARGET_ATTRS = [
@@ -188,6 +190,14 @@ function antigravityI18nBootstrap(
     if (direct) {
       const effectiveTrailWs = (/^[ \t]+$/.test(trailWs) && /[：。！？，、]$/.test(direct)) ? '' : trailWs;
       return leadWs + direct + effectiveTrailWs;
+    }
+
+    // 1.2 模型选择器中合并展示的“模型名 + 思考深度”组合文案（Orchestrator 行与底部模型选择触发器）
+    if (isModelEffortContext(contextEl)) {
+      const modelEffortZh = translateModelWithEffort(norm);
+      if (modelEffortZh && modelEffortZh !== norm) {
+        return leadWs + modelEffortZh + trailWs;
+      }
     }
 
     // 1.5 显式带括号的动态规则优先匹配

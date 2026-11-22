@@ -3958,5 +3958,7 @@
   "Use Google Cloud project instead": "改用 Google Cloud 项目",
   "The Hub sent an unexpected response.": "Hub 返回了意外的响应。",
   "Enter [user@]host[:port], or pick a host from your SSH config.": "输入 [user@]host[:port]，或从你的 SSH 配置中选择主机。",
-  "Screen locked: agents can't use this Mac until you unlock it": "屏幕已锁定：在解锁前，智能体无法使用此 Mac"
+  "Screen locked: agents can't use this Mac until you unlock it": "屏幕已锁定：在解锁前，智能体无法使用此 Mac",
+  "XHigh": "超高",
+  "Offloads routine steps to a faster executor. Same quality, fewer tokens used.": "将常规步骤分流给更快的执行器。同等质量，消耗更少 Token。"
 }
