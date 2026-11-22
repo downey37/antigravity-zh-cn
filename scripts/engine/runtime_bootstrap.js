@@ -75,7 +75,8 @@ function antigravityI18nBootstrap(
     DYNAMIC_RULES,
     translateCompactRelativeTime,
     translateCompactDuration,
-    translateModelWithEffort
+    translateModelWithEffort,
+    translateModelParenEffort
   } = DYNAMIC_RULES_FACTORY({ normalizeKey, lookupExact });
   const {
     isNewBadgeContext,
@@ -88,7 +89,8 @@ function antigravityI18nBootstrap(
     isSwarmContext,
     isRelativeTimestampContext,
     isElapsedDurationContext,
-    isModelEffortContext
+    isModelEffortContext,
+    isModelLabelContext
   } = CONTEXT_RULES_FACTORY();
 
   const TARGET_ATTRS = [
@@ -197,6 +199,14 @@ function antigravityI18nBootstrap(
       const modelEffortZh = translateModelWithEffort(norm);
       if (modelEffortZh && modelEffortZh !== norm) {
         return leadWs + modelEffortZh + trailWs;
+      }
+    }
+
+    // 1.3 模型选择器中括号形式思考深度标签（如 "GPT-OSS 120B (Medium)" -> "GPT-OSS 120B (中)"）
+    if (isModelLabelContext(contextEl)) {
+      const modelParenZh = translateModelParenEffort(norm);
+      if (modelParenZh && modelParenZh !== norm) {
+        return leadWs + modelParenZh + trailWs;
       }
     }
 

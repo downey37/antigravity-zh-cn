@@ -103,6 +103,22 @@ function createDynamicRules(helpers) {
     return `${base} ${effZh}`;
   }
 
+  function translateModelParenEffort(str) {
+    const s = String(str || '').trim();
+    if (!s) return null;
+    const m = s.match(/^(.+?)\s*\((Extra\s+High|XHigh|Minimal|Low|Medium|High|Extra|Max)(?:\s+Thinking)?\)(?:\s*\u00b7\s*(.+))?$/i);
+    if (!m) return null;
+    const base = m[1].trim();
+    const effZh = translateEffortLevel(m[2]);
+    if (!base || !effZh) return null;
+    if (m[3]) {
+      const ctxRaw = m[3].trim();
+      const ctxZh = lookupExact(ctxRaw, normalizeKey(ctxRaw)) || ctxRaw;
+      return `${base} (${effZh}) \u00b7 ${ctxZh}`;
+    }
+    return `${base} (${effZh})`;
+  }
+
   function translateLimitKind(kind) {
     const low = String(kind || '').trim().toLowerCase();
     if (low === 'weekly') return '每周配额';
@@ -437,6 +453,8 @@ function createDynamicRules(helpers) {
       if (exact) return `选择模型，当前：${exact}`;
       const countMatch = raw.match(/^(\d+)\s+models\s+selected$/i);
       if (countMatch) return `选择模型，当前：已选 ${countMatch[1]} 个模型`;
+      const parenTranslated = translateModelParenEffort(raw);
+      if (parenTranslated) return `选择模型，当前：${parenTranslated}`;
       const effortTranslated = translateModelWithEffort(raw);
       return `选择模型，当前：${effortTranslated || raw}`;
     }],
@@ -813,6 +831,7 @@ function createDynamicRules(helpers) {
     translateCompactDuration,
     translateEffortLevel,
     translateModelWithEffort,
+    translateModelParenEffort,
     translateLimitKind,
     translateScope,
     translateEntityNoun,

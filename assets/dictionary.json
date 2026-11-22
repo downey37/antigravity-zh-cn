@@ -3960,5 +3960,8 @@
   "Enter [user@]host[:port], or pick a host from your SSH config.": "输入 [user@]host[:port]，或从你的 SSH 配置中选择主机。",
   "Screen locked: agents can't use this Mac until you unlock it": "屏幕已锁定：在解锁前，智能体无法使用此 Mac",
   "XHigh": "超高",
-  "Offloads routine steps to a faster executor. Same quality, fewer tokens used.": "将常规步骤分流给更快的执行器。同等质量，消耗更少 Token。"
+  "Offloads routine steps to a faster executor. Same quality, fewer tokens used.": "将常规步骤分流给更快的执行器。同等质量，消耗更少 Token。",
+  "For most deep reasoning and complex problems": "适用于大多数深度推理与复杂问题",
+  "The original Gemini 4 model for advanced workflows": "原版 Gemini 4 模型，适用于高级工作流",
+  "For speed and efficiency in execution tasks": "适用于追求速度与效率的执行任务"
 }

@@ -265,6 +265,22 @@ function createContextRules() {
     return false;
   }
 
+  function isModelLabelContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    if (contextEl.closest('[data-testid="model-selector-custom-item"]')) {
+      return false;
+    }
+    return Boolean(
+      contextEl.closest(
+        '[data-testid="model-selector-item"], ' +
+        '[data-testid="model-selector-panel"], ' +
+        '[data-testid="model-selector-trigger"], ' +
+        '[data-testid="orchestrator-picker-row"], ' +
+        '[data-testid="automation-model-value"]'
+      )
+    );
+  }
+
   return {
     isFileTreeFilename,
     isInsideTooltipOrHover,
@@ -278,7 +294,8 @@ function createContextRules() {
     isSwarmContext,
     isRelativeTimestampContext,
     isElapsedDurationContext,
-    isModelEffortContext
+    isModelEffortContext,
+    isModelLabelContext
   };
 }
 

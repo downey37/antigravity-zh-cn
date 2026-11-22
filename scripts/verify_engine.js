@@ -496,6 +496,18 @@ function runVerification() {
     api.translateString('Offloads routine steps to a faster executor. Same quality, fewer tokens used.'),
     '将常规步骤分流给更快的执行器。同等质量，消耗更少 Token。'
   );
+  assert.strictEqual(
+    api.translateString('For most deep reasoning and complex problems'),
+    '适用于大多数深度推理与复杂问题'
+  );
+  assert.strictEqual(
+    api.translateString('The original Gemini 4 model for advanced workflows'),
+    '原版 Gemini 4 模型，适用于高级工作流'
+  );
+  assert.strictEqual(
+    api.translateString('For speed and efficiency in execution tasks'),
+    '适用于追求速度与效率的执行任务'
+  );
 
   // 3e-2. Model selector Orchestrator row & trigger combined "Model + Effort" strings
   const orchModelEl = makeEl({ testid: 'model-selector-orchestrator-model' });
@@ -554,6 +566,34 @@ function runVerification() {
   assert.strictEqual(
     api.translateString('Select model, current: Gemini 4 Carbon'),
     '选择模型，当前：Gemini 4 Carbon'
+  );
+
+  // 3e-3. Single-variant model labels with parenthesized thinking effort (e.g. "GPT-OSS 120B (Medium)")
+  const modelItemRow = makeEl({ testid: 'model-selector-item' });
+  assert.strictEqual(api.translateString('GPT-OSS 120B (Medium)', modelItemRow), 'GPT-OSS 120B (中)');
+  assert.strictEqual(api.translateString('GPT-OSS 120B (Low)', modelItemRow), 'GPT-OSS 120B (低)');
+  assert.strictEqual(api.translateString('GPT-OSS 120B (High)', modelItemRow), 'GPT-OSS 120B (高)');
+  assert.strictEqual(api.translateString('Gemini 4 Neon (XHigh)', modelItemRow), 'Gemini 4 Neon (超高)');
+  assert.strictEqual(api.translateString('Gemini 4 Neon (Extra High)', modelItemRow), 'Gemini 4 Neon (超高)');
+  assert.strictEqual(api.translateString('Claude Sonnet 4.5 (High Thinking)', modelItemRow), 'Claude Sonnet 4.5 (高)');
+  assert.strictEqual(api.translateString('GPT-OSS 120B (Max)', modelItemRow), 'GPT-OSS 120B (最高)');
+  assert.strictEqual(api.translateString('GPT-OSS 120B (Minimal)', modelItemRow), 'GPT-OSS 120B (极简)');
+  assert.strictEqual(api.translateString('GPT-OSS 120B (中)', modelItemRow), 'GPT-OSS 120B (中)');
+
+  assert.strictEqual(api.translateString('GPT-OSS 120B (Medium)', triggerLabelSpan), 'GPT-OSS 120B (中)');
+  assert.strictEqual(api.translateString('My Custom High', triggerLabelSpan), 'My Custom High');
+
+  const orchPickerRow = makeEl({ testid: 'orchestrator-picker-row' });
+  assert.strictEqual(api.translateString('GPT-OSS 120B (Medium)', orchPickerRow), 'GPT-OSS 120B (中)');
+
+  const customModelItem = makeEl({ testid: 'model-selector-custom-item', parent: modelPanel });
+  assert.strictEqual(api.translateString('My Custom Model (Medium)', customModelItem), 'My Custom Model (Medium)');
+
+  assert.strictEqual(api.translateString('GPT-OSS 120B (Medium)'), 'GPT-OSS 120B (Medium)');
+  assert.strictEqual(api.translateString('Priority (Medium)'), 'Priority (Medium)');
+  assert.strictEqual(
+    api.translateString('Select model, current: GPT-OSS 120B (Medium)'),
+    '选择模型，当前：GPT-OSS 120B (中)'
   );
   assert.strictEqual(api.translateString('Settings for conversations outside of projects.'), '在项目之外创建的独立会话设置。');
   assert.strictEqual(api.translateString('Settings for conversations outside of workspaces.'), '在工作区之外创建的独立会话设置。');
