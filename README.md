@@ -5,7 +5,7 @@
 [![Discussions](https://img.shields.io/github/discussions/downey37/antigravity-zh-cn?label=讨论区)](https://github.com/downey37/antigravity-zh-cn/discussions)
 [![License](https://img.shields.io/github/license/downey37/antigravity-zh-cn?label=协议)](LICENSE)
 
-**Antigravity 桌面客户端（Windows）** 全界面简体中文汉化补丁与跟版维护工程，当前版本：**`v0.2.2`**（适配 Antigravity 客户端 `v2.34.0`）。
+**Antigravity 桌面客户端（Windows）** 全界面简体中文汉化补丁与跟版维护工程，当前版本：**`v0.2.3`**（适配 Antigravity 客户端 `v2.34.0`）。
 
 ## 界面效果预览
 
