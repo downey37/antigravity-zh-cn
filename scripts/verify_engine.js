@@ -176,20 +176,27 @@ function runVerification() {
     assert(ipcCode.includes('translateContextMenuLabel'), 'ipcHandlers.js must include translateContextMenuLabel');
     assert(ipcCode.includes('getNativeContextDict'), 'ipcHandlers.js must integrate OTA getNativeContextDict');
     assert(ipcCode.includes('i18n-ota:check-updates'), 'ipcHandlers.js must register i18n-ota:check-updates IPC handler');
-    assert(ipcCode.includes('i18n-ota:toggle-language') && ipcCode.includes('i18n-ota:get-language-enabled'), 'ipcHandlers.js must register language toggle IPC handlers');
-    assert(ipcCode.includes('isI18nEnabled'), 'ipcHandlers.js must respect isI18nEnabled for context menu and notifications');
+    assert(ipcCode.includes("ipcMain.handle('i18n-ota:toggle-language'") && ipcCode.includes("ipcMain.handle('i18n-ota:get-language-enabled'"), 'ipcHandlers.js must register language toggle IPC handlers via ipcMain.handle');
+    assert(ipcCode.includes('isI18nEnabled') && ipcCode.includes('function _i18nT('), 'ipcHandlers.js must respect isI18nEnabled and define _i18nT');
     const preloadCode = asar.extractFile(deployedAsar, path.join('dist', 'preload.js')).toString('utf8');
-    assert(preloadCode.includes('antigravityI18nOta') && preloadCode.includes('i18n-ota:check-updates') && preloadCode.includes('toggleLanguage') && preloadCode.includes('i18n-ota:toggle-language'), 'preload.js must expose antigravityI18nOta checkForUpdates and toggleLanguage bridge');
+    assert(
+      (preloadCode.match(/exposeInMainWorld\('antigravityI18nOta'/g) || []).length === 2 &&
+      preloadCode.includes('i18n-ota:check-updates') &&
+      preloadCode.includes('toggleLanguage') &&
+      preloadCode.includes('i18n-ota:toggle-language'),
+      'preload.js must expose antigravityI18nOta in both remote and local window branches'
+    );
     const mainCode = asar.extractFile(deployedAsar, path.join('dist', 'main.js')).toString('utf8');
-    assert(mainCode.includes('antigravity-i18n-check-update') && mainCode.includes('antigravity-i18n-toggle-lang') && mainCode.includes('检查汉化更新') && mainCode.includes('临时切换为英文'), 'main.js must add OTA check and language toggle items to Windows tray menu');
+    assert(mainCode.includes('antigravity-i18n-check-update') && mainCode.includes('antigravity-i18n-toggle-lang') && mainCode.includes('function _i18nT(') && mainCode.includes('切换为英文原文'), 'main.js must add OTA check, language toggle, and _i18nT');
+    assert(updaterCode.includes('_I18N_UPDATE_STEPS') && updaterCode.includes('function _i18nT(') && updaterCode.includes('MenuUpdateStep["CheckForUpdates"] = "Check for Updates"'), 'updater.js must keep English MenuUpdateStep keys and dynamically translate via _i18nT');
     const trayCode = asar.extractFile(deployedAsar, path.join('dist', 'tray.js')).toString('utf8');
-    assert(trayCode.includes('_syncTrayLabels') && trayCode.includes('onLanguageChange'), 'tray.js must subscribe to onLanguageChange for tray labels');
+    assert(trayCode.includes('_syncTrayLabels') && trayCode.includes('onLanguageChange') && trayCode.includes('切换为英文原文'), 'tray.js must subscribe to onLanguageChange for tray labels');
     assert(asar.statFile(deployedAsar, path.join('dist', 'native_context_dict.json')), 'app.asar must include dist/native_context_dict.json');
     assert(asar.statFile(deployedAsar, path.join('dist', 'i18n_ota.js')), 'app.asar must include dist/i18n_ota.js');
     assert(asar.statFile(deployedAsar, path.join('dist', 'i18n_meta.json')), 'app.asar must include dist/i18n_meta.json');
     const embeddedMeta = JSON.parse(asar.extractFile(deployedAsar, path.join('dist', 'i18n_meta.json')).toString('utf8'));
     assert.strictEqual(embeddedMeta.schemaVersion, 1, 'dist/i18n_meta.json must have schemaVersion 1');
-    assert(menuCode.includes('translateMenuRecursively') && menuCode.includes('antigravity-i18n-check-update') && menuCode.includes('antigravity-i18n-toggle-lang') && menuCode.includes('onLanguageChange'), 'menu.js must include translateMenuRecursively, OTA check, language toggle item, and onLanguageChange listener');
+    assert(menuCode.includes('translateMenuRecursively') && menuCode.includes('antigravity-i18n-check-update') && menuCode.includes('antigravity-i18n-toggle-lang') && menuCode.includes('onLanguageChange') && menuCode.includes('__antigravityOrigLabel || menuItem.label'), 'menu.js must include translateMenuRecursively, OTA check, language toggle item, onLanguageChange listener, and __antigravityOrigLabel updateAction lookup');
     const getCodeIdx = utilsCode.indexOf('function _getAntigravityI18nCode');
     const createWinIdx = utilsCode.indexOf('function createWindow');
     assert(
@@ -203,10 +210,11 @@ function runVerification() {
       utilsCode.includes('getInitialStateScript'),
       'utils.js must define module-level _getAntigravityI18nCode / _getAntigravityI18nOta caches, sync initial enabled state, and use exact frameOrigin matching'
     );
-    assert(secCode.includes('颁发给：') && secCode.includes('请勿在此网站上输入任何敏感信息'), 'webviewPopupSecurity.js must translate body and certificate fields');
-    assert(wizardCode.includes('Antigravity 已全新重构'), 'wizardHtml.js must translate body paragraph');
+    assert(secCode.includes('颁发给：') && secCode.includes('请勿在此网站上输入任何敏感信息') && secCode.includes('function _i18nT('), 'webviewPopupSecurity.js must dynamically translate body and certificate fields');
+    assert(wizardCode.includes('Antigravity 已全新重构') && wizardCode.includes('function _i18nT('), 'wizardHtml.js must dynamically translate body paragraph');
 
     const extraMainAssertions = [
+      ['dist/provisionSplash.js', '正在配置 WSL'],
       ['dist/deviceChooser.js', '连接设备'],
       ['dist/webauthn.js', '选择通行密钥'],
       ['dist/cablev2.js', '使用手机或平板电脑'],
@@ -221,10 +229,52 @@ function runVerification() {
       const code = asar.extractFile(deployedAsar, path.normalize(rel)).toString('utf8');
       new vm.Script(code, { filename: rel });
       assert(code.includes(needle), `${rel} must include localized text: ${needle}`);
+      assert(code.includes('function _i18nT('), `${rel} must define dynamic _i18nT helper`);
     }
     for (const rel of ['dist/utils.js', 'dist/menu.js', 'dist/tray.js', 'dist/main.js', 'dist/preload.js', 'dist/updater.js', 'dist/provisionSplash.js', 'dist/ipcHandlers.js', 'dist/webviewPopupSecurity.js', 'dist/ideInstall/wizardHtml.js', 'dist/languageServer.js', 'dist/i18n_ota.js']) {
       new vm.Script(asar.extractFile(deployedAsar, path.normalize(rel)).toString('utf8'), { filename: rel });
     }
+
+    // Live runtime toggle test for real patched main-process modules (webviewPopupSecurity & disconnectedPage)
+    let mockMainEnabled = true;
+    const loadPatchedCjs = (code, filename) => {
+      const mod = { exports: {} };
+      const customRequire = (id) => {
+        if (id === './i18n_ota' || id === '../i18n_ota') {
+          return { isI18nEnabled: () => mockMainEnabled };
+        }
+        if (id === 'electron') return { Menu: {}, dialog: {} };
+        if (id === 'crypto') return require('crypto');
+        return require(id);
+      };
+      const fn = vm.runInNewContext(`(function(exports, require, module) {\n${code}\n})`, { console, URL, Buffer }, { filename });
+      fn(mod.exports, customRequire, mod);
+      return mod.exports;
+    };
+    const secMod = loadPatchedCjs(secCode, 'dist/webviewPopupSecurity.js');
+    assert.strictEqual(secMod.formatPopupSecurityLabel({ url: 'http://example.com', level: 'insecure' }, 'http://example.com'), '不安全');
+    assert(secMod.formatConnectionInfo({ url: 'https://example.com', level: 'secure' }).detail.includes('连接安全'));
+    mockMainEnabled = false;
+    assert.strictEqual(secMod.formatPopupSecurityLabel({ url: 'http://example.com', level: 'insecure' }, 'http://example.com'), 'Not secure');
+    assert(secMod.formatConnectionInfo({ url: 'https://example.com', level: 'secure' }).detail.includes('Connection is secure'));
+
+    const discCode = asar.extractFile(deployedAsar, path.join('dist', 'remote', 'disconnectedPage.js')).toString('utf8');
+    const discMod = loadPatchedCjs(discCode, 'dist/remote/disconnectedPage.js');
+    let loadedDataUrl = '';
+    const mockWin = {
+      isDestroyed: () => false,
+      webContents: { isDestroyed: () => false },
+      loadURL: (u) => { loadedDataUrl = u; return Promise.resolve(); }
+    };
+    mockMainEnabled = true;
+    discMod.showDisconnectedPage(mockWin, { label: 'devbox', state: 'disconnected', canStop: true });
+    let decodedHtml = decodeURIComponent(loadedDataUrl.split(',')[1]);
+    assert(decodedHtml.includes('已断开与 devbox 的连接') && decodedHtml.includes('重新连接') && decodedHtml.includes('停止服务端'));
+    mockMainEnabled = false;
+    discMod.showDisconnectedPage(mockWin, { label: 'devbox', state: 'disconnected', canStop: true });
+    decodedHtml = decodeURIComponent(loadedDataUrl.split(',')[1]);
+    assert(decodedHtml.includes('Disconnected from devbox') && decodedHtml.includes('Reconnect') && decodedHtml.includes('Stop Server'));
+
     assert(!fs.existsSync(path.join(projectRoot, 'build', 'app.asar.unpacked')), 'build/app.asar.unpacked should be cleaned after packaging');
   }
 
@@ -1095,7 +1145,7 @@ function runVerification() {
   console.log(`ALL VERIFY CHECKS PASSED! version=v${pkgVersion}, patch=v${verCheck.patchVersion}, baseline=v${verCheck.clientVersion}, EXACT_DICT=${Object.keys(api.EXACT_DICT).length}, ATTR_DICT=${Object.keys(api.ATTR_DICT).length}, asarEntries=${asarEntriesCount}`);
 }
 
-function runDomLifecycleVerification(i18nCode) {
+function createMockDomEnv() {
   function DomNode(nodeType, tag) {
     this.nodeType = nodeType;
     this.nodeName = tag || '';
@@ -1244,6 +1294,12 @@ function runDomLifecycleVerification(i18nCode) {
     tn.nodeValue = val;
     return tn;
   };
+
+  return { DomNode, DomElement, makeText };
+}
+
+function runDomLifecycleVerification(i18nCode) {
+  const { DomNode, DomElement, makeText } = createMockDomEnv();
 
   const html = new DomElement('HTML');
   html.isConnected = true;
@@ -1505,17 +1561,28 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(injectedBtns[0].textContent, '检查汉化更新');
   assert.strictEqual(injectedBtns[0].className, updBtn.className);
   const injectedToggleBtns = popup.querySelectorAll('[data-antigravity-i18n-toggle-item="true"]');
-  assert.strictEqual(injectedToggleBtns.length, 1, 'Windows Antigravity title menu must inject exactly one 临时切换为英文 item');
-  assert.strictEqual(injectedToggleBtns[0].textContent, '临时切换为英文');
+  assert.strictEqual(injectedToggleBtns.length, 1, 'Windows Antigravity title menu must inject exactly one 切换为英文原文 item');
+  assert.strictEqual(injectedToggleBtns[0].textContent, '切换为英文原文 (关闭汉化)');
   assert.strictEqual(popup.children.length, 4);
+  const titleBarToggleBtns = titleBar.querySelectorAll('[data-antigravity-i18n-titlebar-toggle="true"]');
+  assert.strictEqual(titleBarToggleBtns.length, 1, 'Top title bar must inject permanent [中 | EN] toggle pill');
+  const titleToggleBtn = titleBarToggleBtns[0];
+  assert.strictEqual(titleToggleBtn.getAttribute('title'), '当前：简体中文（点击切换为英文原文）');
+  const zhPill = titleToggleBtn.querySelector('[data-antigravity-i18n-pill-zh="true"]');
+  const enPill = titleToggleBtn.querySelector('[data-antigravity-i18n-pill-en="true"]');
+  assert.strictEqual(zhPill.textContent, '中');
+  assert.strictEqual(enPill.textContent, 'EN');
+  assert(zhPill.getAttribute('style').includes('font-weight:600'));
+  assert(enPill.getAttribute('style').includes('opacity:0.55'));
+
   // Click dispatches Escape to close React menu & triggers IPC checkForUpdates
   injectedBtns[0]._listeners.click[0]({ stopPropagation() {} });
   assert.strictEqual(otaMenuClickedCount, 1);
   assert.strictEqual(dispatchedDocEvents.some((e) => e.key === 'Escape'), true);
 
-  // 12. In-app temporary Chinese <-> English toggle restores original English nodes/attrs losslessly & skips new mutations while disabled
+  // 12. Clicking top title-bar [中 | EN] pill restores original English nodes/attrs losslessly & skips new mutations while disabled
   assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), true);
-  injectedToggleBtns[0]._listeners.click[0]({ stopPropagation() {} });
+  titleToggleBtn._listeners.click[0]({ stopPropagation() {} });
   assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), false);
   assert.strictEqual(fragText.nodeValue, 'New Project');
   assert.strictEqual(strSpan.firstChild.nodeValue, 'Settings');
@@ -1528,16 +1595,21 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(verSpan.firstChild.nodeValue, 'Version 2.34.0');
   assert.strictEqual(updSpan.firstChild.nodeValue, 'Check for Updates');
   assert.strictEqual(injectedBtns[0].textContent, 'Check i18n Updates');
-  assert.strictEqual(injectedToggleBtns[0].textContent, 'Switch to 简体中文');
+  assert.strictEqual(injectedToggleBtns[0].textContent, '切换为简体中文 (开启汉化)');
+  assert.strictEqual(titleToggleBtn.getAttribute('title'), 'Current: English (Click to switch to 简体中文)');
+  assert(enPill.getAttribute('style').includes('font-weight:600'));
+  assert(zhPill.getAttribute('style').includes('opacity:0.55'));
+  assert.strictEqual(zhPill.textContent, '中');
+  assert.strictEqual(enPill.textContent, 'EN');
 
   const whileEnglishSpan = new DomElement('SPAN');
   const whileEnglishText = makeText('Add Resource');
   whileEnglishSpan.appendChild(whileEnglishText);
   rootDiv.appendChild(whileEnglishSpan);
-  assert.strictEqual(whileEnglishText.nodeValue, 'Add Resource', 'New nodes added in temporary English mode must remain English');
+  assert.strictEqual(whileEnglishText.nodeValue, 'Add Resource', 'New nodes added in English mode must remain English');
 
-  // Toggle back to Simplified Chinese
-  injectedToggleBtns[0]._listeners.click[0]({ stopPropagation() {} });
+  // Click top title-bar [中 | EN] pill again to switch back to Simplified Chinese
+  titleToggleBtn._listeners.click[0]({ stopPropagation() {} });
   assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), true);
   assert.strictEqual(fragText.nodeValue, '新建项目');
   assert.strictEqual(strSpan.firstChild.nodeValue, '系统设置（热更测试）');
@@ -1549,7 +1621,71 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(whileEnglishText.nodeValue, '添加资源');
   assert.strictEqual(updSpan.firstChild.nodeValue, '检查更新');
   assert.strictEqual(injectedBtns[0].textContent, '检查汉化更新');
-  assert.strictEqual(injectedToggleBtns[0].textContent, '临时切换为英文');
+  assert.strictEqual(injectedToggleBtns[0].textContent, '切换为英文原文 (关闭汉化)');
+  assert.strictEqual(titleToggleBtn.getAttribute('title'), '当前：简体中文（点击切换为英文原文）');
+
+  // 13. Startup in persisted English mode (__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false) keeps UI English while injecting clickable [中 | EN] pill
+  const { DomNode: DomNodeEn, DomElement: DomElementEn, makeText: makeTextEn } = createMockDomEnv();
+  const htmlEn = new DomElementEn('HTML');
+  htmlEn.isConnected = true;
+  const bodyEn = new DomElementEn('BODY');
+  htmlEn.appendChild(bodyEn);
+  const rootEn = new DomElementEn('DIV');
+  rootEn.id = 'root';
+  bodyEn.appendChild(rootEn);
+  const sandboxEn = {
+    console, setTimeout, clearTimeout,
+    Node: DomNodeEn,
+    Element: DomElementEn,
+    KeyboardEvent: function (type, init) { this.type = type; Object.assign(this, init || {}); },
+    NodeFilter: { SHOW_TEXT: 4, SHOW_ELEMENT: 1 },
+    MutationObserver: class { observe() {} },
+    requestAnimationFrame: (cb) => { cb(); return 1; },
+    window: {
+      __ANTIGRAVITY_I18N_INITIAL_ENABLED__: false,
+      location: { protocol: 'app:' },
+      history: {},
+      addEventListener() {},
+      antigravityI18nOta: {
+        checkForUpdates: () => Promise.resolve({ status: 'up_to_date' }),
+        toggleLanguage: () => {
+          const next = sandboxEn.window.__antigravitySetI18nEnabled(!sandboxEn.window.__antigravityIsI18nEnabled());
+          return Promise.resolve({ enabled: next });
+        }
+      }
+    },
+    location: { protocol: 'app:' },
+    document: {
+      readyState: 'complete',
+      title: 'Antigravity',
+      documentElement: htmlEn,
+      body: bodyEn,
+      createElement: (tag) => new DomElementEn(String(tag).toUpperCase()),
+      createTextNode: (val) => makeTextEn(val),
+      dispatchEvent: () => {},
+      querySelectorAll: () => [],
+      addEventListener: () => {}
+    }
+  };
+  sandboxEn.window.document = sandboxEn.document;
+  vm.runInNewContext(i18nCode, sandboxEn);
+  assert.strictEqual(sandboxEn.window.__antigravityIsI18nEnabled(), false);
+  const headerWrapEn = new DomElementEn('DIV');
+  const barEn = new DomElementEn('DIV');
+  barEn.setAttribute('data-testid', 'title-menu-bar');
+  const labelSpanEn = new DomElementEn('SPAN');
+  const labelTextEn = makeTextEn('Settings');
+  labelSpanEn.appendChild(labelTextEn);
+  headerWrapEn.appendChild(barEn);
+  headerWrapEn.appendChild(labelSpanEn);
+  rootEn.appendChild(headerWrapEn);
+  assert.strictEqual(labelTextEn.nodeValue, 'Settings', 'Persisted English startup must keep UI in English');
+  const enBarToggles = barEn.querySelectorAll('[data-antigravity-i18n-titlebar-toggle="true"]');
+  assert.strictEqual(enBarToggles.length, 1, 'Title bar toggle pill must still be injected when starting in English mode');
+  assert(enBarToggles[0].querySelector('[data-antigravity-i18n-pill-en="true"]').getAttribute('style').includes('font-weight:600'));
+  enBarToggles[0]._listeners.click[0]({ stopPropagation() {} });
+  assert.strictEqual(sandboxEn.window.__antigravityIsI18nEnabled(), true);
+  assert.strictEqual(labelTextEn.nodeValue, '设置', 'Clicking [中 | EN] from English startup must translate UI immediately');
 }
 
 async function runOtaControllerVerification() {
@@ -1738,15 +1874,17 @@ async function runOtaControllerVerification() {
     const rDisabled = await disabledCtrl.checkForUpdates({ manual: false });
     assert.strictEqual(rDisabled.status, 'disabled');
 
-    // 2g. Session-scoped Chinese <-> English toggle broadcasts to main + eligible plugin subframes only
+    // 2g. Persisted Chinese <-> English toggle broadcasts to main + eligible plugin subframes only & remembers across restarts
     const langEvents = [];
     const unsubscribe = ctrl.onLanguageChange((enabled) => langEvents.push(enabled));
     assert.strictEqual(ctrl.isI18nEnabled(), true);
+    assert.strictEqual(ctrl.t('中文', 'English'), '中文');
     assert.strictEqual(ctrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = true;');
     const preToggleMainCount = mainExecs.length;
     const preTogglePluginCount = pluginFrameExecs.length;
     assert.strictEqual(ctrl.setI18nEnabled(false), false);
     assert.strictEqual(ctrl.isI18nEnabled(), false);
+    assert.strictEqual(ctrl.t('中文', 'English'), 'English');
     assert.strictEqual(ctrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;');
     assert.deepStrictEqual(langEvents, [false]);
     assert.strictEqual(mainExecs.length, preToggleMainCount + 1);
@@ -1754,10 +1892,31 @@ async function runOtaControllerVerification() {
     assert.strictEqual(pluginFrameExecs.length, preTogglePluginCount + 1);
     assert.strictEqual(extFrameExecs.length, 0);
 
+    const savedState1 = JSON.parse(fs.readFileSync(path.join(tmpCacheDir, 'state.json'), 'utf8'));
+    assert.strictEqual(savedState1.i18nEnabled, false, 'state.json must persist i18nEnabled=false');
+    const relaunchedOffCtrl = createOtaController({
+      electron: null,
+      cacheDir: tmpCacheDir,
+      baseUrls,
+      env: {}
+    });
+    assert.strictEqual(relaunchedOffCtrl.isI18nEnabled(), false, 'New controller after restart must remember English preference');
+    assert.strictEqual(relaunchedOffCtrl.t('中文', 'English'), 'English');
+    assert.strictEqual(relaunchedOffCtrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;');
+
     assert.strictEqual(ctrl.toggleI18nEnabled(), true);
     assert.deepStrictEqual(langEvents, [false, true]);
+    assert.strictEqual(ctrl.t('中文', 'English'), '中文');
     assert(mainExecs[mainExecs.length - 1].includes('__antigravitySetI18nEnabled(true)'));
     unsubscribe();
+
+    const relaunchedOnCtrl = createOtaController({
+      electron: null,
+      cacheDir: tmpCacheDir,
+      baseUrls,
+      env: {}
+    });
+    assert.strictEqual(relaunchedOnCtrl.isI18nEnabled(), true, 'New controller after toggling back must remember Chinese preference');
 
     const envDisabledCtrl = createOtaController({
       electron: null,

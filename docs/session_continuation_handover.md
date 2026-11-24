@@ -13,9 +13,9 @@
 5. **保持官方自动更新与智能代理探测**：
    - 主进程 `updater.js`、`ipcHandlers.js`（`updater:quit-and-install`）及 `will-quit` 已联动指向 `scripts/auto_patch_on_update.js`，且 `scripts/guard_launch.js` 支持启动前毫秒级自愈检查。
    - `guard_launch.js`（以及更新自愈重启流程）内置 **Windows 系统代理读取** 与常见本地代理端口（`7897` / `10808` / `7890`）并行 TCP 自动探测；若未探测到可用代理或显式设置 `ANTIGRAVITY_PROXY=direct` / `ANTIGRAVITY_AUTO_PROXY=0`，则清理残留代理变量走直连 / TUN（并清除 `ELECTRON_RUN_AS_NODE` 防止误入 Node 模式）。
-6. **无损可逆与即时中英切换**：
+6. **无损可逆与持久化标题栏中英切换**：
    - 首次部署保留干净 `app.asar.bak`，支持 `scripts/restore_antigravity.js` 一键还原官方英文（macOS 自动本地重签名）。
-   - 渲染端使用 `WeakMap`（`ORIG_TEXT` / `ORIG_ATTRS`）保存原文并由 `scripts/ota/i18n_ota_main.js` 协调会话级中英切换，支持在标题栏菜单、帮助菜单与系统托盘瞬时切换语言。
+   - 渲染端使用 `WeakMap`（`ORIG_TEXT` / `ORIG_ATTRS`）保存原文并注入顶部标题栏常驻 `[ 中 | EN ]` 开关，由 `scripts/ota/i18n_ota_main.js` 将开关状态持久化至 `state.json` 并通过 `_i18nT(zh, en)` 联动主进程原生菜单、托盘、对话框、更新器、安全弹窗、向导与远程 SSH 页面同步无损切换。
 
 ---
 
@@ -32,8 +32,8 @@
 | **动态模板** | `scripts/engine/dynamic_rules.js` | 动态数字、日期、配额、通知模板 |
 | **上下文消歧** | `scripts/engine/context_rules.js` | `New`、`None` 等特定场景识别 |
 | **碎片节点** | `scripts/engine/split_node_rules.js` | React 内联拆分 TextNode 处理 |
-| **运行时调度引擎** | `scripts/engine/runtime_bootstrap.js` | 原型链拦截、`WeakMap` 原文追踪、标题栏注入与瞬时切换 |
-| **OTA 与语言状态** | `scripts/ota/i18n_ota_main.js` | 纯 JSON OTA 热更控制器与会话中英状态广播 |
+| **运行时调度引擎** | `scripts/engine/runtime_bootstrap.js` | 原型链拦截、`WeakMap` 原文追踪、标题栏 `[ 中 | EN ]` 开关与菜单注入 |
+| **OTA 与语言状态** | `scripts/ota/i18n_ota_main.js` | 纯 JSON OTA 热更控制器、`state.json` 开关持久化与 `_i18nT` 双语状态广播 |
 | **打包部署入口** | `build_and_deploy.ps1` | 构建 → 部署 `app.asar` → 自动执行 `verify_engine.js` |
 | **更新扫漏脚本** | `scripts/scan_updates.js` | 支持 `--refresh` 自动从缓存提取最新官方版本脚本并扫描未汉化词条 |
 | **回归测试脚本** | `scripts/verify_engine.js` | 校验 `app.asar` 钩子、VM 引擎、中英切换、OTA、代理探测与还原 |

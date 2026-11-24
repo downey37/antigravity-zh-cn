@@ -263,22 +263,25 @@ function createOtaController(options = {}) {
     builtAt: '',
     lastCheckedAt: '',
     lastSource: '',
-    notifiedEngineVersion: ''
+    notifiedEngineVersion: '',
+    i18nEnabled: true
   };
   let activePack = null;
   let activeApplyScript = null;
   let activeNativeContextDict = null;
   let initializedCache = false;
+  let stateLoaded = false;
   let backgroundStarted = false;
   let initialTimer = null;
   let pollTimer = null;
   let inFlightCheck = null;
   let inFlightManual = false;
   const trackedWebContents = new Set();
-  let i18nEnabled = !isI18nInitiallyDisabled();
   const languageChangeListeners = new Set();
 
   function loadStateSync() {
+    if (stateLoaded) return;
+    stateLoaded = true;
     try {
       if (fs.existsSync(stateCachePath)) {
         const parsed = JSON.parse(fs.readFileSync(stateCachePath, 'utf8'));
@@ -294,6 +297,11 @@ function createOtaController(options = {}) {
       atomicWriteFileSync(stateCachePath, JSON.stringify(state, null, 2) + '\n');
     } catch (_) {}
   }
+
+  loadStateSync();
+  let i18nEnabled = isI18nInitiallyDisabled()
+    ? false
+    : (typeof state.i18nEnabled === 'boolean' ? state.i18nEnabled : true);
 
   function setActivePack(pack) {
     activePack = pack;
@@ -438,6 +446,10 @@ function createOtaController(options = {}) {
     return i18nEnabled;
   }
 
+  function t(zh, en) {
+    return i18nEnabled ? zh : en;
+  }
+
   function getInitialStateScript() {
     return `window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = ${i18nEnabled ? 'true' : 'false'};`;
   }
@@ -457,6 +469,8 @@ function createOtaController(options = {}) {
     const normalized = Boolean(nextEnabled);
     if (normalized === i18nEnabled) return i18nEnabled;
     i18nEnabled = normalized;
+    state.i18nEnabled = normalized;
+    saveStateSync();
     broadcastLanguageState(i18nEnabled);
     for (const listener of languageChangeListeners) {
       try {
@@ -759,7 +773,8 @@ function createOtaController(options = {}) {
     setI18nEnabled,
     toggleI18nEnabled,
     onLanguageChange,
-    getInitialStateScript
+    getInitialStateScript,
+    t
   };
 }
 
@@ -789,5 +804,6 @@ module.exports = {
   setI18nEnabled: (enabled) => getDefaultController().setI18nEnabled(enabled),
   toggleI18nEnabled: () => getDefaultController().toggleI18nEnabled(),
   onLanguageChange: (fn) => getDefaultController().onLanguageChange(fn),
-  getInitialStateScript: () => getDefaultController().getInitialStateScript()
+  getInitialStateScript: () => getDefaultController().getInitialStateScript(),
+  t: (zh, en) => getDefaultController().t(zh, en)
 };

@@ -470,11 +470,27 @@ function antigravityI18nBootstrap(
     );
   }
 
+  function containsTitleMenuBar(node) {
+    if (!node || node.nodeType !== 1) return false;
+    if (isTitleMenuRelated(node)) return true;
+    return Boolean(node.querySelector && node.querySelector('[data-testid="title-menu-bar"]'));
+  }
+
+  function isInjectedI18nControl(node) {
+    return Boolean(
+      node &&
+      node.nodeType === 1 &&
+      node.matches &&
+      node.matches('[data-antigravity-i18n-titlebar-toggle-wrap="true"], [data-antigravity-i18n-titlebar-toggle="true"], [data-antigravity-i18n-ota-item="true"], [data-antigravity-i18n-toggle-item="true"]')
+    );
+  }
+
   function translateNode(node) {
     if (!node) return;
 
     if (!I18N_ENABLED) {
-      if (isTitleMenuRelated(node)) {
+      if (containsTitleMenuBar(node)) {
+        ensureTitleBarLangToggle(node);
         ensureTitleBarOtaMenuItem(node);
       }
       return;
@@ -517,7 +533,7 @@ function antigravityI18nBootstrap(
     }
 
     if (node.nodeType === 1) {
-      if (node.matches && node.matches('[data-antigravity-i18n-ota-item="true"], [data-antigravity-i18n-toggle-item="true"]')) {
+      if (isInjectedI18nControl(node)) {
         return;
       }
 
@@ -547,6 +563,7 @@ function antigravityI18nBootstrap(
       }
 
       if (isTitleMenuRelated(node)) {
+        ensureTitleBarLangToggle(node);
         ensureTitleBarOtaMenuItem(node);
       }
     } else if (node.nodeType === 11) {
@@ -597,6 +614,108 @@ function antigravityI18nBootstrap(
     }
   }
 
+  const PILL_ACTIVE_STYLE = 'padding:2px 5px;border-radius:4px;background:rgba(56,189,248,0.24);font-weight:600;opacity:1;';
+  const PILL_INACTIVE_STYLE = 'padding:2px 5px;border-radius:4px;background:transparent;font-weight:400;opacity:0.55;';
+
+  function updateTitleBarToggleVisuals(btn) {
+    if (!btn) return;
+    const tip = I18N_ENABLED
+      ? '当前：简体中文（点击切换为英文原文）'
+      : 'Current: English (Click to switch to 简体中文)';
+    if (typeof btn.setAttribute === 'function') {
+      btn.setAttribute('title', tip);
+      btn.setAttribute('aria-label', tip);
+    }
+    if (typeof btn.querySelector === 'function') {
+      const zhSpan = btn.querySelector('[data-antigravity-i18n-pill-zh="true"]');
+      const enSpan = btn.querySelector('[data-antigravity-i18n-pill-en="true"]');
+      if (zhSpan && typeof zhSpan.setAttribute === 'function') {
+        zhSpan.setAttribute('style', I18N_ENABLED ? PILL_ACTIVE_STYLE : PILL_INACTIVE_STYLE);
+      }
+      if (enSpan && typeof enSpan.setAttribute === 'function') {
+        enSpan.setAttribute('style', I18N_ENABLED ? PILL_INACTIVE_STYLE : PILL_ACTIVE_STYLE);
+      }
+    }
+  }
+
+  function ensureTitleBarLangToggle(rootEl) {
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') return;
+    const otaBridge = typeof window !== 'undefined' ? window.antigravityI18nOta : null;
+    if (
+      !(otaBridge && typeof otaBridge.toggleLanguage === 'function') &&
+      typeof window.__antigravitySetI18nEnabled !== 'function'
+    ) {
+      return;
+    }
+
+    const bars = [];
+    if (rootEl && rootEl.nodeType === 1) {
+      if (rootEl.matches && rootEl.matches('[data-testid="title-menu-bar"]')) {
+        bars.push(rootEl);
+      } else if (rootEl.closest && rootEl.closest('[data-testid="title-menu-bar"]')) {
+        bars.push(rootEl.closest('[data-testid="title-menu-bar"]'));
+      } else if (rootEl.querySelectorAll) {
+        const found = rootEl.querySelectorAll('[data-testid="title-menu-bar"]');
+        for (let i = 0; i < found.length; i++) bars.push(found[i]);
+      }
+    }
+
+    for (let i = 0; i < bars.length; i++) {
+      const bar = bars[i];
+      if (!bar) continue;
+      if (bar.querySelector && bar.querySelector('[data-antigravity-i18n-titlebar-toggle="true"]')) {
+        updateTitleBarToggleVisuals(bar.querySelector('[data-antigravity-i18n-titlebar-toggle="true"]'));
+        continue;
+      }
+
+      const wrap = document.createElement('div');
+      wrap.setAttribute('data-antigravity-i18n-titlebar-toggle-wrap', 'true');
+      wrap.setAttribute('style', 'margin-left:4px;display:inline-flex;align-items:center;-webkit-app-region:no-drag;');
+
+      const btn = document.createElement('button');
+      btn.setAttribute('type', 'button');
+      btn.setAttribute('data-antigravity-i18n-titlebar-toggle', 'true');
+      btn.setAttribute('style', 'display:inline-flex;align-items:center;gap:2px;height:22px;padding:1px 3px;border-radius:6px;border:1px solid rgba(128,128,128,0.28);background:rgba(128,128,128,0.08);color:inherit;font-size:11px;line-height:1;cursor:pointer;user-select:none;-webkit-app-region:no-drag;');
+
+      const zhSpan = document.createElement('span');
+      zhSpan.setAttribute('data-antigravity-i18n-pill-zh', 'true');
+      if (typeof document.createTextNode === 'function') {
+        zhSpan.appendChild(document.createTextNode('中'));
+      } else {
+        zhSpan.textContent = '中';
+      }
+
+      const enSpan = document.createElement('span');
+      enSpan.setAttribute('data-antigravity-i18n-pill-en', 'true');
+      if (typeof document.createTextNode === 'function') {
+        enSpan.appendChild(document.createTextNode('EN'));
+      } else {
+        enSpan.textContent = 'EN';
+      }
+
+      btn.appendChild(zhSpan);
+      btn.appendChild(enSpan);
+      updateTitleBarToggleVisuals(btn);
+
+      if (typeof btn.addEventListener === 'function') {
+        btn.addEventListener('click', (ev) => {
+          if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+          try {
+            const bridgeNow = typeof window !== 'undefined' ? window.antigravityI18nOta : null;
+            if (bridgeNow && typeof bridgeNow.toggleLanguage === 'function') {
+              Promise.resolve(bridgeNow.toggleLanguage()).catch(() => {});
+            } else if (typeof window.__antigravitySetI18nEnabled === 'function') {
+              window.__antigravitySetI18nEnabled(!I18N_ENABLED);
+            }
+          } catch (_) {}
+        });
+      }
+
+      wrap.appendChild(btn);
+      bar.appendChild(wrap);
+    }
+  }
+
   function updateInjectedTitleBarLabels() {
     if (typeof document === 'undefined') return;
     const queryRoot = (document.documentElement && typeof document.documentElement.querySelectorAll === 'function')
@@ -604,11 +723,13 @@ function antigravityI18nBootstrap(
       : (typeof document.querySelectorAll === 'function' ? document : null);
     if (!queryRoot) return;
     const otaLabel = I18N_ENABLED ? '检查汉化更新' : 'Check i18n Updates';
-    const toggleLabel = I18N_ENABLED ? '临时切换为英文' : 'Switch to 简体中文';
+    const toggleLabel = I18N_ENABLED ? '切换为英文原文 (关闭汉化)' : '切换为简体中文 (开启汉化)';
     const otaBtns = queryRoot.querySelectorAll('[data-antigravity-i18n-ota-item="true"]');
     for (let i = 0; i < otaBtns.length; i++) setBtnLabelText(otaBtns[i], otaLabel);
     const toggleBtns = queryRoot.querySelectorAll('[data-antigravity-i18n-toggle-item="true"]');
     for (let i = 0; i < toggleBtns.length; i++) setBtnLabelText(toggleBtns[i], toggleLabel);
+    const titleToggles = queryRoot.querySelectorAll('[data-antigravity-i18n-titlebar-toggle="true"]');
+    for (let i = 0; i < titleToggles.length; i++) updateTitleBarToggleVisuals(titleToggles[i]);
   }
 
   function ensureTitleBarOtaMenuItem(rootEl) {
@@ -644,7 +765,18 @@ function antigravityI18nBootstrap(
         continue;
       }
       const label = (optBtn.textContent || '').trim();
-      if (label !== '检查更新' && label !== 'Check for Updates') continue;
+      if (
+        label !== '检查更新' &&
+        label !== 'Check for Updates' &&
+        label !== '正在检查更新...' &&
+        label !== 'Checking for Updates...' &&
+        label !== '正在下载更新...' &&
+        label !== 'Downloading Update...' &&
+        label !== '重启以更新' &&
+        label !== 'Restart to Update'
+      ) {
+        continue;
+      }
       const itemWrapper = optBtn.parentElement;
       const menuPopup = itemWrapper && itemWrapper.parentElement;
       if (!menuPopup) continue;
@@ -678,7 +810,7 @@ function antigravityI18nBootstrap(
         const toggleWrapper = makeTitleMenuButton(
           optBtn,
           'data-antigravity-i18n-toggle-item',
-          I18N_ENABLED ? '临时切换为英文' : 'Switch to 简体中文',
+          I18N_ENABLED ? '切换为英文原文 (关闭汉化)' : '切换为简体中文 (开启汉化)',
           () => {
             try {
               if (typeof otaBridge.toggleLanguage === 'function') {
@@ -721,6 +853,7 @@ function antigravityI18nBootstrap(
       return;
     }
     if (root.nodeType === 1) {
+      if (isInjectedI18nControl(root)) return;
       restoreOriginalAttrs(root);
       if (root.shadowRoot) {
         restoreOriginalSubtree(root.shadowRoot);
@@ -841,7 +974,8 @@ function antigravityI18nBootstrap(
             if (m.type === 'childList') {
               for (let j = 0; j < m.addedNodes.length; j++) {
                 const added = m.addedNodes[j];
-                if (isTitleMenuRelated(added)) {
+                if (containsTitleMenuBar(added)) {
+                  ensureTitleBarLangToggle(added);
                   ensureTitleBarOtaMenuItem(added);
                 }
               }
@@ -1080,6 +1214,7 @@ function antigravityI18nBootstrap(
   function initEngine() {
     if (document.documentElement) {
       observeRoot(document.documentElement);
+      ensureTitleBarLangToggle(document.documentElement);
     }
     window.__antigravityTranslateAll();
     updateInjectedTitleBarLabels();

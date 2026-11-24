@@ -29,11 +29,11 @@
 - `scripts/build_clean_engine.js`：组装词库、属性表、保留表与 `scripts/engine/*` 子模块，输出 `build/i18n.js`。
 - `scripts/build_ota_pack.js`：生成云端 OTA 分发产物 `build/ota/manifest.json` 与 `dict-pack.json`。
 - `scripts/build_portable_release.js`：打包精简零依赖便携发布包（仅包含生产依赖树，剔除 `bundle_main.js`）及 `.sha256` 校验文件。
-- `scripts/ota/i18n_ota_main.js`：主进程云端 OTA 热更新控制器与会话级中英切换状态广播中心。
+- `scripts/ota/i18n_ota_main.js`：主进程云端 OTA 热更新控制器与持久化中英切换状态广播中心（含 `t(zh, en)` 双语辅助与 `state.json` 持久化）。
 - `scripts/engine/dynamic_rules.js`：动态句式与变量正则模板。
 - `scripts/engine/context_rules.js`：代码区隔离与上下文消歧（`New` 徽章 vs `新建`；`None` 分组为 `不分组`、思考深度为 `关闭思考`、其余为 `无`）。
 - `scripts/engine/split_node_rules.js`：React 相邻 TextNode 碎片翻译规则。
-- `scripts/engine/runtime_bootstrap.js`：DOM 原型链拦截、`MutationObserver`、`WeakMap` 原文追踪（支持即时中英切换）、标题栏菜单注入与浮层/悬停调度器。
+- `scripts/engine/runtime_bootstrap.js`：DOM 原型链拦截、`MutationObserver`、`WeakMap` 原文追踪（支持无损即时中英切换）、顶部标题栏 `[ 中 | EN ]` 常驻切换开关与标题栏菜单注入、浮层/悬停调度器。
 - `scripts/scan_updates.js`：从 `%APPDATA%\Antigravity\Cache\Cache_Data` 刷新最新前端 `bundle_main.js` 基线并扫描遗漏英文 UI 字符串。
 - `scripts/verify_engine.js`：使用 Node `vm` 对已部署 `app.asar`、DOM 切换、OTA 热更、代理自动探测与还原逻辑执行回归测试。
 - `scripts/release_version.js`：校验 `package.json`、`assets/baseline/version.json` 与 `README.md` 版本一致性，并辅助递增三段式版本号及生成标准 Tag / Release 命令。
