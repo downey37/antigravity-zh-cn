@@ -5,7 +5,7 @@
 [![Discussions](https://img.shields.io/github/discussions/downey37/antigravity-zh-cn?label=讨论区)](https://github.com/downey37/antigravity-zh-cn/discussions)
 [![License](https://img.shields.io/github/license/downey37/antigravity-zh-cn?label=协议)](LICENSE)
 
-**Antigravity 桌面客户端（Windows）** 全界面简体中文汉化补丁与跟版维护工程，当前版本：**`v0.2.3`**（适配 Antigravity 客户端 `v2.34.0`）。
+**Antigravity 桌面客户端（Windows）** 全界面简体中文汉化补丁与跟版维护工程，当前版本：**`v0.2.4`**（适配 Antigravity 客户端 `v2.34.0`）。
 
 ## 界面效果预览
 
@@ -19,7 +19,7 @@
 
 ## 特性亮点
 
-- **全界面高覆盖翻译**：涵盖主进程原生菜单、系统托盘、弹窗、设置页、侧边栏、Tooltip 浮层与动态提示（3960+ 条静态词库 + 380+ 条属性译文 + 动态模板规则）。
+- **全界面高覆盖翻译**：涵盖主进程原生菜单、系统托盘、弹窗、设置页、侧边栏、Tooltip 浮层与动态提示（4060+ 条静态词库 + 390+ 条属性译文 + 动态模板规则）。
 - **上下文精准消歧**：针对同词多义（如 `New`、`None` 等）按 DOM 上下文精确区分，避免全局替换误伤。
 - **代码与专有名词保护**：自动避开代码块、终端输出与用户输入区域；保留 `Antigravity`、`Google Drive` 及模型原名（`Gemini`、`Claude`、`GPT-OSS` 等）。
 - **无损备份与自动校验**：首次打补丁自动备份官方原版 `app.asar` 为 `app.asar.bak`，部署完成后自动执行 Node VM 沙箱回归校验。
