@@ -260,7 +260,7 @@ function runVerification() {
     ['Models within this group: Gemini 4 Hydrogen, Gemini 3.8 Flash', '此分组包含的模型：Gemini 4 Hydrogen, Gemini 3.8 Flash'],
     ['Argon that may offload routine steps to Hydrogen. Same Argon-level quality, fewer tokens used.', 'Argon，可将常规步骤分流至 Hydrogen。同等 Argon 级质量，消耗更少 Token。'],
     ['GPT-OSS will be removed from Antigravity on November 18, 2026.', 'GPT-OSS 将于 2026年11月18日从 Antigravity 中移除。'],
-    ['Gemini 4 Carbon is currently available to Ultra plan subscribers.', 'Gemini 4 Carbon 目前仅面向 Ultra 套餐订阅用户开放。'],
+    ['Gemini 4 Carbon is currently available to Ultra plan subscribers.', 'Gemini 4 Carbon 目前仅面向 Ultra 订阅用户开放。'],
     ['New Project', '新建项目'],
     ['Name', '名称'],
     ['Color', '颜色'],
@@ -339,14 +339,60 @@ function runVerification() {
     ['Disconnect GitHub', '断开与 GitHub 的连接'],
     ['Weekly on Monday at 9:00 AM', '每周一 9:00 AM'],
     ['The MCP server "demo" from plugin "ext" failed to start.', '插件“ext”中的 MCP 服务“demo”启动失败。'],
-    ['Manage project resources, agent settings, and permissions.', '管理项目资源、智能体设置及权限。'],
+    ['Manage project resources, agent settings, and permissions.', '管理项目资源、智能体设置及权限'],
     ['You have used some of your weekly limit, it will fully refresh in 5 days, 21 hours.', '你已使用部分每周配额，将在 5 天 21 小时后完全重置。'],
     ['You have used some of your 5-hour limit, it will fully refresh in 4 hours, 26 minutes.', '你已使用部分 5 小时配额，将在 4 小时 26 分钟后完全重置。'],
-    ['You have hit your weekly limit, it refreshes in 4 days, 8 hours. If on a supported paid plan, you can use AI credits in the interim or upgrade to a higher tier.', '你已达到每周配额上限，将在 4 天 8 小时后重置。如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级至更高级别套餐。'],
+    ['You have hit your weekly limit, it refreshes in 4 days, 8 hours. If on a supported paid plan, you can use AI credits in the interim or upgrade to a higher tier.', '你已达到每周配额上限，将在 4 天 8 小时后重置。如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级到更高级别套餐。'],
     ['You have hit your weekly limit, the 5-hour limit does not currently apply. Your weekly limit will fully refresh in 4 days, 8 hours.', '你已达到每周配额上限，当前不适用 5 小时配额限制。你的每周配额将在 4 天 8 小时后完全重置。'],
     ['You have hit your 5-hour limit, it refreshes in 2 hours, 15 minutes.', '你已达到 5 小时配额上限，将在 2 小时 15 分钟后重置。'],
     ['You have hit your weekly limit, it refreshes in less than a minute. If on a supported paid plan, you can use AI credits in the interim.', '你已达到每周配额上限，将在不到 1 分钟后重置。如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度。'],
-    ['If on a supported paid plan, you can use AI credits in the interim or upgrade to a higher tier.', '如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级至更高级别套餐。'],
+    ['If on a supported paid plan, you can use AI credits in the interim or upgrade to a higher tier.', '如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级到更高级别套餐。'],
+    // 不同订阅套餐与模型可用性/退市/升级提示一致性回归校验
+    ['Gemini 4 Hydrogen is currently available to paid Pro and Ultra subscribers.', 'Gemini 4 Hydrogen 目前仅面向付费 Pro 和 Ultra 订阅用户开放。'],
+    ['Gemini 4 Neon is currently available to paid Pro and Ultra subscribers.', 'Gemini 4 Neon 目前仅面向付费 Pro 和 Ultra 订阅用户开放。'],
+    ['Gemini 4 Argon is currently available to Ultra plan subscribers.', 'Gemini 4 Argon 目前仅面向 Ultra 订阅用户开放。'],
+    ['Gemini 4 Carbon is currently available to Google AI Ultra 20x subscribers.', 'Gemini 4 Carbon 目前仅面向 Google AI Ultra 20x 订阅用户开放。'],
+    ['Gemini 4 Neon is currently available to paid, non-trial Pro and Ultra subscribers.', 'Gemini 4 Neon 目前仅面向正式付费（非试用）Pro 和 Ultra 订阅用户开放。'],
+    ['Sonnet 5.5 is now available on paid Pro and Ultra plans. Third-party model access will no longer be available on your current plan starting on November 30, 2026.', 'Sonnet 5.5 现已面向付费 Pro 和 Ultra 套餐开放。自 2026年11月30日起，你当前的套餐将不再提供第三方模型访问权限。'],
+    ['Opus 5.5 is now available on paid Pro and Ultra plans. Third-party model access will no longer be available on your current plan starting on November 30, 2026.', 'Opus 5.5 现已面向付费 Pro 和 Ultra 套餐开放。自 2026年11月30日起，你当前的套餐将不再提供第三方模型访问权限。'],
+    ['Claude Sonnet 5.5 is now available on paid Pro and Ultra plans. Claude Sonnet 4.6 will be removed from Antigravity on December 15, 2026.', 'Claude Sonnet 5.5 现已面向付费 Pro 和 Ultra 套餐开放。Claude Sonnet 4.6 将于 2026年12月15日从 Antigravity 中移除。'],
+    ['GPT-OSS will be removed from Antigravity on November 30, 2026.', 'GPT-OSS 将于 2026年11月30日从 Antigravity 中移除。'],
+    ['Gemini 4 Neon requires a paid Pro or Ultra plan.', 'Gemini 4 Neon 需要付费 Pro 或 Ultra 套餐才能使用。'],
+    ['Third-party model access is only available on paid Pro and Ultra plans.', '第三方模型访问权限仅面向付费 Pro 和 Ultra 套餐开放。'],
+    ['Third-party model access is no longer available on your current plan.', '你当前的套餐已不再提供第三方模型访问权限。'],
+    ['Gemini 4 Carbon is not available on your current plan.', 'Gemini 4 Carbon 在你当前的套餐中不可用。'],
+    ['Free users and Google AI Plus users receive the minimum base limits on Antigravity. You can upgrade to Google AI Pro or above to receive higher rate limits.', '免费用户和 Google AI Plus 用户在 Antigravity 上享有最低基础配额。你可以升级到 Google AI Pro 或更高级别套餐以获取更高的请求速率上限。'],
+    ['You can upgrade to a Google AI Ultra plan to receive higher rate limits.', '你可以升级到 Google AI Ultra 套餐以获取更高的请求速率上限。'],
+    ['You can upgrade to a Google AI Ultra 20x plan to receive higher rate limits.', '你可以升级到 Google AI Ultra 20x 套餐以获取更高的请求速率上限。'],
+    ['You can upgrade to Google AI Ultra 5x or 20x to receive higher rate limits.', '你可以升级到 Google AI Ultra 5x 或 20x 以获取更高的请求速率上限。'],
+    ['You receive the highest rate limits on Antigravity.', '你在 Antigravity 上享有最高的请求速率上限。'],
+    ['Google AI Ultra 20x users receive the highest rate limits on Antigravity.', 'Google AI Ultra 20x 用户在 Antigravity 上享有最高的请求速率上限。'],
+    ['Google AI Ultra 5x users receive 5x higher rate limits on Antigravity.', 'Google AI Ultra 5x 用户在 Antigravity 上享有 5 倍更高的请求速率上限。'],
+    ['This account is ineligible for higher rate limits through a Google AI plan at this time.', '此账号目前无法通过 Google AI 套餐获取更高的请求速率上限。'],
+    ['Promotional and trial plans do not include third-party model access. You can upgrade to a paid Google AI Pro or Ultra plan to access third-party models.', '促销和试用套餐不包含第三方模型访问权限。你可以升级到付费 Google AI Pro 或 Ultra 套餐以使用第三方模型。'],
+    ['Google Workspace accounts are currently ineligible for Google AI Pro or Ultra plans.', 'Google Workspace 账号目前无法订阅 Google AI Pro 或 Ultra 套餐。'],
+    ['Your Plan: Free', '当前套餐：免费版'],
+    ['Your Plan: Antigravity Starter Quota', '当前套餐：Antigravity 入门配额'],
+    ['Your Plan: Google AI Plus', '当前套餐：Google AI Plus'],
+    ['Your Plan: Google AI Pro', '当前套餐：Google AI Pro'],
+    ['Your Plan: Google AI Pro (Trial)', '当前套餐：Google AI Pro（试用版）'],
+    ['Your Plan: Google AI Ultra 5x', '当前套餐：Google AI Ultra 5x'],
+    ['Your Plan: Google AI Ultra 20x', '当前套餐：Google AI Ultra 20x'],
+    ['Your Plan: Enterprise Gateway', '当前套餐：企业网关'],
+    ['Upgrade to Ultra 20x', '升级到 Ultra 20x'],
+    ['Enable AI Credit Overages', '开启 AI 额度超额使用'],
+    ['You have not used any of your weekly limit.', '你尚未使用任何每周配额。'],
+    ['You have not used any of your 5-hour limit.', '你尚未使用任何 5 小时配额。'],
+    ['Gemini 4 Argon Five Hour Limit Remaining', 'Gemini 4 Argon 5 小时剩余配额'],
+    ['For paid Pro plans, Neon quota is separate. Higher Neon quota (included as part of the larger Gemini quota bucket) is available on Ultra plans.', '对于付费 Pro 套餐，Neon 配额独立计算。Ultra 套餐提供更高的 Neon 配额（包含在更大的 Gemini 总配额池中）。'],
+    ["Your plan's baseline quota will refresh on 11/24/2026, 2:00:00 PM. You can upgrade to a Google AI Ultra 20x plan to receive higher rate limits.", '你当前套餐的基础配额将于 11/24/2026, 2:00:00 PM 重置。你可以升级到 Google AI Ultra 20x 套餐以获取更高的请求速率上限。'],
+    ['Sorry, this account is ineligible to use Antigravity', '抱歉，此账号无法使用 Antigravity'],
+    ['Further action is required to use Antigravity', '需要进一步操作才能使用 Antigravity'],
+    ['Use Business Account', '使用企业账号'],
+    // 严格负向隔离：非套餐普通英文句子不被误译
+    ['This plugin is available for free.', 'This plugin is available for free.'],
+    ['This feature requires standard.', 'This feature requires standard.'],
+    ['You are on branch main.', 'You are on branch main.'],
     ['Antigravity', 'Antigravity'],
     ['Google Drive', 'Google Drive'],
     ['just now', '刚刚'],
@@ -481,7 +527,7 @@ function runVerification() {
   assert.strictEqual(api.translateString('Orchestrator Model'), 'Orchestrator 模型');
   assert.strictEqual(
     api.translateString('Plans the work, makes design decisions, and reviews the result. Pick a top-tier model. You can also pick one per conversation from the Orchestrator row in the model menu.'),
-    '负责规划工作、做出设计决策并审查结果。建议选择顶级模型。你也可以在模型菜单的“Orchestrator”行中为每个会话单独选择。'
+    '负责规划工作、做出设计决策并审查结果。建议选择顶级模型。你也可以在模型选择器的“Orchestrator”行中为每个会话单独选择。'
   );
   assert.strictEqual(api.translateString('Executor Model'), '执行器模型');
   assert.strictEqual(
@@ -508,6 +554,100 @@ function runVerification() {
     api.translateString('For speed and efficiency in execution tasks'),
     '适用于追求速度与效率的执行任务'
   );
+  assert.strictEqual(
+    api.translateString('For your hardest, long-horizon tasks'),
+    '适用于最具挑战性的长周期任务'
+  );
+  assert.strictEqual(
+    api.translateString('For your hardest, long-horizon tasks.'),
+    '适用于最具挑战性的长周期任务。'
+  );
+  assert.strictEqual(api.translateString('Leaving Soon'), '即将下线');
+  assert.strictEqual(api.translateString('Leaving soon'), '即将下线');
+  assert.strictEqual(api.translateString('Retiring Soon'), '即将停用');
+  assert.strictEqual(api.translateString('Ending Soon'), '即将结束');
+  assert.strictEqual(api.translateString('Removing Soon'), '即将移除');
+  assert.strictEqual(api.translateString('Experimental'), '实验性');
+  assert.strictEqual(api.translateString('Prototype'), '原型');
+  assert.strictEqual(api.translateString('Third-party'), '第三方');
+
+  // 3e-1b. "Leaving Soon" model retirement, replacement & switch-to-model tooltip dynamic templates
+  const leavingCases = [
+    ['Gemini 4 Argon is leaving Antigravity on November 30, 2026.', 'Gemini 4 Argon 将于 2026年11月30日从 Antigravity 下线。'],
+    ['Gemini 4 Argon is leaving Antigravity on November 30.', 'Gemini 4 Argon 将于 11月30日从 Antigravity 下线。'],
+    ['Gemini 4 Argon will leave Antigravity on November 30, 2026.', 'Gemini 4 Argon 将于 2026年11月30日从 Antigravity 下线。'],
+    ['Gemini 3.8 Flash is leaving on November 30.', 'Gemini 3.8 Flash 将于 11月30日下线。'],
+    ['Gemini 4 Argon is leaving Antigravity soon.', 'Gemini 4 Argon 即将从 Antigravity 下线。'],
+    ['This model is leaving soon.', '此模型即将下线。'],
+    ['Leaving Antigravity on November 30, 2026.', '将于 2026年11月30日从 Antigravity 下线。'],
+    ['Leaving on November 30.', '将于 11月30日下线。'],
+    ['Leaving Nov 30.', '将于 11月30日下线。'],
+    [
+      'The original Gemini 4 model for advanced workflows. Leaving on Nov 30.',
+      '原版 Gemini 4 模型，适用于高级工作流。将于 11月30日下线。'
+    ],
+    [
+      'Use Hydrogen for better quality with lower quota usage. Leaving on Nov 30.',
+      '请使用 Hydrogen 以获得更高质量与更低配额消耗。将于 11月30日下线。'
+    ],
+    [
+      'For most deep reasoning and complex problems. Leaving on Dec 15.',
+      '适用于大多数深度推理与复杂问题。将于 12月15日下线。'
+    ],
+    [
+      'For your hardest, long-horizon tasks. Available until Dec 31, 2026.',
+      '适用于最具挑战性的长周期任务。可用至 2026年12月31日。'
+    ],
+    [
+      'Switch to Gemini 4 Neon for higher quality at lower cost.',
+      '请切换到 Gemini 4 Neon 以获得更高质量与更低成本。'
+    ],
+    ['Leaving on the table.', 'Leaving on the table.'],
+    ['Scheduled for removal on November 30, 2026.', '计划于 2026年11月30日移除。'],
+    ['Gemini 4 Argon is scheduled to leave Antigravity on 2026-11-30.', 'Gemini 4 Argon 计划于 2026年11月30日从 Antigravity 下线。'],
+    ['Gemini 3.8 Flash is being retired on November 30, 2026.', 'Gemini 3.8 Flash 将于 2026年11月30日停用。'],
+    ['Gemini 4 Argon will remain available until November 30, 2026.', 'Gemini 4 Argon 将可用至 2026年11月30日。'],
+    ['Available until November 30, 2026.', '可用至 2026年11月30日。'],
+    ['Gemini 3.8 Flash is being replaced by Gemini 4 Hydrogen.', 'Gemini 3.8 Flash 将由 Gemini 4 Hydrogen 替代。'],
+    ['Gemini 4 Argon will be replaced by Gemini 4 Neon or Gemini 4 Carbon.', 'Gemini 4 Argon 将由 Gemini 4 Neon 或 Gemini 4 Carbon 替代。'],
+    ['Switch to Gemini 4 Neon or Gemini 4 Carbon.', '请切换到 Gemini 4 Neon 或 Gemini 4 Carbon。'],
+    ['Try Gemini 4 Hydrogen instead.', '建议改用 Gemini 4 Hydrogen。'],
+    ['We recommend switching to Gemini 4 Neon for most deep reasoning and complex problems.', '建议切换到 Gemini 4 Neon 以处理大多数深度推理与复杂问题。'],
+    [
+      'Gemini 4 Argon is leaving Antigravity on November 30, 2026. Switch to Gemini 4 Neon or Gemini 4 Carbon.',
+      'Gemini 4 Argon 将于 2026年11月30日从 Antigravity 下线。请切换到 Gemini 4 Neon 或 Gemini 4 Carbon。'
+    ],
+    [
+      'Gemini 3.8 Flash will be removed from Antigravity on November 30, 2026. Try Gemini 4 Hydrogen instead.',
+      'Gemini 3.8 Flash 将于 2026年11月30日从 Antigravity 中移除。建议改用 Gemini 4 Hydrogen。'
+    ],
+    [
+      'Leaving Soon — Gemini 4 Argon, Gemini 3.8 Flash, GPT-OSS-120b, and Claude 4.6 models are leaving on November 30, 2026.',
+      '即将下线 — Gemini 4 Argon、Gemini 3.8 Flash、GPT-OSS-120b 和 Claude 4.6 模型将于 2026年11月30日下线。'
+    ],
+    [
+      'After November 30, 2026, conversations using Gemini 3.8 Flash will automatically switch to Gemini 4 Hydrogen.',
+      '2026年11月30日后，使用 Gemini 3.8 Flash 的会话将自动切换到 Gemini 4 Hydrogen。'
+    ],
+    // Negative isolation checks
+    ['Try again.', '重试。'],
+    ['Use defaults for local testing.', 'Use defaults for local testing.'],
+    ['Leaving the directory unchanged.', 'Leaving the directory unchanged.'],
+    // Swarm UI & newly extracted strings
+    ['The team', '团队成员'],
+    ['Coordinator', '协调器'],
+    ['Export GIF', '导出 GIF'],
+    ['Exporting\u2026', '正在导出...'],
+    ['Close preview', '关闭预览'],
+    ['Use theme to be imported with settings', '使用随设置导入的主题'],
+    ['Waiting on @worker-1', '等待 @worker-1 响应'],
+    ['Go to #12 on the Board', '跳转到消息板 #12'],
+    ['Posted in #general; click to show only #general', '发布于 #general；点击仅显示 #general'],
+    ['Narrator read up to #5 of 12', '记录员已读至 #5 / 12']
+  ];
+  for (const [en, zh] of leavingCases) {
+    assert.strictEqual(api.translateString(en), zh, `Leaving/Swarm mismatch for ${en}`);
+  }
 
   // 3e-2. Model selector Orchestrator row & trigger combined "Model + Effort" strings
   const orchModelEl = makeEl({ testid: 'model-selector-orchestrator-model' });
@@ -595,14 +735,45 @@ function runVerification() {
     api.translateString('Select model, current: GPT-OSS 120B (Medium)'),
     '选择模型，当前：GPT-OSS 120B (中)'
   );
-  assert.strictEqual(api.translateString('Settings for conversations outside of projects.'), '在项目之外创建的独立会话设置。');
-  assert.strictEqual(api.translateString('Settings for conversations outside of workspaces.'), '在工作区之外创建的独立会话设置。');
-  assert.strictEqual(api.translateString('Manage project folders and settings.'), '管理项目文件夹与设置。');
+  assert.strictEqual(api.translateString('Settings for conversations outside of projects.'), '在项目之外创建的独立会话设置');
+  assert.strictEqual(api.translateString('Settings for conversations outside of workspaces.'), '在工作区之外创建的独立会话设置');
+  assert.strictEqual(api.translateString('Manage project folders and settings.'), '管理项目文件夹与设置');
   assert.strictEqual(api.translateString('Unlock the power of agent swarms.'), '解锁多智能体 Swarm 协作的强大能力。');
   assert.strictEqual(
     api.translateString("Build, package, and debug MCP Apps for Antigravity: MCP server tools whose results render as interactive UI in the conversation, in the side pane, or full-page from the sidebar. Use when adding a UI to an MCP tool, building or theming the app itself, packaging it as a plugin, or debugging an app that doesn't render or behave as expected."),
-    '为 Antigravity 构建、打包与调试 MCP 应用（将 MCP 服务工具的结果以交互式 UI 渲染在对话、侧边面板或全页中），适用于为 MCP 工具添加界面、定制主题、打包插件或排查渲染异常。'
+    '为 Antigravity 构建、打包与调试 MCP 应用（将 MCP 服务工具的结果以交互式 UI 渲染在会话、侧边面板或全页中），适用于为 MCP 工具添加界面、定制主题、打包插件或排查渲染异常。'
   );
+  // 3e-4. Global terminology consistency checks
+  assert.strictEqual(api.translateString('Scheduled Task'), '计划任务');
+  assert.strictEqual(api.translateString('Only Scheduled'), '仅计划任务');
+  assert.strictEqual(api.translateString('Enable Telemetry'), '开启遥测');
+  assert.strictEqual(api.translateString('Enable AI Credit Overages'), '开启 AI 额度超额使用');
+  assert.strictEqual(api.translateString('Enable Browser Agent'), '启用浏览器智能体');
+  assert.strictEqual(api.translateString('Purchase Credits'), '购买额度');
+  assert.strictEqual(api.translateString('Get More AI Credits'), '获取更多 AI 额度');
+  assert.strictEqual(api.translateString('Preferences'), '偏好设置');
+  assert.strictEqual(api.translateString('Open Preferences'), '打开偏好设置');
+  assert.strictEqual(api.translateString('Proceed in sandbox'), '在沙盒环境中执行');
+  assert.strictEqual(api.translateString('Proceed in Sandbox'), '在沙盒环境中执行');
+  assert.strictEqual(api.translateString('Browsing History'), '浏览历史记录');
+  assert.strictEqual(api.translateString('Browsing history'), '浏览历史记录');
+  assert.strictEqual(api.translateString('Enter to Send'), '按 Enter 发送');
+  assert.strictEqual(api.translateString('Enter to send'), '按 Enter 发送');
+  assert.strictEqual(api.translateString('No events recorded'), '暂无事件记录');
+  assert.strictEqual(api.translateString('No events recorded.'), '暂无事件记录。');
+  assert.strictEqual(api.translateString('Accept All Changes'), '接受所有更改');
+  assert.strictEqual(api.translateString('Discard All Changes'), '放弃所有更改');
+  assert.strictEqual(api.translateString('Review Changes'), '查看更改');
+  assert.strictEqual(api.translateString('Discard comment draft'), '放弃批注草稿');
+  assert.strictEqual(api.translateString('Conversation details unavailable'), '会话详情不可用');
+  assert.strictEqual(api.translateString('Conversation Width'), '会话宽度');
+  assert.strictEqual(api.translateString('Switch to Dark Mode'), '切换到深色模式');
+  assert.strictEqual(api.translateString('Switch To'), '切换到');
+  assert.strictEqual(api.translateString('Please switch to Gemini 4 Neon instead.'), '请切换到 Gemini 4 Neon。');
+  assert.strictEqual(api.translateString('Collapse sidebar'), '收起侧边栏');
+  assert.strictEqual(api.translateString('Select an option'), '请选择一项');
+  assert.strictEqual(api.translateString('Reconnecting'), '正在重新连接');
+  assert.strictEqual(api.translateString('Free users receive the minimum base rate limits on Antigravity.'), '免费用户在 Antigravity 上享有最低基础请求速率上限。');
   assert.strictEqual(
     api.translateString('ONLY for the native-swarm worker whose brief says it is the monitor. On a timer, it checks whether the whole swarm has stalled and calls on the one member who can unstick it. Coordinators and other workers: do not load this.'),
     '仅限任务简报指定为监控员的原生 Swarm 协作工作节点使用。定时检查整个 Swarm 是否停滞并唤醒可推进任务的成员；协调器与其他工作节点请勿加载。'
@@ -611,6 +782,35 @@ function runVerification() {
     api.translateString("What the coordinator writes so the Swarm UI's Overview can show the swarm's goal, its groups of work and a screenshot timeline. Load it before you brief and add the first workers to a swarm."),
     '指导协调器编写 Swarm 界面概览所需的目标、工作分组与截图时间线信息，请在分配任务并添加首批工作节点前加载。'
   );
+
+  // 3e-5. Settings page subtitles (no trailing period) & "可选" wording checks
+  const settingsPageSubtitles = [
+    ['Configure agent execution, queued message delivery, and permissions.', '配置智能体执行机制、队列消息传递及权限控制'],
+    ['Manage Antigravity app settings.', '管理 Antigravity 应用设置'],
+    ["Configure the agent's visual theme and display preferences.", '配置智能体的外观视觉主题与显示偏好'],
+    ['Keyboard shortcuts for quick navigation and control.', '配置用于快速导航与控制的快捷键'],
+    ['Manage your keybinding scheme and customize shortcuts in VS Code.', '管理按键绑定方案，并在 VS Code 中自定义快捷键'],
+    ['Manage your notification preferences.', '管理你的通知偏好设置'],
+    ['Manage your model quota and credits.', '管理你的模型配额与 AI 额度'],
+    ['Configure built-in browser, link opening, and browser subagent preferences.', '配置内置浏览器、链接打开方式以及浏览器子智能体的偏好设置'],
+    ['Manage your plan, credentials, and general preferences.', '管理你的套餐、凭据及常规偏好设置'],
+    ['Agent settings and permissions for conversations outside of projects.', '配置未归属于任何项目的独立会话的智能体设置与权限策略'],
+    ['Manage project folders, agent settings, and permissions.', '管理项目文件夹、智能体设置及权限'],
+    ['Manage fine-grained permissions for GitHub.', '管理 GitHub 的细粒度访问权限'],
+    ['Developer-only tools. These settings do not affect other users.', '仅限开发者使用的工具，这些设置不会影响其他用户']
+  ];
+  for (const [en, zh] of settingsPageSubtitles) {
+    assert.strictEqual(api.translateString(en), zh);
+  }
+  assert.strictEqual(api.translateString('Attach a screenshot (optional)'), '上传屏幕截图（可选）');
+  assert.strictEqual(api.translateString('(Optional) Tell us more...'), '（可选）详细说明你的反馈...');
+  assert.strictEqual(api.translateString('(Optional) Tell us more or type your reason...'), '（可选）详细说明你的原因或建议...');
+  for (const [k, v] of Object.entries(api.EXACT_DICT)) {
+    assert(!v.includes('选填'), `EXACT_DICT must not use 选填: ${k} => ${v}`);
+  }
+  for (const [k, v] of Object.entries(api.ATTR_DICT)) {
+    assert(!v.includes('选填'), `ATTR_DICT must not use 选填: ${k} => ${v}`);
+  }
 
   // 3f. v2.34.0 General Input Box, Browsing Data & Cookies, Sidebar Customization, Bundles & Approvals
   assert.strictEqual(api.translateString('Input Box'), '输入框');
@@ -701,6 +901,37 @@ function runVerification() {
   assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ds1, 'Delete ', divDs), '删除 ');
   assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ds3, '? This removes it from your config directory.', divDs), '？这会将其从你的配置目录中移除。');
 
+  const yp1 = makeTextNode('Your Plan: ');
+  const yp2 = makeTextNode('Free');
+  const divYp = makeEl({ tag: 'DIV', cls: 'font-medium', children: [yp1, yp2] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(yp2, 'Free', divYp), '免费版');
+  yp1.nodeValue = '当前套餐：';
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(yp2, 'Free', divYp), '免费版');
+
+  const inelig1 = makeTextNode('Sorry, this account is ineligible to use ');
+  const inelig2 = makeTextNode('Antigravity');
+  const divInelig = makeEl({ tag: 'DIV', children: [inelig1, inelig2] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(inelig1, 'Sorry, this account is ineligible to use ', divInelig), '抱歉，此账号无法使用 ');
+
+  const conn1 = makeTextNode('3');
+  const conn2 = makeTextNode(' on for this conversation');
+  const divConn = makeEl({ tag: 'DIV', children: [conn1, conn2] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(conn2, ' on for this conversation', divConn), ' 项已在此会话中开启');
+
+  const hold1 = makeTextNode('Hold ');
+  const hold2 = makeEl({ tag: 'KBD', text: 'Shift' });
+  const hold3 = makeTextNode(' to upload');
+  const spanHold = makeEl({ tag: 'SPAN', children: [hold1, hold2, hold3] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(hold1, 'Hold ', spanHold), '按住 ');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(hold3, ' to upload', spanHold), ' 上传');
+
+  const ssh1 = makeTextNode('No hosts in ');
+  const ssh2 = makeTextNode('~/.ssh/config');
+  const ssh3 = makeTextNode(' yet. Type one above.');
+  const pSsh = makeEl({ tag: 'P', children: [ssh1, ssh2, ssh3] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ssh1, 'No hosts in ', pSsh), '在 ');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ssh3, ' yet. Type one above.', pSsh), ' 中暂无主机配置，可在上方直接输入。');
+
   // 5. DOM translateNode + ATTR_DICT + context ignore guards
   const inputEl = makeEl({ tag: 'INPUT', attrs: { placeholder: 'Search conversations...', 'aria-label': 'Antigravity' } });
   api.translateNode(inputEl);
@@ -726,6 +957,80 @@ function runVerification() {
   makeEl({ tag: 'DIV', children: [fileIcon, fileSpan] });
   api.translateNode(fileSpan);
   assert.strictEqual(fileNameText.nodeValue, 'Settings');
+
+  // 5b. Context-aware Settings page (LU) subtitle trailing-period removal vs OU/PU preservation
+  const luSharedText = makeTextNode('Modify permissions for file, terminal, and MCP tools.');
+  const luH2 = makeEl({ tag: 'H2', text: 'Tool Permissions' });
+  const luSubDiv = makeEl({ tag: 'DIV', cls: 'text-muted-foreground bg-transparent', children: [luSharedText] });
+  const luHeader = makeEl({ tag: 'DIV', cls: 'flex-1 flex flex-col gap-1 min-w-0 bg-transparent', children: [luH2, luSubDiv] });
+  api.translateNode(luHeader);
+  assert.strictEqual(luSharedText.nodeValue, '修改文件、终端与 MCP 工具的权限设置');
+  api.translateNode(luHeader);
+  assert.strictEqual(luSharedText.nodeValue, '修改文件、终端与 MCP 工具的权限设置');
+
+  const ouSharedText = makeTextNode('Modify permissions for file, terminal, and MCP tools.');
+  const ouSubSpan = makeEl({ tag: 'SPAN', cls: 'text-sm text-muted-foreground whitespace-pre-wrap', children: [ouSharedText] });
+  api.translateNode(ouSubSpan);
+  assert.strictEqual(ouSharedText.nodeValue, '修改文件、终端与 MCP 工具的权限设置。');
+
+  const luCustBody = makeTextNode('Configure default behaviors, skills, and MCP servers.');
+  const luCustSpace = makeTextNode(' ');
+  const luCustLink = makeEl({ tag: 'A', children: [makeTextNode('Learn more')] });
+  const luCustDot = makeTextNode('.');
+  const luCustSpan = makeEl({ tag: 'SPAN', children: [luCustBody, luCustSpace, luCustLink, luCustDot] });
+  const luCustHeader = makeEl({
+    tag: 'DIV',
+    cls: 'flex-1 flex flex-col gap-1 min-w-0 bg-transparent',
+    children: [
+      makeEl({ tag: 'H2', text: 'Customizations' }),
+      makeEl({ tag: 'DIV', cls: 'text-muted-foreground bg-transparent', children: [luCustSpan] })
+    ]
+  });
+  api.translateNode(luCustHeader);
+  assert.strictEqual(luCustBody.nodeValue, '配置默认行为、技能与 MCP 服务。');
+  assert.strictEqual(luCustLink.children[0].nodeValue, '了解更多');
+  assert.strictEqual(luCustDot.nodeValue, '');
+
+  const luNoLinkBody = makeTextNode('Configure default behaviors, skills, and MCP servers.');
+  const luNoLinkHeader = makeEl({
+    tag: 'DIV',
+    cls: 'flex-1 flex flex-col gap-1 min-w-0 bg-transparent',
+    children: [
+      makeEl({ tag: 'H2', text: 'Customizations' }),
+      makeEl({
+        tag: 'DIV',
+        cls: 'text-muted-foreground bg-transparent',
+        children: [makeEl({ tag: 'SPAN', children: [luNoLinkBody] })]
+      })
+    ]
+  });
+  api.translateNode(luNoLinkHeader);
+  assert.strictEqual(luNoLinkBody.nodeValue, '配置默认行为、技能与 MCP 服务');
+
+  const puBody = makeTextNode('Configure global allowed and denied resource permissions.');
+  const puSpace = makeTextNode(' ');
+  const puLink = makeEl({ tag: 'A', children: [makeTextNode('Learn more')] });
+  const puDot = makeTextNode('.');
+  const puSpan = makeEl({ tag: 'SPAN', children: [puBody, puSpace, puLink, puDot] });
+  const puSection = makeEl({
+    tag: 'DIV',
+    cls: 'flex flex-col gap-1',
+    children: [
+      makeEl({ tag: 'DIV', children: [makeEl({ tag: 'H3', text: 'Global Permissions' })] }),
+      makeEl({ tag: 'DIV', cls: 'text-sm text-muted-foreground leading-relaxed', children: [puSpan] })
+    ]
+  });
+  api.translateNode(puSection);
+  assert.strictEqual(puBody.nodeValue, '配置全局允许和拒绝的资源访问权限。');
+  assert.strictEqual(puLink.children[0].nodeValue, '了解更多');
+  assert.strictEqual(puDot.nodeValue, '。');
+
+  const optionalTextarea = makeEl({
+    tag: 'TEXTAREA',
+    attrs: { placeholder: '(Optional) Tell us more...' }
+  });
+  api.translateNode(optionalTextarea);
+  assert.strictEqual(optionalTextarea.getAttribute('placeholder'), '（可选）详细说明你的反馈...');
 
   // 6. Swarm context isolation: plugin:// protocol alone must NOT trigger To/From rewrite
   const pluginApi = loadEngineInSandbox(i18nCode, 'plugin:', 'Other Extension');
@@ -1003,6 +1308,39 @@ function runDomLifecycleVerification(i18nCode) {
   orchModelText.nodeValue = 'Claude Opus 5.5 High';
   observerCb([{ type: 'characterData', target: orchModelText }]);
   assert.strictEqual(orchModelText.nodeValue, 'Claude Opus 5.5 高');
+
+  // 9. Model selector compact-tooltip portal mount & live tooltip switch translate seamlessly
+  const tipBox = new DomElement('DIV');
+  tipBox.setAttribute('role', 'tooltip');
+  tipBox.className = 'compact-tooltip surface-glass';
+  const tipInner = new DomElement('DIV');
+  tipInner.className = 'max-w-[200px]';
+  const tipText = makeText('Sonnet 5.5 is now available on paid Pro and Ultra plans. Third-party model access will no longer be available on your current plan starting on November 30, 2026.');
+  tipInner.appendChild(tipText);
+  tipBox.appendChild(tipInner);
+  body.appendChild(tipBox);
+  assert.strictEqual(
+    tipText.nodeValue,
+    'Sonnet 5.5 现已面向付费 Pro 和 Ultra 套餐开放。自 2026年11月30日起，你当前的套餐将不再提供第三方模型访问权限。'
+  );
+  tipText.nodeValue = 'Gemini 4 Hydrogen is currently available to paid Pro and Ultra subscribers.';
+  observerCb([{ type: 'characterData', target: tipText }]);
+  assert.strictEqual(
+    tipText.nodeValue,
+    'Gemini 4 Hydrogen 目前仅面向付费 Pro 和 Ultra 订阅用户开放。'
+  );
+  tipText.nodeValue = 'The original Gemini 4 model for advanced workflows. Leaving on Nov 30.';
+  observerCb([{ type: 'characterData', target: tipText }]);
+  assert.strictEqual(
+    tipText.nodeValue,
+    '原版 Gemini 4 模型，适用于高级工作流。将于 11月30日下线。'
+  );
+  tipText.nodeValue = 'Use Hydrogen for better quality with lower quota usage. Leaving on Nov 30.';
+  observerCb([{ type: 'characterData', target: tipText }]);
+  assert.strictEqual(
+    tipText.nodeValue,
+    '请使用 Hydrogen 以获得更高质量与更低配额消耗。将于 11月30日下线。'
+  );
 }
 
 runVerification();

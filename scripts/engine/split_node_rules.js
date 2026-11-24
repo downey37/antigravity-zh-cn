@@ -74,12 +74,54 @@ function translateSplitTextNode(node, val, parent) {
   }
 
   // 10. 设置页中文句末孤立英文句号（如 <a>文档指南</a>. / （仍在加载…）.）
+  // 若位于设置页大标题副标题（LU 组件）末尾，则直接去掉末尾句号
   if (
     val === '.' &&
     !node.nextSibling &&
     node.previousSibling &&
     (/[。：]/.test(parentText) || (node.previousSibling.nodeType === 1 && /[\u4e00-\u9fff]/.test(parentText)))
   ) {
+    let cur = parent;
+    let subtitleContainer = null;
+    while (cur && cur.nodeType === 1) {
+      const classes = typeof cur.className === 'string' ? cur.className.split(/\s+/) : [];
+      if (
+        cur.nodeName === 'DIV' &&
+        (cur.classList
+          ? cur.classList.contains('text-muted-foreground') && cur.classList.contains('bg-transparent')
+          : classes.includes('text-muted-foreground') && classes.includes('bg-transparent'))
+      ) {
+        let prev = cur.previousElementSibling;
+        if (prev === undefined) {
+          prev = cur.previousSibling;
+          while (prev && prev.nodeType !== 1) prev = prev.previousSibling;
+        }
+        if (prev && prev.nodeName === 'H2') {
+          subtitleContainer = cur;
+        }
+        break;
+      }
+      cur = cur.parentElement || cur.parentNode;
+    }
+    if (subtitleContainer) {
+      let trailing = true;
+      let walker = parent;
+      while (walker && walker !== subtitleContainer) {
+        let next = walker.nextSibling;
+        while (next) {
+          if (next.nodeType !== 3 || (next.nodeValue || '').trim() !== '') {
+            trailing = false;
+            break;
+          }
+          next = next.nextSibling;
+        }
+        if (!trailing) break;
+        walker = walker.parentElement || walker.parentNode;
+      }
+      if (trailing && walker === subtitleContainer) {
+        return '';
+      }
+    }
     return '。';
   }
 
@@ -104,7 +146,7 @@ function translateSplitTextNode(node, val, parent) {
   if (val === 'Agent: ') return '智能体：';
   if (val === 'Plugin: ') return '插件：';
   if (val === 'Working directory: ' || val === 'Working Directory: ') return '工作目录：';
-  if (val === '. Change it in the model menu.') return '。可在模型菜单中切换。';
+  if (val === '. Change it in the model menu.') return '。可在模型选择器中切换。';
 
   // 14. 不受信任 Sidecar 警告拆分节点
   if (val === ' See' && /sidecar|伴侣进程|后台服务/i.test(parentText)) return ' 请参阅';
@@ -207,6 +249,86 @@ function translateSplitTextNode(node, val, parent) {
   }
   if (val === ' Copy the folder elsewhere first if you might want it back.') {
     return ' 如果以后可能还需要它，请先将该文件夹复制到其他位置。';
+  }
+
+  // 22. 设置页“模型与用量”中拆分的 "Your Plan: " + "Free"
+  const freePlanMatch = val.match(/^(\s*)Free(\s*)$/i);
+  if (
+    freePlanMatch &&
+    node.previousSibling &&
+    /^(?:Your Plan:|当前套餐：)\s*$/i.test(node.previousSibling.textContent || '')
+  ) {
+    return `${freePlanMatch[1]}免费版${freePlanMatch[2]}`;
+  }
+
+  // 23. 账号资格、欢迎页、连接器数量、上传提示、SSH 主机与系统权限引导拆分节点
+  if (val === 'Sorry, this account is ineligible to use ' && node.nextSibling) {
+    return '抱歉，此账号无法使用 ';
+  }
+  if (val === 'Get Anything Done with ' && node.nextSibling) {
+    return '高效完成一切任务 — ';
+  }
+  if (val === 'No matching ' && node.nextSibling) {
+    return '未找到匹配的 ';
+  }
+  if (val === 'No ' && node.nextSibling && node.nextSibling.nextSibling) {
+    const tailText = node.nextSibling.nextSibling.textContent || '';
+    if (tailText === ' found') return '未找到 ';
+    if (tailText === ' yet') return '暂无 ';
+  }
+  if (val === ' found' && node.previousSibling && /^(?:No |未找到 )/.test(parentText)) {
+    return '';
+  }
+  if (val === ' yet' && node.previousSibling && /^(?:No |暂无 )/.test(parentText)) {
+    return '';
+  }
+  if (val === ' on for this conversation' && node.previousSibling && /^\d+$/.test((node.previousSibling.textContent || '').trim())) {
+    return ' 项已在此会话中开启';
+  }
+  if (val === 'Hold ' && / to upload| 上传/.test(parentText)) {
+    return '按住 ';
+  }
+  if (val === ' to upload' && /Hold |按住 /.test(parentText)) {
+    return ' 上传';
+  }
+  if (val === 'Back to ' && node.nextSibling) {
+    return '返回 ';
+  }
+  if (val === "Couldn't connect to " && node.nextSibling) {
+    return '无法连接到 ';
+  }
+  if (val === 'Start Best-of-' && node.nextSibling) {
+    return '开始 Best-of-';
+  }
+  if (val === 'No hosts in ' && /yet\. Type one above\.|暂无主机配置/.test(parentText)) {
+    return '在 ';
+  }
+  if (val === ' yet. Type one above.' && /No hosts in |在 /.test(parentText)) {
+    return ' 中暂无主机配置，可在上方直接输入。';
+  }
+  if (val === 'Navigate to ' && node.nextSibling) {
+    return '访问 ';
+  }
+  if (val === 'icon in the URL bar.' && /Open in new tab|在新标签页中打开/.test(parentText)) {
+    return '图标。';
+  }
+  if (val === 'In System Settings, turn on ') {
+    return '在系统设置中，开启 ';
+  }
+  if (val === ". If it isn't in the list, drag it in from the small window next to System Settings.") {
+    return '。如果列表中未显示，请从系统设置旁的小窗口将其拖入。';
+  }
+  if (val === 'In System Settings, click ') {
+    return '在系统设置中，点击 ';
+  }
+  if (val === ', then turn it on.') {
+    return '，然后开启它。';
+  }
+  if (val === 'Already on? Select ') {
+    return '已经开启？请选中 ';
+  }
+  if (val === ' and add it again.') {
+    return ' 并重新添加。';
   }
 
   return null;

@@ -90,7 +90,8 @@ function antigravityI18nBootstrap(
     isRelativeTimestampContext,
     isElapsedDurationContext,
     isModelEffortContext,
-    isModelLabelContext
+    isModelLabelContext,
+    getSettingsPageSubtitleContainer
   } = CONTEXT_RULES_FACTORY();
 
   const TARGET_ATTRS = [
@@ -334,6 +335,21 @@ function antigravityI18nBootstrap(
     }
   }
 
+  function isTrailingNodeInContainer(node, container) {
+    let cur = node;
+    while (cur && cur !== container) {
+      let next = cur.nextSibling;
+      while (next) {
+        if (next.nodeType !== 3 || (next.nodeValue || '').trim() !== '') {
+          return false;
+        }
+        next = next.nextSibling;
+      }
+      cur = cur.parentElement || cur.parentNode;
+    }
+    return cur === container;
+  }
+
   function translateNode(node) {
     if (!node) return;
 
@@ -347,7 +363,11 @@ function antigravityI18nBootstrap(
           if (splitTrans !== val) node.nodeValue = splitTrans;
           return;
         }
-        const trans = translateString(val, parent);
+        let trans = translateString(val, parent);
+        const subtitleContainer = getSettingsPageSubtitleContainer(parent);
+        if (subtitleContainer && isTrailingNodeInContainer(node, subtitleContainer)) {
+          trans = trans.replace(/。(\s*)$/, '$1');
+        }
         if (trans !== val) {
           node.nodeValue = trans;
         }
@@ -605,6 +625,10 @@ function antigravityI18nBootstrap(
     return !shouldIgnoreElement(el);
   }
   function isInteractiveHoverTarget(el) {
+    if (!el || el.nodeType !== 1 || isShellContainer(el)) return false;
+    if (el.closest && el.closest('[data-tooltip-id], [aria-describedby], [data-hover-card-trigger]')) {
+      return true;
+    }
     if (!isSmallHoverTarget(el)) return false;
     return Boolean(el.closest && el.closest(HOVER_TRIGGER_SELECTOR));
   }

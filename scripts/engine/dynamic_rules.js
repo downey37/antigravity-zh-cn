@@ -268,29 +268,928 @@ function createDynamicRules(helpers) {
 
   function joinZhSegment(prefix, mid, suffix) {
     const m = String(mid || '').trim();
-    if (!m) return `${prefix}${suffix || ''}`;
-    const leadSpace = prefix && (/[A-Za-z0-9]$/.test(prefix) || /^[A-Za-z0-9/]/.test(m)) ? ' ' : '';
-    const tailSpace = suffix && (/^[A-Za-z0-9]/.test(suffix) || /[A-Za-z0-9]$/.test(m)) ? ' ' : '';
-    return `${prefix}${leadSpace}${m}${tailSpace}${suffix || ''}`;
+    if (!m) return `${prefix || ''}${suffix || ''}`;
+    const p = prefix || '';
+    const s = suffix || '';
+    const pNoSpace = !p || /[\s（《【“‘：，。！？、；）]$/.test(p);
+    const sNoSpace = !s || /^[\s。！？，、；：）》】”’.!?,;:)]/.test(s);
+    const leadSpace = !pNoSpace && (/[A-Za-z0-9]$/.test(p) || /^[A-Za-z0-9/]/.test(m)) ? ' ' : '';
+    const tailSpace = !sNoSpace && (/^[A-Za-z0-9]/.test(s) || /[A-Za-z0-9]$/.test(m)) ? ' ' : '';
+    return `${p}${leadSpace}${m}${tailSpace}${s}`;
+  }
+
+  const MONTH_NUM_MAP = {
+    january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+    july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+    jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12
+  };
+
+  function formatEnDateToZh(rawDate) {
+    const s = String(rawDate || '').replace(/[.\s]+$/g, '').trim();
+    if (!s) return s;
+    const mdy = s.match(/^([A-Za-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/);
+    if (mdy) {
+      const mNum = MONTH_NUM_MAP[mdy[1].toLowerCase()];
+      if (mNum) return `${mdy[3]}年${mNum}月${mdy[2]}日`;
+    }
+    const dmy = s.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?,?\s+(\d{4})$/);
+    if (dmy) {
+      const mNum = MONTH_NUM_MAP[dmy[2].toLowerCase()];
+      if (mNum) return `${dmy[3]}年${mNum}月${dmy[1]}日`;
+    }
+    const md = s.match(/^([A-Za-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?$/);
+    if (md) {
+      const mNum = MONTH_NUM_MAP[md[1].toLowerCase()];
+      if (mNum) return `${mNum}月${md[2]}日`;
+    }
+    const dm = s.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?$/);
+    if (dm) {
+      const mNum = MONTH_NUM_MAP[dm[2].toLowerCase()];
+      if (mNum) return `${mNum}月${dm[1]}日`;
+    }
+    const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (iso) {
+      return `${iso[1]}年${Number(iso[2])}月${Number(iso[3])}日`;
+    }
+    return s;
+  }
+
+  const EXACT_PLAN_MAP = {
+    'free': '免费版',
+    'free plan': '免费套餐',
+    'free tier': '免费套餐',
+    'free users': '免费用户',
+    'free users and google ai plus users': '免费用户和 Google AI Plus 用户',
+    'free and google ai plus users': '免费用户和 Google AI Plus 用户',
+    'free and google ai plus plans': '免费版和 Google AI Plus 套餐',
+    'antigravity starter quota': 'Antigravity 入门配额',
+    'starter quota': '入门配额',
+    'enterprise gateway': '企业网关',
+    'your current plan': '你当前的套餐',
+    'your plan': '你当前的套餐',
+    'current plan': '当前套餐',
+    'higher tier': '更高级别套餐',
+    'higher plan': '更高级别套餐',
+    'highest tier': '最高级别套餐',
+    'highest plan': '最高级别套餐',
+    'free trial': '免费试用期',
+    'your organization': '你的组织',
+    'your administrator': '你的管理员',
+    'eligible accounts': '符合条件的账号',
+    'eligible users': '符合条件的用户',
+    'google ai plan': 'Google AI 套餐',
+    'google ai plans': 'Google AI 套餐',
+    'google ai plus': 'Google AI Plus',
+    'google ai pro': 'Google AI Pro',
+    'google ai ultra': 'Google AI Ultra',
+    'google ai ultra 5x': 'Google AI Ultra 5x',
+    'google ai ultra 20x': 'Google AI Ultra 20x',
+    'google ai enterprise': 'Google AI Enterprise',
+    'antigravity business': 'Antigravity Business',
+    'gemini enterprise': 'Gemini Enterprise',
+    'google workspace': 'Google Workspace',
+    'google cloud standard': 'Google Cloud Standard',
+    'google cloud enterprise': 'Google Cloud Enterprise',
+    'google ai pro (trial)': 'Google AI Pro（试用版）',
+    'google ai pro (promotional)': 'Google AI Pro（促销版）',
+    'google ai ultra (trial)': 'Google AI Ultra（试用版）',
+    'google ai ultra (promotional)': 'Google AI Ultra（促销版）',
+    'google ai pro or above': 'Google AI Pro 或更高级别套餐',
+    'google ai ultra 5x or above': 'Google AI Ultra 5x 或更高级别套餐',
+    'pro or above': 'Pro 或更高级别套餐',
+    'ultra 5x or above': 'Ultra 5x 或更高级别套餐'
+  };
+
+  const KNOWN_TIER_TOKEN_RE = /^(?:(?:google\s+ai\s+)?(?:plus|pro|ultra(?:\s+(?:5x|20x))?|enterprise)|antigravity\s+business|gemini\s+enterprise|google\s+workspace|google\s+cloud(?:\s+(?:standard|enterprise))?|google\s+ai|free|enterprise|business|standard|5x|20x)(?:\s*\((?:trial|promotional)\))?$/i;
+
+  function translateTierToken(tok, hasUserOrPlanSuffix) {
+    const t = String(tok || '').trim();
+    const low = t.toLowerCase();
+    if (low === 'free') return hasUserOrPlanSuffix ? '免费' : '免费版';
+    if (low === 'enterprise') return '企业版';
+    if (low === 'business') return '企业版';
+    const paren = t.match(/^(.+?)\s*\((trial|promotional)\)$/i);
+    if (paren) {
+      const tag = paren[2].toLowerCase() === 'trial' ? '试用版' : '促销版';
+      return `${paren[1].trim()}（${tag}）`;
+    }
+    return t;
+  }
+
+  function translatePlanOrAudience(raw, strict = false) {
+    const orig = String(raw || '').replace(/[.\s]+$/g, '').trim();
+    if (!orig) return strict ? null : orig;
+    const stripped = orig.replace(/^(?:a|an|the)\s+/i, '').trim();
+    const lowFull = stripped.toLowerCase();
+    const allowBare = strict === 'allowBare';
+    if (Object.prototype.hasOwnProperty.call(EXACT_PLAN_MAP, lowFull)) {
+      if (strict && !allowBare && lowFull === 'free') return null;
+      return EXACT_PLAN_MAP[lowFull];
+    }
+
+    // 处理形如 "X users and Y users" 的并列用户群体
+    const multiUsers = stripped.match(/^(.+?)\s+users?\s+(and|or)\s+(.+?)\s+users?$/i);
+    if (multiUsers) {
+      const left = translatePlanOrAudience(`${multiUsers[1]} users`, true);
+      const right = translatePlanOrAudience(`${multiUsers[3]} users`, true);
+      if (left && right) {
+        const conj = multiUsers[2].toLowerCase() === 'and' ? '和' : '或';
+        return joinZhSegment(left, conj, right);
+      }
+    }
+
+    let rem = stripped;
+    let suffix = '';
+    const suffixRules = [
+      [/\s+plan\s+subscribers$/i, '订阅用户'],
+      [/\s+tier\s+subscribers$/i, '订阅用户'],
+      [/\s+subscribers$/i, '订阅用户'],
+      [/\s+subscriptions?$/i, '订阅'],
+      [/\s+plans?$/i, '套餐'],
+      [/\s+tiers?$/i, '套餐'],
+      [/\s+users?$/i, '用户'],
+      [/\s+accounts?$/i, '账号'],
+      [/\s+members?$/i, '会员']
+    ];
+    for (const [re, zh] of suffixRules) {
+      if (re.test(rem)) {
+        suffix = zh;
+        rem = rem.replace(re, '').trim();
+        break;
+      }
+    }
+
+    let prefix = '';
+    const prefixRules = [
+      [/^(?:paid,?\s+non-trial|non-trial,?\s+paid)(?:\s+|$)/i, '正式付费（非试用）'],
+      [/^non-trial(?:\s+|$)/i, '非试用'],
+      [/^supported\s+paid(?:\s+|$)/i, '受支持的付费'],
+      [/^paid(?:\s+|$)/i, '付费'],
+      [/^trial\s+and\s+promotional(?:\s+|$)/i, '试用和促销'],
+      [/^promotional\s+and\s+trial(?:\s+|$)/i, '促销和试用'],
+      [/^trial\s+or\s+promotional(?:\s+|$)/i, '试用或促销'],
+      [/^promotional\s+or\s+trial(?:\s+|$)/i, '促销或试用'],
+      [/^free\s+trial(?:\s+|$)/i, '免费试用'],
+      [/^promotional(?:\s+|$)/i, '促销'],
+      [/^trial(?:\s+|$)/i, '试用'],
+      [/^eligible(?:\s+|$)/i, '符合条件的']
+    ];
+    for (const [re, zh] of prefixRules) {
+      if (re.test(rem)) {
+        prefix = zh;
+        rem = rem.replace(re, '').trim();
+        break;
+      }
+    }
+
+    // 仅由修饰语 + 后缀组成（如 "paid subscribers" / "paid plan subscribers" / "trial and promotional plans"）
+    if (!rem) {
+      if (prefix && suffix) return `${prefix}${suffix}`;
+      return strict ? null : orig;
+    }
+
+    // 处理 "X or above"
+    const orAboveMatch = rem.match(/^(.+?)\s+or\s+above$/i);
+    if (orAboveMatch && KNOWN_TIER_TOKEN_RE.test(orAboveMatch[1].trim())) {
+      const baseZh = translateTierToken(orAboveMatch[1], Boolean(suffix));
+      const tail = suffix ? `或更高级别${suffix}` : '或更高级别套餐';
+      return joinZhSegment(prefix, baseZh, tail);
+    }
+
+    // 拆解并列套餐列表（如 "Pro and Ultra" / "Plus, Pro, and Ultra" / "Google AI Pro or Ultra"）
+    const parts = rem
+      .replace(/,\s*(and|or)\s+/gi, ' $1 ')
+      .split(/\s*(?:,\s*|\s+(?:and|or)\s+)\s*/i)
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    if (parts.length > 0 && parts.every((p) => KNOWN_TIER_TOKEN_RE.test(p))) {
+      // 严格模式下防止孤立通用词（如 "available for free" / "requires standard"）误触发
+      if (strict && !allowBare && !suffix && !prefix && parts.length === 1) {
+        if (!/^(?:google\s+ai|antigravity\s+business|gemini\s+enterprise|google\s+workspace|google\s+cloud|ultra\s+(?:5x|20x))/i.test(parts[0])) {
+          return null;
+        }
+      }
+      if (strict && allowBare && !suffix && !prefix && parts.length === 1 && /^(?:standard|business|5x|20x)$/i.test(parts[0])) {
+        return null;
+      }
+      // 保留原始连接词（and -> 和，or -> 或，多于两项前面用顿号）
+      const hasOr = /\bor\b/i.test(rem);
+      const lastConj = hasOr ? '或' : '和';
+      const zhParts = parts.map((p) => translateTierToken(p, Boolean(suffix)));
+      let coreZh;
+      if (zhParts.length === 1) {
+        coreZh = zhParts[0];
+      } else if (zhParts.length === 2) {
+        const conjPad = /[A-Za-z0-9]$/.test(zhParts[0]) ? ` ${lastConj}` : lastConj;
+        const rightPad = /^[A-Za-z0-9]/.test(zhParts[1]) ? ` ${zhParts[1]}` : zhParts[1];
+        coreZh = `${zhParts[0]}${conjPad}${rightPad}`;
+      } else {
+        const head = zhParts.slice(0, -1).join('、');
+        const last = zhParts[zhParts.length - 1];
+        const conjPad = /[A-Za-z0-9]$/.test(head) ? ` ${lastConj}` : lastConj;
+        const rightPad = /^[A-Za-z0-9]/.test(last) ? ` ${last}` : last;
+        coreZh = `${head}${conjPad}${rightPad}`;
+      }
+      // 特殊处理 "Enterprise accounts" -> "企业账号"
+      if (!prefix && coreZh === '企业版' && suffix === '账号') {
+        return '企业账号';
+      }
+      return joinZhSegment(prefix, coreZh, suffix);
+    }
+
+    if (strict) return null;
+    if (prefix || suffix) {
+      return joinZhSegment(prefix, rem, suffix);
+    }
+    return orig;
+  }
+
+  const KNOWN_MODEL_PREFIX_RE = /^(?:Claude|Gemini|Sonnet|Opus|Haiku|GPT(?:-OSS)?|Orchestrator|Argon|Carbon|Hydrogen|Neon|Flash)\b/i;
+
+  function translateModelItem(raw) {
+    const s = String(raw || '').trim();
+    const low = s.toLowerCase();
+    if (low === 'this model') return '此模型';
+    if (low === 'these models') return '这些模型';
+    if (low === 'another model' || low === 'another available model') return '其他可用模型';
+    if (low === 'a newer model') return '更新的模型';
+    if (low === 'newer models') return '更新的模型';
+    const trailingModels = s.match(/^(.+?)\s+models$/i);
+    if (trailingModels && KNOWN_MODEL_PREFIX_RE.test(trailingModels[1])) {
+      return `${trailingModels[1].trim()} 模型`;
+    }
+    return s;
+  }
+
+  function translateModelList(raw) {
+    const s = String(raw || '').replace(/[.\s]+$/g, '').trim();
+    if (!s) return s;
+    const hasOr = /\bor\b/i.test(s);
+    const hasAnd = /\band\b/i.test(s);
+    if (!hasOr && !hasAnd && !s.includes(',')) {
+      return translateModelItem(s);
+    }
+    const parts = s
+      .replace(/,\s*(and|or)\s+/gi, ' $1 ')
+      .split(/\s*(?:,\s*|\s+(?:and|or)\s+)\s*/i)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length <= 1) return translateModelItem(s);
+    const zhParts = parts.map((p) => translateModelItem(p));
+    const conj = hasOr ? '或' : '和';
+    if (zhParts.length === 2) {
+      const leftPad = /[A-Za-z0-9]$/.test(zhParts[0]) ? ` ${conj}` : conj;
+      const rightPad = /^[A-Za-z0-9]/.test(zhParts[1]) ? ` ${zhParts[1]}` : zhParts[1];
+      return `${zhParts[0]}${leftPad}${rightPad}`;
+    }
+    const head = zhParts.slice(0, -1).join('、');
+    const last = zhParts[zhParts.length - 1];
+    const leftPad = /[A-Za-z0-9]$/.test(head) ? ` ${conj}` : conj;
+    const rightPad = /^[A-Za-z0-9]/.test(last) ? ` ${last}` : last;
+    return `${head}${leftPad}${rightPad}`;
+  }
+
+  const BENEFIT_PHRASE_MAP = {
+    'better quality': '更高质量',
+    'higher quality': '更高质量',
+    'the highest quality': '最高质量',
+    'highest quality': '最高质量',
+    'same quality': '同等质量',
+    'similar quality': '相近质量',
+    'comparable quality': '相近质量',
+    'better performance': '更佳性能',
+    'improved performance': '更佳性能',
+    'higher performance': '更强性能',
+    'stronger performance': '更强性能',
+    'similar performance': '相近性能',
+    'comparable performance': '相近性能',
+    'faster performance': '更快性能',
+    'faster responses': '更快响应',
+    'faster response': '更快响应',
+    'faster speed': '更快速度',
+    'higher speed': '更快速度',
+    'speed and efficiency': '更高速度与效率',
+    'lower quota usage': '更低配额消耗',
+    'less quota usage': '更低配额消耗',
+    'lower quota use': '更低配额消耗',
+    'less quota use': '更低配额消耗',
+    'reduced quota usage': '更低配额消耗',
+    'lower token usage': '更少 Token 消耗',
+    'less token usage': '更少 Token 消耗',
+    'fewer tokens': '更少 Token 消耗',
+    'lower cost': '更低成本',
+    'lower costs': '更低成本',
+    'lower latency': '更低延迟',
+    'higher limits': '更高配额上限',
+    'higher rate limits': '更高请求速率上限',
+    'higher quota': '更高配额'
+  };
+
+  function translateSwitchReason(raw) {
+    const s = String(raw || '').replace(/[.\s]+$/g, '').trim();
+    const low = s.toLowerCase();
+    const map = {
+      'speed and efficiency in execution tasks': '以获得更高效的任务执行体验',
+      'your hardest, long-horizon tasks': '以处理最具挑战性的长周期任务',
+      'most deep reasoning and complex problems': '以处理大多数深度推理与复杂问题',
+      'deep reasoning': '以进行深度推理',
+      'complex tasks': '以处理复杂任务',
+      'complex problems': '以处理复杂问题',
+      'everyday tasks': '以处理日常任务',
+      'everyday coding': '以处理日常编程',
+      'advanced workflows': '以处理高级工作流',
+      'best results': '以获得最佳效果',
+      'the best results': '以获得最佳效果'
+    };
+    if (Object.prototype.hasOwnProperty.call(map, low)) return map[low];
+    if (Object.prototype.hasOwnProperty.call(BENEFIT_PHRASE_MAP, low)) {
+      return `以获得${BENEFIT_PHRASE_MAP[low]}`;
+    }
+    const combo = low.match(/^(.+?)\s+(?:with|and|at)\s+(.+)$/);
+    if (combo) {
+      const left = BENEFIT_PHRASE_MAP[combo[1].trim()];
+      const right = BENEFIT_PHRASE_MAP[combo[2].trim()];
+      if (left && right) {
+        return `以获得${left}与${right}`;
+      }
+    }
+    return null;
+  }
+
+  function lookupSentenceExact(rawSentence) {
+    const trimmed = String(rawSentence || '').trim();
+    if (!trimmed) return null;
+    const norm = normalizeKey(trimmed);
+    const direct = lookupExact(trimmed, norm);
+    if (direct) return direct;
+    if (norm.endsWith('.')) {
+      const stem = norm.slice(0, -1).trim();
+      const stemHit = stem ? lookupExact(stem, stem) : null;
+      if (stemHit) {
+        return /[。！？.!?]$/.test(stemHit) ? stemHit : `${stemHit}。`;
+      }
+    }
+    return null;
+  }
+
+  function translateNoticeSubject(raw) {
+    const s = String(raw || '').trim();
+    const low = s.toLowerCase();
+    if (low === 'third-party model access' || low === 'access to third-party models') return '第三方模型访问权限';
+    if (low === 'third-party models') return '第三方模型';
+    if (low === 'this model') return '此模型';
+    if (low === 'these models') return '这些模型';
+    if (KNOWN_MODEL_PREFIX_RE.test(s) && (/\b(?:and|or)\b/i.test(s) || s.includes(',') || /\bmodels$/i.test(s))) {
+      return translateModelList(s);
+    }
+    return s;
+  }
+
+  function translateUpgradeGoal(raw) {
+    const s = String(raw || '').replace(/[.\s]+$/g, '').trim();
+    const low = s.toLowerCase();
+    const map = {
+      'higher rate limits': '更高的请求速率上限',
+      'the highest rate limits': '最高的请求速率上限',
+      'highest rate limits': '最高的请求速率上限',
+      'higher limits': '更高的配额上限',
+      'higher usage limits': '更高的用量上限',
+      'higher quotas': '更高的配额',
+      'higher quota': '更高的配额',
+      'the highest limits': '最高的配额上限',
+      'the highest quotas': '最高的配额',
+      'this model': '此模型',
+      'these models': '这些模型',
+      'third-party models': '第三方模型',
+      'third-party model access': '第三方模型访问权限',
+      'access to third-party models': '第三方模型访问权限',
+      'access to this model': '此模型的使用权限',
+      'all models': '全部模型',
+      'additional models': '更多模型',
+      'more models': '更多模型'
+    };
+    if (Object.prototype.hasOwnProperty.call(map, low)) return map[low];
+    if (/^(?:Claude|Gemini|Sonnet|Opus|GPT|Orchestrator|Argon|Carbon|Hydrogen|Neon)\b/i.test(s)) return s;
+    return null;
+  }
+
+  function translateLimitPhrase(rawKind, hasRate) {
+    const k = String(rawKind || '').trim().toLowerCase();
+    const mult = k.match(/^(\d+)x(?:\s+higher)?$/);
+    if (mult) {
+      return hasRate ? `${mult[1]} 倍更高的请求速率上限` : `${mult[1]} 倍更高的基础配额`;
+    }
+    if (k === 'minimum base') return hasRate ? '最低基础请求速率上限' : '最低基础配额';
+    if (k === 'base') return hasRate ? '基础请求速率上限' : '基础配额';
+    if (k === 'standard') return hasRate ? '标准请求速率上限' : '标准配额';
+    if (k === 'higher') return hasRate ? '更高的请求速率上限' : '更高的配额';
+    if (k === 'highest') return hasRate ? '最高的请求速率上限' : '最高的配额';
+    return rawKind;
+  }
+
+  function translatePlanOrModelSentence(rawSentence) {
+    const s = String(rawSentence || '').trim();
+    if (!s || /[\u4e00-\u9fff]/.test(s)) return null;
+    if (/[.!?]\s+/.test(s)) return null;
+
+    // 1. "{Model} is currently (only) available to/on/for {Audience/Plan}."
+    let m = s.match(/^(.+?)\s+(?:is|are)\s+currently\s+(?:only\s+)?available\s+(?:to|on|for)\s+(.+?)\.?$/i);
+    if (m) {
+      const subj = translateNoticeSubject(m[1]);
+      const aud = translatePlanOrAudience(m[2], false);
+      return joinZhSegment(joinZhSegment('', subj, '目前仅面向'), aud, '开放。');
+    }
+
+    // 2. "{Model} is now available on/to/for {Audience/Plan}."
+    m = s.match(/^(.+?)\s+(?:is|are)\s+now\s+available\s+(?:on|to|for)\s+(.+?)\.?$/i);
+    if (m) {
+      const subj = translateNoticeSubject(m[1]);
+      const aud = translatePlanOrAudience(m[2], true);
+      if (aud) {
+        return joinZhSegment(joinZhSegment('', subj, '现已面向'), aud, '开放。');
+      }
+    }
+
+    // 3. "{Model} is now available (in Antigravity)."
+    m = s.match(/^((?:Claude|Gemini|Sonnet|Opus|GPT|Orchestrator|Argon|Carbon|Hydrogen|Neon)\b[^.!?]*?)\s+is\s+now\s+available(\s+in\s+Antigravity)?\.?$/i);
+    if (m) {
+      return m[2] ? `${m[1].trim()} 现已在 Antigravity 中开放。` : `${m[1].trim()} 现已开放。`;
+    }
+
+    // 4. "{Model/Third-party} is/are (currently) only available to/on/for {Audience/Plan}."
+    m = s.match(/^(.+?)\s+(?:is|are)\s+(currently\s+)?only\s+available\s+(?:to|on|for)\s+(.+?)\.?$/i);
+    if (m) {
+      const subj = translateNoticeSubject(m[1]);
+      const aud = translatePlanOrAudience(m[3], false);
+      const prefix = joinZhSegment('', subj, m[2] ? '目前仅面向' : '仅面向');
+      return joinZhSegment(prefix, aud, '开放。');
+    }
+
+    // 4.5 "For {KnownPlan}, {Model} quota is separate." & "Higher {Model} quota (...) is available on {KnownPlan}."（须早于通用 is available on 规则）
+    m = s.match(/^For\s+(.+?),\s+(.+?)\s+quota\s+is\s+separate\.?$/i);
+    if (m) {
+      const planZh = translatePlanOrAudience(m[1], true);
+      if (planZh) return joinZhSegment('对于', planZh, `，${m[2].trim()} 配额独立计算。`);
+    }
+    m = s.match(/^Higher\s+(.+?)\s+quota\s+\(included\s+as\s+part\s+of\s+the\s+larger\s+(.+?)\s+quota\s+bucket\)\s+is\s+available\s+on\s+(.+?)\.?$/i);
+    if (m) {
+      const planZh = translatePlanOrAudience(m[3], true);
+      if (planZh) return joinZhSegment('', planZh, `提供更高的 ${m[1].trim()} 配额（包含在更大的 ${m[2].trim()} 总配额池中）。`);
+    }
+
+    // 5. "{Model/Third-party} is/are available on/to/for {KnownPlan}."
+    m = s.match(/^(.+?)\s+(?:is|are)\s+available\s+(?:to|on|for)\s+(.+?)\.?$/i);
+    if (m) {
+      const aud = translatePlanOrAudience(m[2], true);
+      if (aud) {
+        const subj = translateNoticeSubject(m[1]);
+        return joinZhSegment(joinZhSegment('', subj, '面向'), aud, '开放。');
+      }
+    }
+
+    // 6. "{Subject} will no longer be available [on/for {Plan}] [in Antigravity] starting on/from/after/on {Date}."
+    m = s.match(/^(.+?)\s+will\s+no\s+longer\s+be\s+available(?:\s+(?:on|for)\s+(.+?))?(?:\s+in\s+(Antigravity))?\s+(starting\s+on|starting|from|after|on)\s+(.+?)\.?$/i);
+    if (m) {
+      const subj = translateNoticeSubject(m[1]);
+      const planRaw = m[2] ? m[2].trim() : '';
+      const planZh = planRaw ? translatePlanOrAudience(planRaw, false) : '';
+      const inApp = Boolean(m[3]);
+      const prep = m[4].toLowerCase();
+      const dateZh = formatEnDateToZh(m[5]);
+      const timeClause = prep === 'after'
+        ? `${dateZh}后，`
+        : joinZhSegment('自', dateZh, '起，');
+      if (planZh) {
+        return `${timeClause}${joinZhSegment(planZh, '将不再提供', subj)}。`;
+      }
+      if (inApp) {
+        return `${timeClause}${joinZhSegment('Antigravity 将不再提供', subj, '。')}`;
+      }
+      return `${timeClause}${joinZhSegment('', subj, '将不再可用。')}`;
+    }
+
+    // 7. "{Subject} will no longer be / is no longer available [on/for {Plan}] [in Antigravity]."
+    m = s.match(/^(.+?)\s+(will\s+no\s+longer\s+be|(?:is|are)\s+no\s+longer)\s+available(?:\s+(?:on|for)\s+(.+?))?(?:\s+in\s+(Antigravity))?\.?$/i);
+    if (m) {
+      const subj = translateNoticeSubject(m[1]);
+      const isFuture = /^will/i.test(m[2]);
+      const verb = isFuture ? '将不再' : '已不再';
+      const planZh = m[3] ? translatePlanOrAudience(m[3], true) : null;
+      if (m[3] && !planZh) return null;
+      if (planZh) {
+        return `${joinZhSegment(planZh, `${verb}提供`, subj)}。`;
+      }
+      if (m[4]) {
+        return `${joinZhSegment(`Antigravity ${verb}提供`, subj, '。')}`;
+      }
+      return joinZhSegment('', subj, `${verb}可用。`);
+    }
+
+    // 8. "{Subject} is/are (currently) not available/unavailable on/for {KnownPlan}."
+    m = s.match(/^(.+?)\s+(?:is|are)\s+(currently\s+)?(?:not\s+available|unavailable)\s+(?:on|for)\s+(.+?)\.?$/i);
+    if (m) {
+      const planZh = translatePlanOrAudience(m[3], true);
+      if (planZh) {
+        const subj = translateNoticeSubject(m[1]);
+        const cur = m[2] ? '目前' : '';
+        return joinZhSegment(joinZhSegment('', subj, `${cur}在`), planZh, '中不可用。');
+      }
+    }
+
+    // 9. "{Subject} is/are (currently) not available/unavailable in your region."
+    m = s.match(/^(.+?)\s+(?:is|are)\s+(?:currently\s+)?(?:not\s+available|unavailable)\s+in\s+your\s+region\.?$/i);
+    if (m) {
+      const subj = translateNoticeSubject(m[1]);
+      return joinZhSegment('', subj, '目前在你所在的地区暂不可用。');
+    }
+
+    // 10. "{Subject} is/has been disabled by your administrator/organization."
+    m = s.match(/^(.+?)\s+(?:is|has\s+been)\s+disabled\s+by\s+your\s+(administrator|organization)\.?$/i);
+    if (m) {
+      const subj = translateNoticeSubject(m[1]);
+      const who = m[2].toLowerCase() === 'administrator' ? '管理员' : '组织';
+      return joinZhSegment('', subj, `已被你的${who}禁用。`);
+    }
+
+    // 11. "{Subject} requires {KnownPlan/Subscription} [to use/access]."
+    m = s.match(/^(.+?)\s+requires?\s+(.+?)(?:\s+to\s+(?:use|access))?\.?$/i);
+    if (m) {
+      const planZh = translatePlanOrAudience(m[2], true);
+      if (planZh) {
+        const subj = translateNoticeSubject(m[1]);
+        return joinZhSegment(joinZhSegment('', subj, '需要'), planZh, '才能使用。');
+      }
+    }
+
+    // 12. "{Model} will be removed/deprecated/retired/sunset [from Antigravity] on/after/by {Date}."
+    m = s.match(/^(.+?)\s+(?:will\s+be|(?:is|are)\s+being)\s+(removed|deprecated|retired|sunset)(?:\s+from\s+(Antigravity))?\s+(on|after|by)\s+(.+?)\.?$/i);
+    if (m) {
+      const model = translateNoticeSubject(m[1]);
+      const act = m[2].toLowerCase();
+      const prep = m[4].toLowerCase();
+      const dateZh = formatEnDateToZh(m[5]);
+      const dateClause = prep === 'after' ? `${dateZh}后` : prep === 'by' ? `${dateZh}前` : dateZh;
+      const prepZh = prep === 'by' ? '将在' : '将于';
+      if (act === 'removed' && m[3]) {
+        return joinZhSegment(joinZhSegment('', model, prepZh), dateClause, '从 Antigravity 中移除。');
+      }
+      const actZh = act === 'removed' ? '移除。' : act === 'deprecated' ? '弃用。' : act === 'sunset' ? '下线。' : '停用。';
+      const fromApp = m[3] ? '从 Antigravity ' : '';
+      return joinZhSegment(joinZhSegment('', model, prepZh), dateClause, `${fromApp}${actZh}`);
+    }
+
+    // 12b. "{Model} is/are/will be leaving / will leave / leaves [Antigravity] on/after/starting/by {Date}."
+    m = s.match(/^(.+?)\s+(?:(?:is|are|will\s+be)\s+leaving|will\s+leave|leaves)(?:\s+(Antigravity))?\s+(starting\s+on|starting|on|after|by)\s+(.+?)\.?$/i);
+    if (m) {
+      const model = translateNoticeSubject(m[1]);
+      const inApp = Boolean(m[2]);
+      const prep = m[3].toLowerCase();
+      const dateZh = formatEnDateToZh(m[4]);
+      const fromApp = inApp ? '从 Antigravity ' : '';
+      if (prep.startsWith('starting')) {
+        return `${joinZhSegment('自', dateZh, '起，')}${joinZhSegment('', model, `将${fromApp}下线。`)}`;
+      }
+      const dateClause = prep === 'after' ? `${dateZh}后` : prep === 'by' ? `${dateZh}前` : dateZh;
+      const prepZh = prep === 'by' ? '将在' : '将于';
+      return joinZhSegment(joinZhSegment('', model, prepZh), dateClause, `${fromApp}下线。`);
+    }
+
+    // 12c. "{Model} is/are scheduled to leave / for removal / to be removed/retired/deprecated [from Antigravity] on/after/by {Date}."
+    m = s.match(/^(.+?)\s+(?:is|are)\s+scheduled\s+(to\s+leave|for\s+removal|to\s+be\s+(?:removed|retired|deprecated|sunset))(?:\s+(?:from\s+)?(Antigravity))?\s+(on|after|by)\s+(.+?)\.?$/i);
+    if (m) {
+      const model = translateNoticeSubject(m[1]);
+      const kind = m[2].toLowerCase();
+      const inApp = Boolean(m[3]);
+      const prep = m[4].toLowerCase();
+      const dateZh = formatEnDateToZh(m[5]);
+      const dateClause = prep === 'after' ? `${dateZh}后` : prep === 'by' ? `${dateZh}前` : dateZh;
+      const tail = kind.includes('leave') || kind.includes('sunset')
+        ? `${inApp ? '从 Antigravity ' : ''}下线。`
+        : kind.includes('remov')
+          ? (inApp ? '从 Antigravity 中移除。' : '移除。')
+          : kind.includes('deprecat')
+            ? `${inApp ? '从 Antigravity ' : ''}弃用。`
+            : `${inApp ? '从 Antigravity ' : ''}停用。`;
+      return joinZhSegment(joinZhSegment('', model, '计划于'), dateClause, tail);
+    }
+
+    // 12d. "{Model} is leaving / will be removed/retired/deprecated [from Antigravity] soon."
+    m = s.match(/^(.+?)\s+(?:(?:is|are)\s+(leaving)|(?:will\s+be|(?:is|are)\s+being)\s+(removed|deprecated|retired|sunset))(?:\s+(?:from\s+)?(Antigravity))?(?:\s+soon)?\.?$/i);
+    if (m && (/\bsoon\.?$/i.test(s) || /^.+\s+(?:is|are)\s+being\s+(?:removed|deprecated|retired|sunset)/i.test(s))) {
+      const model = translateNoticeSubject(m[1]);
+      const act = (m[2] || m[3] || '').toLowerCase();
+      const inApp = Boolean(m[4]);
+      const tail = act === 'leaving' || act === 'sunset'
+        ? `${inApp ? '从 Antigravity ' : ''}下线。`
+        : act === 'removed'
+          ? (inApp ? '从 Antigravity 中移除。' : '移除。')
+          : act === 'deprecated'
+            ? `${inApp ? '从 Antigravity ' : ''}弃用。`
+            : `${inApp ? '从 Antigravity ' : ''}停用。`;
+      return joinZhSegment('', model, `即将${tail}`);
+    }
+
+    // 12e. 无主语简短退市提示："Leaving [Antigravity] [on] {Date}." / "Scheduled for removal on {Date}." / "Available until {Date}."
+    m = s.match(/^(Leaving|Retiring|Deprecating|Removing)(?:\s+(?:from\s+)?(Antigravity))?\s+(?:(on|after|by)\s+)?(.+?)\.?$/i);
+    if (m) {
+      const rawDate = m[4].replace(/[.\s]+$/g, '').trim();
+      const dateZh = formatEnDateToZh(rawDate);
+      if (dateZh !== rawDate) {
+        const act = m[1].toLowerCase();
+        const inApp = Boolean(m[2]);
+        const prep = (m[3] || 'on').toLowerCase();
+        const dateClause = prep === 'after' ? `${dateZh}后` : prep === 'by' ? `${dateZh}前` : dateZh;
+        const prepZh = prep === 'by' ? '将在' : '将于';
+        const tail = act === 'leaving'
+          ? `${inApp ? '从 Antigravity ' : ''}下线。`
+          : act === 'removing'
+            ? (inApp ? '从 Antigravity 中移除。' : '移除。')
+            : act === 'deprecating'
+              ? `${inApp ? '从 Antigravity ' : ''}弃用。`
+              : `${inApp ? '从 Antigravity ' : ''}停用。`;
+        return joinZhSegment(prepZh, dateClause, tail);
+      }
+    }
+    m = s.match(/^Scheduled\s+(to\s+leave|for\s+removal|to\s+be\s+(?:removed|retired|deprecated))(?:\s+(?:from\s+)?(Antigravity))?\s+(on|after|by)\s+(.+?)\.?$/i);
+    if (m) {
+      const kind = m[1].toLowerCase();
+      const inApp = Boolean(m[2]);
+      const prep = m[3].toLowerCase();
+      const dateZh = formatEnDateToZh(m[4]);
+      const dateClause = prep === 'after' ? `${dateZh}后` : prep === 'by' ? `${dateZh}前` : dateZh;
+      const tail = kind.includes('leave')
+        ? `${inApp ? '从 Antigravity ' : ''}下线。`
+        : kind.includes('remov')
+          ? (inApp ? '从 Antigravity 中移除。' : '移除。')
+          : kind.includes('deprecat')
+            ? `${inApp ? '从 Antigravity ' : ''}弃用。`
+            : `${inApp ? '从 Antigravity ' : ''}停用。`;
+      return joinZhSegment('计划于', dateClause, tail);
+    }
+    m = s.match(/^(?:(.+?)\s+(?:is|are|will\s+remain|will\s+be)\s+)?available\s+until\s+(.+?)\.?$/i);
+    if (m) {
+      const dateZh = formatEnDateToZh(m[2]);
+      if (dateZh !== m[2].replace(/[.\s]+$/g, '').trim()) {
+        if (m[1]) {
+          const model = translateNoticeSubject(m[1]);
+          return joinZhSegment(joinZhSegment('', model, '将可用至'), dateZh, '。');
+        }
+        return joinZhSegment('可用至', dateZh, '。');
+      }
+    }
+
+    // 12f. 模型替代与会话自动迁移提示
+    m = s.match(/^(.+?)\s+(is\s+being|will\s+be|has\s+been|is)\s+replaced\s+by\s+((?:Claude|Gemini|Sonnet|Opus|Haiku|GPT(?:-OSS)?|Orchestrator|Argon|Carbon|Hydrogen|Neon|Flash)\b[^.!?]*?)(?:\s+(on|starting\s+on|starting)\s+(.+?))?\.?$/i);
+    if (m) {
+      const subj = translateNoticeSubject(m[1]);
+      const verb = /^has/i.test(m[2]) ? '已由' : '将由';
+      const target = translateModelList(m[3]);
+      if (m[5]) {
+        const dateZh = formatEnDateToZh(m[5]);
+        const datePrefix = /^starting/i.test(m[4]) ? `自 ${dateZh}起由` : `将于 ${dateZh}由`;
+        return joinZhSegment(joinZhSegment('', subj, datePrefix), target, '替代。');
+      }
+      return joinZhSegment(joinZhSegment('', subj, verb), target, '替代。');
+    }
+    m = s.match(/^Replaced\s+by\s+((?:Claude|Gemini|Sonnet|Opus|Haiku|GPT(?:-OSS)?|Orchestrator|Argon|Carbon|Hydrogen|Neon|Flash)\b[^.!?]*?)\.?$/i);
+    if (m) {
+      return joinZhSegment('已由', translateModelList(m[1]), '替代。');
+    }
+    m = s.match(/^(?:After\s+(.+?),\s+)?(?:(existing|active|new)\s+)?(?:conversations|chats|sessions)(?:\s+using\s+(.+?))?\s+will\s+(automatically\s+)?(?:switch|migrate|default|move|be\s+routed)\s+to\s+((?:Claude|Gemini|Sonnet|Opus|Haiku|GPT(?:-OSS)?|Orchestrator|Argon|Carbon|Hydrogen|Neon|Flash)\b[^.!?]*?)\.?$/i);
+    if (m) {
+      const afterPrefix = m[1] ? `${formatEnDateToZh(m[1])}后，` : '';
+      const adj = m[2] ? ({ existing: '现有', active: '当前活跃的', new: '新建' }[m[2].toLowerCase()] || '') : '';
+      const usingPart = m[3] ? joinZhSegment('使用', translateNoticeSubject(m[3]), '的') : '';
+      const autoZh = m[4] ? '自动' : '';
+      const target = translateModelList(m[5]);
+      return `${afterPrefix}${adj}${usingPart}会话将${autoZh}${joinZhSegment('切换到', target, '。')}`;
+    }
+
+    // 13. "{Users/Plans} receive(s) [the] {limitKind} [rate] limits [on Antigravity]."
+    m = s.match(/^(.+?)\s+receive(?:s)?\s+(?:the\s+)?(minimum\s+base|base|standard|higher|highest|\d+x(?:\s+higher)?)\s+(rate\s+)?limits(?:\s+on\s+(.+?))?\.?$/i);
+    if (m) {
+      const subjRaw = m[1].trim();
+      const subjZh = /^you$/i.test(subjRaw) ? '你' : translatePlanOrAudience(subjRaw, true);
+      if (subjZh) {
+        const limitZh = translateLimitPhrase(m[2], Boolean(m[3]));
+        const app = m[4] ? m[4].trim() : '';
+        if (app) {
+          return `${joinZhSegment(subjZh, `在 ${app} 上享有`, limitZh)}。`;
+        }
+        return `${joinZhSegment(subjZh, '享有', limitZh)}。`;
+      }
+    }
+
+    // 14. "You (currently) have [the] {limitKind} [rate] limits [on Antigravity]."
+    m = s.match(/^You\s+(?:currently\s+)?have\s+(?:the\s+)?(minimum\s+base|base|standard|higher|highest|\d+x(?:\s+higher)?)\s+(rate\s+)?limits(?:\s+on\s+(.+?))?\.?$/i);
+    if (m) {
+      const limitZh = translateLimitPhrase(m[1], Boolean(m[2]));
+      const app = m[3] ? m[3].trim() : '';
+      return app ? `你在 ${app} 上享有${limitZh}。` : `你当前享有${limitZh}。`;
+    }
+
+    // 15. "(You can) Upgrade to {KnownPlan} to {verb} {Goal}."
+    m = s.match(/^(You\s+can\s+)?upgrade\s+to\s+(.+?)\s+to\s+(receive|get|unlock|access|continue\s+using)\s+(.+?)\.?$/i);
+    if (m) {
+      const planZh = translatePlanOrAudience(m[2], true);
+      const goalZh = translateUpgradeGoal(m[4]);
+      if (planZh && goalZh) {
+        const canPrefix = m[1] ? '你可以升级到' : '升级到';
+        const verbLow = m[3].toLowerCase();
+        const verbZh = verbLow === 'continue using' ? '以继续使用'
+          : verbLow === 'access' ? '以使用'
+          : verbLow === 'unlock' ? '以解锁'
+          : '以获取';
+        return joinZhSegment(joinZhSegment(canPrefix, planZh, verbZh), goalZh, '。');
+      }
+    }
+
+    // 16. "This/Your account is ineligible/not eligible for higher rate limits [through {Plan}] [at this time]."
+    m = s.match(/^(This|Your)\s+account\s+is\s+(?:ineligible|not\s+eligible)\s+for\s+higher\s+rate\s+limits(?:\s+through\s+(.+?))?(?:\s+at\s+this\s+time)?\.?$/i);
+    if (m) {
+      const subj = m[1].toLowerCase() === 'your' ? '你的账号' : '此账号';
+      const throughZh = m[2] ? translatePlanOrAudience(m[2], false) : '';
+      return throughZh
+        ? joinZhSegment(`${subj}目前无法通过`, throughZh, '获取更高的请求速率上限。')
+        : `${subj}目前无法获取更高的请求速率上限。`;
+    }
+
+    // 17. "Google Workspace accounts are (currently) ineligible for {Plan}."
+    m = s.match(/^Google\s+Workspace\s+accounts\s+are\s+(?:currently\s+)?(?:ineligible|not\s+eligible)\s+for\s+(.+?)\.?$/i);
+    if (m) {
+      const planZh = translatePlanOrAudience(m[1], true);
+      if (planZh) return joinZhSegment('Google Workspace 账号目前无法订阅', planZh, '。');
+    }
+
+    // 18. "{KnownPlans} do not include {Third-party / Model}."
+    m = s.match(/^(.+?)\s+do\s+not\s+include\s+(.+?)\.?$/i);
+    if (m) {
+      const planZh = translatePlanOrAudience(m[1], true);
+      const goalZh = translateUpgradeGoal(m[2]);
+      if (planZh && goalZh) return `${joinZhSegment(planZh, '不包含', goalZh)}。`;
+    }
+
+    // 19. "Your (current) plan is managed by your organization/administrator."
+    m = s.match(/^Your\s+(?:current\s+)?plan\s+is\s+managed\s+by\s+your\s+(organization|administrator)\.?$/i);
+    if (m) {
+      const who = m[1].toLowerCase() === 'administrator' ? '管理员' : '组织';
+      return `你当前的套餐由你的${who}管理。`;
+    }
+
+    // 20. "Contact your (organization) administrator to upgrade your plan / for higher rate limits / to request access."
+    m = s.match(/^Contact\s+your\s+(?:organization\s+)?administrator\s+(to\s+upgrade\s+your\s+plan|for\s+higher\s+rate\s+limits|to\s+request\s+access)\.?$/i);
+    if (m) {
+      const tail = m[1].toLowerCase();
+      if (tail.includes('upgrade')) return '请联系你的管理员升级套餐。';
+      if (tail.includes('rate limits')) return '请联系你的管理员获取更高的请求速率上限。';
+      return '请联系你的管理员申请访问权限。';
+    }
+
+    // 21. "You('re| are) (currently) on {KnownPlan} [available on Antigravity]."
+    m = s.match(/^You(?:'re|\s+are)\s+(?:currently\s+)?on\s+(.+?)(?:\s+available\s+on\s+(Antigravity))?\.?$/i);
+    if (m) {
+      const planZh = translatePlanOrAudience(m[1], true);
+      if (planZh) {
+        return m[2]
+          ? joinZhSegment(`你当前使用的是 ${m[2]}`, planZh, '。')
+          : joinZhSegment('你当前使用的是', planZh, '。');
+      }
+    }
+
+    // 22. 配额未使用 / 满额 / 刷新周期单句
+    m = s.match(/^You\s+(?:have\s+not|haven't)\s+used\s+any\s+of\s+your\s+(weekly|monthly|daily|\d+-hour)\s+limit\.?$/i);
+    if (m) {
+      return `你尚未使用任何${prefixSpaceIfAscii(translateLimitKind(m[1]))}。`;
+    }
+    m = s.match(/^(?:You\s+have\s+full|Your)\s+(weekly|monthly|daily|\d+-hour)\s+(?:limit|quota)(?:\s+remaining|\s+is\s+full)\.?$/i);
+    if (m) {
+      return `你的${prefixSpaceIfAscii(translateLimitKind(m[1]))}当前为满额状态。`;
+    }
+    m = s.match(/^Your\s+(weekly|monthly|daily|\d+-hour)\s+limit\s+(will\s+fully\s+refresh|will\s+refresh|refreshes|resets)\s+in\s+(.+?)\.?$/i);
+    if (m) {
+      const resetVerb = /fully/i.test(m[2]) ? '完全重置' : '重置';
+      return `你的${prefixSpaceIfAscii(translateLimitKind(m[1]))}将在${prefixSpaceIfAscii(translateDuration(m[3]))}后${resetVerb}。`;
+    }
+
+    // 24. "(Please) Switch / Consider switching / Migrate / Try / Use / We recommend {Model(s)} [instead] [for ...]."
+    m = s.match(/^(Please\s+switch|Switch|Consider\s+switching|Please\s+migrate|Migrate|Transition)\s+to\s+((?:Claude|Gemini|Sonnet|Opus|Haiku|GPT(?:-OSS)?|Orchestrator|Argon|Carbon|Hydrogen|Neon|Flash|another\s+available\s+model|another\s+model|a\s+newer\s+model|newer\s+models)\b[^.!?]*?)(?:\s+instead)?(?:\s+for\s+([^.!?]+))?\.?$/i);
+    if (m) {
+      const rawLead = m[1].toLowerCase();
+      const lead = rawLead.startsWith('consider') ? '建议切换到'
+        : rawLead.includes('migrate') || rawLead.includes('transition') ? '请迁移到'
+        : '请切换到';
+      const target = translateModelList(m[2]);
+      const reasonZh = m[3] ? translateSwitchReason(m[3]) : null;
+      if (m[3] && !reasonZh) return null;
+      const tail = reasonZh ? `${reasonZh}。` : '。';
+      return joinZhSegment(lead, target, tail);
+    }
+    m = s.match(/^(Please\s+try|Try|Please\s+use|Use)\s+((?:Claude|Gemini|Sonnet|Opus|Haiku|GPT(?:-OSS)?|Orchestrator|Argon|Carbon|Hydrogen|Neon|Flash)\b[^.!?]*?)(?:\s+(instead))?(?:\s+for\s+([^.!?]+))?\.?$/i);
+    if (m) {
+      const isTry = /try/i.test(m[1]);
+      const isInstead = Boolean(m[3]);
+      const lead = isTry ? (isInstead ? '建议改用' : '建议尝试') : (isInstead ? '请改用' : '请使用');
+      const target = translateModelList(m[2]);
+      const reasonZh = m[4] ? translateSwitchReason(m[4]) : null;
+      if (m[4] && !reasonZh) return null;
+      const tail = reasonZh ? `${reasonZh}。` : '。';
+      return joinZhSegment(lead, target, tail);
+    }
+    m = s.match(/^We\s+recommend\s+(?:(switching\s+to|migrating\s+to|using|trying)\s+)?((?:Claude|Gemini|Sonnet|Opus|Haiku|GPT(?:-OSS)?|Orchestrator|Argon|Carbon|Hydrogen|Neon|Flash)\b[^.!?]*?)(?:\s+instead)?(?:\s+for\s+([^.!?]+))?\.?$/i);
+    if (m) {
+      const act = (m[1] || '').toLowerCase();
+      const lead = act.startsWith('switch') ? '建议切换到'
+        : act.startsWith('migrat') ? '建议迁移到'
+        : act.startsWith('try') ? '建议尝试'
+        : '推荐使用';
+      const target = translateModelList(m[2]);
+      const reasonZh = m[3] ? translateSwitchReason(m[3]) : null;
+      if (m[3] && !reasonZh) return null;
+      const tail = reasonZh ? `${reasonZh}。` : '。';
+      return joinZhSegment(lead, target, tail);
+    }
+
+    return null;
+  }
+
+  function translatePlanOrModelNotice(text) {
+    const s = String(text || '').trim();
+    if (!s || /[\u4e00-\u9fff]/.test(s)) return null;
+
+    // 可选前缀："Leaving Soon — ..." / "Leaving soon: ..."
+    const badgeLead = s.match(/^(Leaving\s+Soon|Retiring\s+Soon|Deprecated|Notice)\s*([—–\-:])\s*(.+)$/i);
+    if (badgeLead) {
+      const badgeKey = badgeLead[1].toLowerCase();
+      const badgeZh = badgeKey === 'leaving soon' ? '即将下线'
+        : badgeKey === 'retiring soon' ? '即将停用'
+        : badgeKey === 'deprecated' ? '已弃用'
+        : '提示';
+      const bodyZh = translatePlanOrModelNotice(badgeLead[3]);
+      if (bodyZh) {
+        const sep = badgeLead[2] === ':' ? '：' : ' — ';
+        return `${badgeZh}${sep}${bodyZh}`;
+      }
+    }
+
+    const single = translatePlanOrModelSentence(s);
+    if (single) return single;
+
+    // 多句组合提示：同时支持“动态句式 + 静态词库句（如模型原有说明 + Leaving on Nov 30.）”混合拼接
+    if (/[.!?]\s+/.test(s)) {
+      const parts = s.split(/(?<=[.!?])\s+/).map((p) => p.trim()).filter(Boolean);
+      if (parts.length >= 2 && parts.length <= 4) {
+        const translated = [];
+        let hasDynamicHit = false;
+        for (const p of parts) {
+          let hit = translatePlanOrModelSentence(p);
+          if (hit) {
+            hasDynamicHit = true;
+          } else {
+            const exactHit = /\s/.test(p) ? lookupSentenceExact(p) : null;
+            if (!exactHit) return null;
+            hit = exactHit;
+          }
+          translated.push(hit);
+        }
+        if (hasDynamicHit) {
+          return translated.map((seg, idx) => (
+            idx < translated.length - 1 && !/[。！？.!?]$/.test(seg) ? `${seg}。` : seg
+          )).join('');
+        }
+      }
+    }
+    return null;
   }
 
   function translateQuotaTextParts(text) {
-    return String(text)
+    let out = String(text)
       .replace(/You need\s+(.+?)\s+AI Credits to send messages\.\s*To continue using\s+(.+?)\s+now,\s*purchase more AI Credits\.?/gi, (_, need, model) => {
         const needZh = need.trim().replace(/^at least\s+/i, '至少 ').replace(/^more$/i, '更多');
         const modelZh = /^this model$/i.test(model.trim()) ? '此模型' : model.trim();
         return `发送消息还需要${needZh} AI 额度。如需立即继续使用 ${modelZh}，请购买更多 AI 额度。`;
       })
-      .replace(/Your plan's baseline quota will refresh on\s+(.+?)\./gi, (_, d) => `你当前套餐的基础配额将于 ${d.trim()} 刷新。`)
+      .replace(/Your plan's baseline quota will refresh on\s+(.+?)\./gi, (_, d) => `你当前套餐的基础配额将于 ${d.trim()} 重置。`)
       .replace(/To continue using this model now,\s*enable AI Credit overages\.?/gi, '如需立即继续使用此模型，请开启 AI 额度超额使用。')
-      .replace(/You can upgrade to a Google AI Ultra plan to receive higher rate limits\.?/gi, '你可以升级到 Google AI Ultra 套餐以获取更高的请求速率上限。')
-      .replace(/Free users and Google AI Plus users receive the minimum base limits on Antigravity\.\s*You can upgrade to Google AI Pro or above to receive higher rate limits\.?/gi, '免费用户和 Google AI Plus 用户在 Antigravity 上享有最低基础额度。你可以升级到 Google AI Pro 或更高级别套餐以获取更高的请求速率上限。')
-      .replace(/You can upgrade to Google AI Pro or above to receive higher rate limits\.?/gi, '你可以升级到 Google AI Pro 或更高级别套餐以获取更高的请求速率上限。')
       .replace(/(?:If|If you(?:'re| are))\s+on a supported paid plan,\s*you can use AI credits in the interim(?:\s+or\s+upgrade to a higher tier)?\.?/gi, (m) =>
         /upgrade to a higher tier/i.test(m)
-          ? '如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级至更高级别套餐。'
+          ? '如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度，或升级到更高级别套餐。'
           : '如果你使用的是受支持的付费套餐，在此期间可使用 AI 额度。'
-      )
+      );
+
+    // 尾部若拼接了任意订阅套餐的 upgradeSubscriptionText，交由统一套餐翻译器处理
+    const tailMatch = out.match(/^([\s\S]*?[。！？])\s*([A-Za-z][\s\S]+)$/);
+    if (tailMatch) {
+      const tailZh = translatePlanOrModelNotice(tailMatch[2]) || lookupExact(tailMatch[2].trim(), normalizeKey(tailMatch[2]));
+      if (tailZh) {
+        out = `${tailMatch[1]}${tailZh}`;
+      }
+    } else if (!/[\u4e00-\u9fff]/.test(out)) {
+      const wholeZh = translatePlanOrModelNotice(out);
+      if (wholeZh) out = wholeZh;
+    }
+
+    return out
       .replace(/([。！？])\s+/g, '$1')
       .replace(/\s+/g, ' ')
       .trim();
@@ -299,7 +1198,7 @@ function createDynamicRules(helpers) {
   function translateQuotaTail(tail) {
     const trimmed = tail ? tail.trim() : '';
     if (!trimmed) return '';
-    return lookupExact(trimmed, normalizeKey(trimmed)) || translateQuotaTextParts(trimmed);
+    return lookupExact(trimmed, normalizeKey(trimmed)) || translatePlanOrModelNotice(trimmed) || translateQuotaTextParts(trimmed);
   }
 
   const DYNAMIC_RULES = [
@@ -402,8 +1301,8 @@ function createDynamicRules(helpers) {
     [/^Stopped voice chat\s*·\s*(.*)$/i, '已结束语音对话 · $1'],
 
     // 配额、套餐、额度、隐私与引导文案
-    [/^Your quota for\s+(.+?)\s+has been reached\.\s+Switch to another available model to continue\.?(.*)$/i, (_, model, tail) => `你在 ${model} 的配额已用尽，请切换至其他可用模型以继续。${translateQuotaTail(tail)}`.trim()],
-    [/^Your quota for\s+(.+?)\s+will reset on\s+(.+?)\.\s+Switch to another available model to continue\.?(.*)$/i, (_, model, date, tail) => `你在 ${model} 的配额将于 ${date} 重置，请切换至其他可用模型以继续。${translateQuotaTail(tail)}`.trim()],
+    [/^Your quota for\s+(.+?)\s+has been reached\.\s+Switch to another available model to continue\.?(.*)$/i, (_, model, tail) => `你在 ${model} 的配额已用尽，请切换到其他可用模型以继续。${translateQuotaTail(tail)}`.trim()],
+    [/^Your quota for\s+(.+?)\s+will reset on\s+(.+?)\.\s+Switch to another available model to continue\.?(.*)$/i, (_, model, date, tail) => `你在 ${model} 的配额将于 ${date} 重置，请切换到其他可用模型以继续。${translateQuotaTail(tail)}`.trim()],
     [/^You have used some of your\s+(weekly|monthly|daily|\d+-hour)\s+limit,\s*it will fully refresh in\s+(.+)$/i, (_, kind, d) => `你已使用部分${prefixSpaceIfAscii(translateLimitKind(kind))}，将在${prefixSpaceIfAscii(translateDuration(d))}后完全重置。`],
     [/^You have hit your\s+(weekly|monthly|daily|\d+-hour)\s+limit,\s*(?:the|your)\s+(weekly|monthly|daily|\d+-hour)\s+limit\s+does not currently apply\.\s+(?:Your\s+(weekly|monthly|daily|\d+-hour)\s+limit|It)\s+(will\s+fully\s+refresh|will\s+refresh|refreshes)\s+in\s+(.+?)(?:\.(?:\s+(.*))?|$)/i, (_, hitKind, suppressedKind, refreshKind, verb, d, tail) => {
       const hitZh = prefixSpaceIfAscii(translateLimitKind(hitKind));
@@ -418,12 +1317,14 @@ function createDynamicRules(helpers) {
       return `你已达到${kindZh}上限，将在${prefixSpaceIfAscii(translateDuration(d))}后${resetVerb}。${translateQuotaTail(tail)}`.trim();
     }],
     [/^You have hit your\s+(weekly|monthly|daily|\d+-hour)\s+limit(?:\.(?:\s+(.*))?|$)/i, (_, kind, tail) => `你已达到${prefixSpaceIfAscii(translateLimitKind(kind))}上限。${translateQuotaTail(tail)}`.trim()],
-    [/^(.+?)\s+(Weekly|Daily|Monthly|(\d+)-hour)\s+Limit(?:\s+Remaining)?$/i, (_, model, kind, hours) => {
+    [/^(.+?)\s+(Weekly|Daily|Monthly|Five[- ]Hour|(\d+)-hour)\s+Limit(\s+Remaining)?$/i, (_, model, kind, hours, rem) => {
       const low = kind.toLowerCase();
-      const suffix = low === 'weekly' ? '每周配额'
-        : low === 'daily' ? '每日配额'
-        : low === 'monthly' ? '每月配额'
-        : `${hours} 小时配额`;
+      const tail = rem ? '剩余配额' : '配额';
+      const suffix = low === 'weekly' ? `每周${tail}`
+        : low === 'daily' ? `每日${tail}`
+        : low === 'monthly' ? `每月${tail}`
+        : low.startsWith('five') ? `5 小时${tail}`
+        : `${hours} 小时${tail}`;
       return `${model.trim()} ${suffix}`;
     }],
     [/^(\d+)\s*([smhd])\s+limit$/i, (_, n, u) => `${n} ${({ s: '秒', m: '分钟', h: '小时', d: '天' }[u.toLowerCase()] || u)}配额`],
@@ -495,16 +1396,16 @@ function createDynamicRules(helpers) {
     [/^Manage\s+(.+?)\s+(resources|folders),\s*agent settings,\s*and permissions\.?$/i, (_, target, noun) => {
       const targetZh = translateEntityNoun(target);
       const nounZh = noun.toLowerCase() === 'resources' ? '资源' : '文件夹';
-      return `${joinZhSegment('管理', targetZh, '')}${nounZh}、智能体设置及权限。`;
+      return `${joinZhSegment('管理', targetZh, '')}${nounZh}、智能体设置及权限`;
     }],
     [/^Manage\s+(.+?)\s+(resources|folders)\s+and settings\.?$/i, (_, target, noun) => {
       const targetZh = translateEntityNoun(target);
       const nounZh = noun.toLowerCase() === 'resources' ? '资源' : '文件夹';
-      return `${joinZhSegment('管理', targetZh, '')}${nounZh}与设置。`;
+      return `${joinZhSegment('管理', targetZh, '')}${nounZh}与设置`;
     }],
-    [/^Manage\s+(.+?)\s+app settings\.?$/i, '管理 $1 应用设置。'],
-    [/^Agent settings and permissions for conversations outside of\s+(.+?)\.?$/i, (_, target) => joinZhSegment('配置未归属于任何', translateEntityNoun(target), '的独立会话的智能体设置与权限策略。')],
-    [/^Settings for conversations outside of\s+(.+?)\.?$/i, (_, target) => joinZhSegment('在', translateEntityNoun(target), '之外创建的独立会话设置。')],
+    [/^Manage\s+(.+?)\s+app settings\.?$/i, '管理 $1 应用设置'],
+    [/^Agent settings and permissions for conversations outside of\s+(.+?)\.?$/i, (_, target) => joinZhSegment('配置未归属于任何', translateEntityNoun(target), '的独立会话的智能体设置与权限策略')],
+    [/^Settings for conversations outside of\s+(.+?)\.?$/i, (_, target) => joinZhSegment('在', translateEntityNoun(target), '之外创建的独立会话设置')],
     [/^Permanently delete\s+(.+?)\s+including\s+(\d+)\s+active conversations?\.?$/i, '永久删除 $1 及其包含的 $2 个活跃会话。'],
     [/^Permanently delete\s+(.+?)\s+including\s+(\d+)\s+conversations?\.?$/i, '永久删除 $1 及其包含的 $2 个会话。'],
     [/^Permanently delete\s+(.+?)\.?$/i, '永久删除 $1。'],
@@ -589,7 +1490,17 @@ function createDynamicRules(helpers) {
 
     // 设置页与模态框动态词条
     [/^Available AI Credits:\s*(.+)$/i, '可用 AI 额度：$1'],
-    [/^Your Plan:\s*(.+)$/i, (_, plan) => `当前套餐：${lookupExact(plan, normalizeKey(plan)) || plan}`],
+    [/^Your Plan:\s*(.+)$/i, (_, plan) => {
+      const trimmed = plan.trim();
+      const translated = lookupExact(trimmed, normalizeKey(trimmed)) || translatePlanOrAudience(trimmed, 'allowBare') || trimmed;
+      return `当前套餐：${translated}`;
+    }],
+    [/^Upgrade to\s+(.+)$/i, (m, plan) => {
+      const translated = translatePlanOrAudience(plan, 'allowBare');
+      return translated ? joinZhSegment('升级到', translated, '') : m;
+    }],
+    [/^Sorry,\s*this account is ineligible to use\s+(.+?)\.?$/i, '抱歉，此账号无法使用 $1'],
+    [/^Further action is required to use\s+(.+?)\.?$/i, '需要进一步操作才能使用 $1'],
     [/^For\s+(.+?),\s+telemetry is force disabled\.$/i, (_, s) => `${translateScope(s).trim()}已强制禁用遥测。`],
     [/^(?:(.+?)\s+)?For\s+(.+?),\s+this setting is disabled\.\s+This means\s+(.+?)\s+does not collect any of your prompts,\s+content,\s+or model responses,\s+but will still collect general usage patterns\s+\(e\.g\.,\s+feature adoption,\s+active user counts\)\.?$/i, (_, prefix, s, prod) => {
       const p = prefix ? `${lookupExact(prefix.trim(), normalizeKey(prefix.trim())) || prefix.trim()}\n\n` : '';
@@ -647,6 +1558,11 @@ function createDynamicRules(helpers) {
     [/^(\d+)\s+waiting$/i, '$1 个等待中'],
     [/^(\d+)\s+stopped$/i, '$1 个已停止'],
     [/^(\d+)\s+killed$/i, '$1 个已终止'],
+    [/^Waiting on @([A-Za-z0-9_-]+)$/i, '等待 @$1 响应'],
+    [/^Go to #(\d+) on the Board$/i, '跳转到消息板 #$1'],
+    [/^Posted in #([A-Za-z0-9_-]+);\s*click to show only #\1$/i, '发布于 #$1；点击仅显示 #$1'],
+    [/^Narrator read up to #(\d+) of (\d+)$/i, '记录员已读至 #$1 / $2'],
+    [/^Latest action:\s*(.+)$/i, '最新操作：$1'],
 
     // 全软件提醒横幅、通知栏、Toast 与动态提示模板
     [/^Agent finished:\s*(.+)$/i, '智能体已完成：$1'],
@@ -790,17 +1706,9 @@ function createDynamicRules(helpers) {
     [/^In review\s*\u00b7\s*Code-Review\s*([+-]?\d+)$/i, '审核中 · 代码评审 $1'],
     [/^Approved\s*\u00b7\s*Code-Review\s*\+(\d+)$/i, '已批准 · 代码评审 +$1'],
 
-    // 模型标签说明 (i) 动态模板
+    // 模型标签说明 (i) 与不同订阅套餐提示动态模板（统一术语与多句组合支持）
     [/^(.+?)\s+that may offload routine steps to\s+(.+?)\.\s*Same\s+(.+?)-level quality,\s*fewer tokens used\.?$/i, '$1，可将常规步骤分流至 $2。同等 $3 级质量，消耗更少 Token。'],
-    [/^(.+?)\s+will be removed from\s+Antigravity\s+on\s+([A-Z][a-z]+)\s+(\d{1,2}),\s*(\d{4})\.?$/i, (_, model, month, day, year) => {
-      const mMap = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12, jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
-      const mNum = mMap[month.toLowerCase()];
-      const dateStr = mNum ? `${year}年${mNum}月${day}日` : `${month} ${day}, ${year}`;
-      return `${model} 将于 ${dateStr}从 Antigravity 中移除。`;
-    }],
-    [/^(.+?)\s+will be removed from\s+Antigravity\s+on\s+(.+?)\.?$/i, '$1 将于 $2 从 Antigravity 中移除。'],
-    [/^(.+?)\s+is currently available to\s+(.+?)\s+plan subscribers\.?$/i, '$1 目前仅面向 $2 套餐订阅用户开放。'],
-    [/^(.+?)\s+is currently only available to\s+(.+?)\.?$/i, '$1 目前仅面向 $2 开放。'],
+    [/^(?=.*\b(?:available|unavailable|removed|removal|removing|deprecated|deprecating|retired|retiring|sunset|leaving|leaves|leave|replaced|until|subscribers?|plans?|tiers?|rate\s+limits?|base\s+limits?|quota|limit|ineligible|not\s+eligible|third-party|upgrade\s+to|managed\s+by|administrator|switch(?:ing)?\s+to|migrat(?:e|ing)\s+to|transition\s+to|recommend|try|use|instead|do\s+not\s+include|requires?)\b)[\s\S]+$/i, (m) => translatePlanOrModelNotice(m) || m],
 
     // 云端资源接入、Notebook 与草稿计数动态模板
     [/^Add\s+(.+?)\s+resources$/i, '添加 $1 资源'],

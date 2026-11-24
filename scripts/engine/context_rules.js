@@ -281,6 +281,26 @@ function createContextRules() {
     );
   }
 
+  function getSettingsPageSubtitleContainer(contextEl) {
+    let cur = contextEl;
+    while (cur && cur.nodeType === 1) {
+      if (
+        cur.nodeName === 'DIV' &&
+        hasClass(cur, 'text-muted-foreground') &&
+        hasClass(cur, 'bg-transparent')
+      ) {
+        let prev = cur.previousElementSibling;
+        if (prev === undefined) {
+          prev = cur.previousSibling;
+          while (prev && prev.nodeType !== 1) prev = prev.previousSibling;
+        }
+        return prev && prev.nodeName === 'H2' ? cur : null;
+      }
+      cur = cur.parentElement || cur.parentNode;
+    }
+    return null;
+  }
+
   return {
     isFileTreeFilename,
     isInsideTooltipOrHover,
@@ -295,7 +315,8 @@ function createContextRules() {
     isRelativeTimestampContext,
     isElapsedDurationContext,
     isModelEffortContext,
-    isModelLabelContext
+    isModelLabelContext,
+    getSettingsPageSubtitleContainer
   };
 }
 
