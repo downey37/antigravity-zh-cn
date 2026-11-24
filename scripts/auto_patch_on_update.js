@@ -1,29 +1,13 @@
+process.noAsar = true;
+
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { spawn, execSync } = require('child_process');
+const { resolveInstallPaths } = require('./runtime_paths');
 const { isAsarPatched, patchAsar, asarPath } = require('./i18n_core');
+const { detectActiveProxy, buildProxyLaunchConfig } = require('./guard_launch');
 
-const defaultAppDir = process.env.LOCALAPPDATA
-  ? path.join(process.env.LOCALAPPDATA, 'Programs', 'antigravity')
-  : path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'antigravity');
-const appDir = process.env.ANTIGRAVITY_DIR || defaultAppDir;
-const exePath = process.env.ANTIGRAVITY_EXE || path.join(appDir, 'Antigravity.exe');
-const rawProxy = (process.env.ANTIGRAVITY_PROXY || '').trim();
-const proxyHttp = rawProxy
-  ? (/^socks\d*:\/\//i.test(rawProxy)
-    ? rawProxy.replace(/^socks\d*:\/\//i, 'http://')
-    : (/^https?:\/\//i.test(rawProxy) ? rawProxy : `http://${rawProxy}`))
-  : '';
-const proxySocks = rawProxy
-  ? (/^socks\d*:\/\//i.test(rawProxy)
-    ? rawProxy
-    : (/^https?:\/\//i.test(rawProxy) ? rawProxy.replace(/^https?:\/\//i, 'socks5://') : `socks5://${rawProxy}`))
-  : '';
-const noProxyVal = process.env.ANTIGRAVITY_NO_PROXY || 'localhost,127.0.0.1,::1';
-const launchArgs = rawProxy
-  ? [`--proxy-server=${proxyHttp}`, `--proxy-bypass-list=<local>;${noProxyVal.replace(/,/g, ';')}`]
-  : [];
+const { exePath } = resolveInstallPaths();
 const watchIdx = process.argv.indexOf('--watch-after-quit');
 const targetPid = watchIdx !== -1 ? process.argv[watchIdx + 1] : process.argv[3];
 const noRelaunch = process.argv.includes('--no-relaunch');
@@ -108,9 +92,11 @@ async function waitForStableFile(filePath) {
   let retries = 8;
   while (retries-- > 0) {
     try {
-      try {
-        execSync(`taskkill /F /IM Antigravity.exe /FI "PID ne ${process.pid}"`, { stdio: 'ignore' });
-      } catch (_) {}
+      if (process.platform === 'win32') {
+        try {
+          execSync(`taskkill /F /IM Antigravity.exe /FI "PID ne ${process.pid}"`, { stdio: 'ignore' });
+        } catch (_) {}
+      }
       await sleep(500);
       await patchAsar();
 
@@ -123,19 +109,8 @@ async function waitForStableFile(filePath) {
         process.exit(0);
       }
 
-      const isolatedEnv = rawProxy
-        ? {
-            ...process.env,
-            HTTP_PROXY: proxyHttp,
-            HTTPS_PROXY: proxyHttp,
-            ALL_PROXY: proxySocks,
-            NO_PROXY: noProxyVal,
-            http_proxy: proxyHttp,
-            https_proxy: proxyHttp,
-            all_proxy: proxySocks,
-            no_proxy: noProxyVal
-          }
-        : { ...process.env };
+      const activeEndpoints = await detectActiveProxy('');
+      const { args: launchArgs, env: isolatedEnv } = buildProxyLaunchConfig(activeEndpoints, [], process.env);
 
       const child = spawn(exePath, launchArgs, {
         detached: true,

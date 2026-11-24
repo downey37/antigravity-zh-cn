@@ -1,0 +1,38 @@
+name: 漏翻 / 错译反馈
+description: 反馈界面中遗漏的英文文案或翻译不够准确的地方
+title: "[翻译反馈] "
+labels: ["translation"]
+body:
+  - type: input
+    id: client-version
+    attributes:
+      label: Antigravity 客户端版本
+      description: 可在左上角 Antigravity 菜单查看（例如 v2.34.0）
+      placeholder: v2.34.0
+    validations:
+      required: true
+  - type: input
+    id: patch-version
+    attributes:
+      label: 汉化补丁版本 / 安装方式
+      placeholder: v0.4.0（便携包 / 源码部署）
+    validations:
+      required: true
+  - type: textarea
+    id: untranslated-text
+    attributes:
+      label: 英文原文与出现位置
+      description: 请尽可能贴出完整英文原文，并说明位于哪个菜单、弹窗或设置页面
+      placeholder: |
+        英文原文：...
+        出现位置：设置 -> ... / 右键菜单 / Tooltip 悬停提示
+        建议译文（可选）：...
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: 界面截图（可直接拖拽或粘贴图片）
+      description: 截图能帮助我们快速定位 DOM 上下文并避免同词多义冲突
+    validations:
+      required: false

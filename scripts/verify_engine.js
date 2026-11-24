@@ -1,18 +1,20 @@
+process.noAsar = true;
+
 const fs = require('fs');
+const net = require('net');
 const os = require('os');
 const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 const asar = require('@electron/asar');
 const { verifyVersionConsistency } = require('./release_version');
+const { resolveInstallPaths } = require('./runtime_paths');
 
 const projectRoot = path.resolve(__dirname, '..');
 const dictPath = path.join(projectRoot, 'assets', 'dictionary.json');
-const defaultInstallDir = process.env.LOCALAPPDATA
-  ? path.join(process.env.LOCALAPPDATA, 'Programs', 'antigravity', 'resources')
-  : path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'antigravity', 'resources');
-const installDir = process.env.ANTIGRAVITY_RESOURCES || defaultInstallDir;
-const deployedAsar = process.env.ANTIGRAVITY_ASAR || path.join(installDir, 'app.asar');
+const resolvedPaths = resolveInstallPaths();
+const installDir = resolvedPaths.installDir;
+const deployedAsar = process.env.ANTIGRAVITY_ASAR || resolvedPaths.asarPath;
 const localOnly = process.argv.includes('--local');
 
 function makeEl({ tag = 'SPAN', testid = null, cls = '', attrs = {}, parent = null, children = [], text = '' } = {}) {
@@ -174,16 +176,20 @@ function runVerification() {
     assert(ipcCode.includes('translateContextMenuLabel'), 'ipcHandlers.js must include translateContextMenuLabel');
     assert(ipcCode.includes('getNativeContextDict'), 'ipcHandlers.js must integrate OTA getNativeContextDict');
     assert(ipcCode.includes('i18n-ota:check-updates'), 'ipcHandlers.js must register i18n-ota:check-updates IPC handler');
+    assert(ipcCode.includes('i18n-ota:toggle-language') && ipcCode.includes('i18n-ota:get-language-enabled'), 'ipcHandlers.js must register language toggle IPC handlers');
+    assert(ipcCode.includes('isI18nEnabled'), 'ipcHandlers.js must respect isI18nEnabled for context menu and notifications');
     const preloadCode = asar.extractFile(deployedAsar, path.join('dist', 'preload.js')).toString('utf8');
-    assert(preloadCode.includes('antigravityI18nOta') && preloadCode.includes('i18n-ota:check-updates'), 'preload.js must expose antigravityI18nOta bridge');
+    assert(preloadCode.includes('antigravityI18nOta') && preloadCode.includes('i18n-ota:check-updates') && preloadCode.includes('toggleLanguage') && preloadCode.includes('i18n-ota:toggle-language'), 'preload.js must expose antigravityI18nOta checkForUpdates and toggleLanguage bridge');
     const mainCode = asar.extractFile(deployedAsar, path.join('dist', 'main.js')).toString('utf8');
-    assert(mainCode.includes('antigravity-i18n-check-update') && mainCode.includes('检查汉化更新'), 'main.js must add OTA check item to Windows tray menu');
+    assert(mainCode.includes('antigravity-i18n-check-update') && mainCode.includes('antigravity-i18n-toggle-lang') && mainCode.includes('检查汉化更新') && mainCode.includes('临时切换为英文'), 'main.js must add OTA check and language toggle items to Windows tray menu');
+    const trayCode = asar.extractFile(deployedAsar, path.join('dist', 'tray.js')).toString('utf8');
+    assert(trayCode.includes('_syncTrayLabels') && trayCode.includes('onLanguageChange'), 'tray.js must subscribe to onLanguageChange for tray labels');
     assert(asar.statFile(deployedAsar, path.join('dist', 'native_context_dict.json')), 'app.asar must include dist/native_context_dict.json');
     assert(asar.statFile(deployedAsar, path.join('dist', 'i18n_ota.js')), 'app.asar must include dist/i18n_ota.js');
     assert(asar.statFile(deployedAsar, path.join('dist', 'i18n_meta.json')), 'app.asar must include dist/i18n_meta.json');
     const embeddedMeta = JSON.parse(asar.extractFile(deployedAsar, path.join('dist', 'i18n_meta.json')).toString('utf8'));
     assert.strictEqual(embeddedMeta.schemaVersion, 1, 'dist/i18n_meta.json must have schemaVersion 1');
-    assert(menuCode.includes('translateMenuRecursively') && menuCode.includes('antigravity-i18n-check-update') && menuCode.includes('检查汉化更新'), 'menu.js must include translateMenuRecursively and OTA check menu item');
+    assert(menuCode.includes('translateMenuRecursively') && menuCode.includes('antigravity-i18n-check-update') && menuCode.includes('antigravity-i18n-toggle-lang') && menuCode.includes('onLanguageChange'), 'menu.js must include translateMenuRecursively, OTA check, language toggle item, and onLanguageChange listener');
     const getCodeIdx = utilsCode.indexOf('function _getAntigravityI18nCode');
     const createWinIdx = utilsCode.indexOf('function createWindow');
     assert(
@@ -193,8 +199,9 @@ function runVerification() {
       !utilsCode.includes('http://localhost:') &&
       utilsCode.includes('frameOrigin === mainOrigin') &&
       utilsCode.includes('_getAntigravityI18nOta') &&
-      utilsCode.includes('applyCachedPackToWebContents'),
-      'utils.js must define module-level _getAntigravityI18nCode / _getAntigravityI18nOta caches and use exact frameOrigin matching'
+      utilsCode.includes('applyCachedPackToWebContents') &&
+      utilsCode.includes('getInitialStateScript'),
+      'utils.js must define module-level _getAntigravityI18nCode / _getAntigravityI18nOta caches, sync initial enabled state, and use exact frameOrigin matching'
     );
     assert(secCode.includes('颁发给：') && secCode.includes('请勿在此网站上输入任何敏感信息'), 'webviewPopupSecurity.js must translate body and certificate fields');
     assert(wizardCode.includes('Antigravity 已全新重构'), 'wizardHtml.js must translate body paragraph');
@@ -1270,7 +1277,11 @@ function runDomLifecycleVerification(i18nCode) {
       history: {},
       addEventListener() {},
       antigravityI18nOta: {
-        checkForUpdates: () => { otaMenuClickedCount++; return Promise.resolve({ status: 'up_to_date' }); }
+        checkForUpdates: () => { otaMenuClickedCount++; return Promise.resolve({ status: 'up_to_date' }); },
+        toggleLanguage: () => {
+          const next = sandbox.window.__antigravitySetI18nEnabled(!sandbox.window.__antigravityIsI18nEnabled());
+          return Promise.resolve({ enabled: next });
+        }
       }
     },
     location: { protocol: 'app:' },
@@ -1431,7 +1442,10 @@ function runDomLifecycleVerification(i18nCode) {
     dictionary: {
       'Brand New Server Label': '全新服务端标签',
       'Settings': '系统设置（热更测试）',
-      'CustomBrandX': '不应翻译的品牌'
+      'CustomBrandX': '不应翻译的品牌',
+      'New Project': '新建项目',
+      'Add Resource': '添加资源',
+      'Check for Updates': '检查更新'
     },
     attrDict: {
       'Brand New OTA Tooltip': '全新热更提示'
@@ -1458,7 +1472,7 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(sandbox.window.__antigravityTranslateString('foo'), 'foo');
   assert.strictEqual(sandbox.window.__antigravityApplyOtaPack(otaPack), false, 'Re-applying same OTA packVersion must be idempotent no-op');
 
-  // 11. Windows custom title-menu-bar ("Antigravity" dropdown) injects "检查汉化更新" right below "检查更新"
+  // 11. Windows custom title-menu-bar ("Antigravity" dropdown) injects "检查汉化更新" and "临时切换为英文" right below "检查更新"
   const titleBar = new DomElement('DIV');
   titleBar.setAttribute('data-testid', 'title-menu-bar');
   const menuWrap = new DomElement('DIV');
@@ -1490,11 +1504,52 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(injectedBtns.length, 1, 'Windows Antigravity title menu must inject exactly one 检查汉化更新 item');
   assert.strictEqual(injectedBtns[0].textContent, '检查汉化更新');
   assert.strictEqual(injectedBtns[0].className, updBtn.className);
-  assert.strictEqual(popup.children.length, 3);
+  const injectedToggleBtns = popup.querySelectorAll('[data-antigravity-i18n-toggle-item="true"]');
+  assert.strictEqual(injectedToggleBtns.length, 1, 'Windows Antigravity title menu must inject exactly one 临时切换为英文 item');
+  assert.strictEqual(injectedToggleBtns[0].textContent, '临时切换为英文');
+  assert.strictEqual(popup.children.length, 4);
   // Click dispatches Escape to close React menu & triggers IPC checkForUpdates
   injectedBtns[0]._listeners.click[0]({ stopPropagation() {} });
   assert.strictEqual(otaMenuClickedCount, 1);
   assert.strictEqual(dispatchedDocEvents.some((e) => e.key === 'Escape'), true);
+
+  // 12. In-app temporary Chinese <-> English toggle restores original English nodes/attrs losslessly & skips new mutations while disabled
+  assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), true);
+  injectedToggleBtns[0]._listeners.click[0]({ stopPropagation() {} });
+  assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), false);
+  assert.strictEqual(fragText.nodeValue, 'New Project');
+  assert.strictEqual(strSpan.firstChild.nodeValue, 'Settings');
+  assert.strictEqual(shadowText.nodeValue, 'Add Resource');
+  assert.strictEqual(timeText.nodeValue, '2mo');
+  assert.strictEqual(orchModelText.nodeValue, 'Claude Opus 5.5 High');
+  assert.strictEqual(tipText.nodeValue, 'Use Hydrogen for better quality with lower quota usage. Leaving on Nov 30.');
+  assert.strictEqual(otaText.nodeValue, 'Brand New Server Label');
+  assert.strictEqual(otaSpan.getAttribute('title'), 'Brand New OTA Tooltip');
+  assert.strictEqual(verSpan.firstChild.nodeValue, 'Version 2.34.0');
+  assert.strictEqual(updSpan.firstChild.nodeValue, 'Check for Updates');
+  assert.strictEqual(injectedBtns[0].textContent, 'Check i18n Updates');
+  assert.strictEqual(injectedToggleBtns[0].textContent, 'Switch to 简体中文');
+
+  const whileEnglishSpan = new DomElement('SPAN');
+  const whileEnglishText = makeText('Add Resource');
+  whileEnglishSpan.appendChild(whileEnglishText);
+  rootDiv.appendChild(whileEnglishSpan);
+  assert.strictEqual(whileEnglishText.nodeValue, 'Add Resource', 'New nodes added in temporary English mode must remain English');
+
+  // Toggle back to Simplified Chinese
+  injectedToggleBtns[0]._listeners.click[0]({ stopPropagation() {} });
+  assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), true);
+  assert.strictEqual(fragText.nodeValue, '新建项目');
+  assert.strictEqual(strSpan.firstChild.nodeValue, '系统设置（热更测试）');
+  assert.strictEqual(shadowText.nodeValue, '添加资源');
+  assert.strictEqual(timeText.nodeValue, '2 个月前');
+  assert.strictEqual(orchModelText.nodeValue, 'Claude Opus 5.5 高');
+  assert.strictEqual(otaText.nodeValue, '全新服务端标签');
+  assert.strictEqual(otaSpan.getAttribute('title'), '全新热更提示');
+  assert.strictEqual(whileEnglishText.nodeValue, '添加资源');
+  assert.strictEqual(updSpan.firstChild.nodeValue, '检查更新');
+  assert.strictEqual(injectedBtns[0].textContent, '检查汉化更新');
+  assert.strictEqual(injectedToggleBtns[0].textContent, '临时切换为英文');
 }
 
 async function runOtaControllerVerification() {
@@ -1682,15 +1737,200 @@ async function runOtaControllerVerification() {
     });
     const rDisabled = await disabledCtrl.checkForUpdates({ manual: false });
     assert.strictEqual(rDisabled.status, 'disabled');
+
+    // 2g. Session-scoped Chinese <-> English toggle broadcasts to main + eligible plugin subframes only
+    const langEvents = [];
+    const unsubscribe = ctrl.onLanguageChange((enabled) => langEvents.push(enabled));
+    assert.strictEqual(ctrl.isI18nEnabled(), true);
+    assert.strictEqual(ctrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = true;');
+    const preToggleMainCount = mainExecs.length;
+    const preTogglePluginCount = pluginFrameExecs.length;
+    assert.strictEqual(ctrl.setI18nEnabled(false), false);
+    assert.strictEqual(ctrl.isI18nEnabled(), false);
+    assert.strictEqual(ctrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;');
+    assert.deepStrictEqual(langEvents, [false]);
+    assert.strictEqual(mainExecs.length, preToggleMainCount + 1);
+    assert(mainExecs[mainExecs.length - 1].includes('__antigravitySetI18nEnabled(false)'));
+    assert.strictEqual(pluginFrameExecs.length, preTogglePluginCount + 1);
+    assert.strictEqual(extFrameExecs.length, 0);
+
+    assert.strictEqual(ctrl.toggleI18nEnabled(), true);
+    assert.deepStrictEqual(langEvents, [false, true]);
+    assert(mainExecs[mainExecs.length - 1].includes('__antigravitySetI18nEnabled(true)'));
+    unsubscribe();
+
+    const envDisabledCtrl = createOtaController({
+      electron: null,
+      cacheDir: tmpCacheDir,
+      baseUrls,
+      env: { ANTIGRAVITY_I18N_DISABLED: '1' }
+    });
+    assert.strictEqual(envDisabledCtrl.isI18nEnabled(), false);
+    assert.strictEqual(envDisabledCtrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;');
   } finally {
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(tmpCacheDir, { recursive: true, force: true });
   }
 }
 
+async function runGuardProxyAndRestoreVerification() {
+  const {
+    resolveProxyEndpoints,
+    parseWinProxyServer,
+    extractAndStripProxyArgs,
+    detectActiveProxy,
+    buildProxyLaunchConfig
+  } = require('./guard_launch');
+  const { restoreAsar } = require('./restore_antigravity');
+  const { hasAnyPatchArtifacts } = require('./i18n_core');
+
+  // 1. Proxy parsing & launch config helpers
+  assert.deepStrictEqual(resolveProxyEndpoints('127.0.0.1:7897'), {
+    http: 'http://127.0.0.1:7897',
+    socks: 'socks5://127.0.0.1:7897'
+  });
+  assert.deepStrictEqual(resolveProxyEndpoints('socks5://127.0.0.1:10808'), {
+    http: 'http://127.0.0.1:10808',
+    socks: 'socks5://127.0.0.1:10808'
+  });
+  assert.strictEqual(parseWinProxyServer('127.0.0.1:7897'), '127.0.0.1:7897');
+  assert.strictEqual(parseWinProxyServer('http=127.0.0.1:7890;https=127.0.0.1:7897'), '127.0.0.1:7897');
+  assert.strictEqual(parseWinProxyServer('socks=127.0.0.1:10808'), 'socks5://127.0.0.1:10808');
+
+  const stripped = extractAndStripProxyArgs(['--foo', '--proxy-server=http://127.0.0.1:8888', '--proxy-server', '127.0.0.1:9999', '--bar']);
+  assert.deepStrictEqual(stripped, { cleaned: ['--foo', '--bar'], explicitProxy: '127.0.0.1:9999' });
+
+  const activeCfg = buildProxyLaunchConfig(
+    { http: 'http://127.0.0.1:7897', socks: 'socks5://127.0.0.1:7897' },
+    ['--flag'],
+    { ELECTRON_RUN_AS_NODE: '1', PATH: 'x' }
+  );
+  assert(activeCfg.args.includes('--proxy-server=http://127.0.0.1:7897'));
+  assert(activeCfg.args.some((a) => a.startsWith('--proxy-bypass-list=')));
+  assert.strictEqual(activeCfg.env.HTTP_PROXY, 'http://127.0.0.1:7897');
+  assert.strictEqual(activeCfg.env.ALL_PROXY, 'socks5://127.0.0.1:7897');
+  assert.strictEqual(activeCfg.env.ELECTRON_RUN_AS_NODE, undefined, 'ELECTRON_RUN_AS_NODE must be stripped before launching GUI exe');
+
+  const directCfg = buildProxyLaunchConfig(null, ['--flag'], {
+    ELECTRON_RUN_AS_NODE: '1',
+    HTTP_PROXY: 'http://stale:1234',
+    https_proxy: 'http://stale:1234',
+    ALL_PROXY: 'socks5://stale:1234'
+  });
+  assert.strictEqual(directCfg.env.HTTP_PROXY, undefined);
+  assert.strictEqual(directCfg.env.https_proxy, undefined);
+  assert.strictEqual(directCfg.env.ALL_PROXY, undefined);
+  assert.strictEqual(directCfg.env.ELECTRON_RUN_AS_NODE, undefined);
+
+  // 2. Real TCP socket probe for detectActiveProxy priority & opt-out
+  const tcpServer = net.createServer();
+  await new Promise((resolve) => tcpServer.listen(0, '127.0.0.1', resolve));
+  const openPort = tcpServer.address().port;
+  try {
+    const probed = await detectActiveProxy('', {
+      env: {},
+      readWindowsSystemProxy: () => '',
+      fallbackCandidates: ['http://127.0.0.1:1', `http://127.0.0.1:${openPort}`]
+    });
+    assert.deepStrictEqual(probed, {
+      http: `http://127.0.0.1:${openPort}`,
+      socks: `socks5://127.0.0.1:${openPort}`
+    });
+
+    const sysProxyWin = await detectActiveProxy(`127.0.0.1:${openPort}`, {
+      env: {},
+      readWindowsSystemProxy: () => `127.0.0.1:${openPort}`,
+      fallbackCandidates: ['http://127.0.0.1:1']
+    });
+    assert.strictEqual(sysProxyWin.http, `http://127.0.0.1:${openPort}`);
+
+    const envOverride = await detectActiveProxy('', {
+      env: { ANTIGRAVITY_PROXY: 'http://127.0.0.1:9001' },
+      readWindowsSystemProxy: () => `127.0.0.1:${openPort}`
+    });
+    assert.strictEqual(envOverride.http, 'http://127.0.0.1:9001');
+
+    const envDirect = await detectActiveProxy('', {
+      env: { ANTIGRAVITY_PROXY: 'direct' },
+      readWindowsSystemProxy: () => `127.0.0.1:${openPort}`
+    });
+    assert.strictEqual(envDirect, null);
+
+    const autoDisabled = await detectActiveProxy('', {
+      env: { ANTIGRAVITY_AUTO_PROXY: '0' },
+      readWindowsSystemProxy: () => `127.0.0.1:${openPort}`,
+      fallbackCandidates: [`http://127.0.0.1:${openPort}`]
+    });
+    assert.strictEqual(autoDisabled, null);
+  } finally {
+    await new Promise((resolve) => tcpServer.close(resolve));
+  }
+
+  // 3. Cross-platform path resolution
+  const winPaths = resolveInstallPaths({ LOCALAPPDATA: 'C:\\Users\\Alice\\AppData\\Local' }, 'win32');
+  assert(winPaths.asarPath.endsWith('Programs\\antigravity\\resources\\app.asar'));
+  const macPaths = resolveInstallPaths(
+    { HOME: '/Users/alice' },
+    'darwin',
+    { existsSync: (p) => p === '/Applications/Antigravity.app' }
+  );
+  assert.strictEqual(macPaths.appBundle, '/Applications/Antigravity.app');
+  assert.strictEqual(macPaths.asarPath, '/Applications/Antigravity.app/Contents/Resources/app.asar');
+  assert.strictEqual(macPaths.exePath, '/Applications/Antigravity.app/Contents/MacOS/Antigravity');
+  const linuxPaths = resolveInstallPaths(
+    {},
+    'linux',
+    { existsSync: (p) => p === '/opt/Antigravity/resources' }
+  );
+  assert.strictEqual(linuxPaths.asarPath, '/opt/Antigravity/resources/app.asar');
+
+  // 4. Restore workflow in isolated temporary directory
+  const tmpRestoreRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-restore-test-'));
+  try {
+    const origDir = path.join(tmpRestoreRoot, 'orig');
+    const patchedDir = path.join(tmpRestoreRoot, 'patched');
+    fs.mkdirSync(path.join(origDir, 'dist'), { recursive: true });
+    fs.mkdirSync(path.join(patchedDir, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(origDir, 'package.json'), JSON.stringify({ name: 'antigravity', version: '2.34.0' }));
+    fs.writeFileSync(path.join(origDir, 'dist', 'main.js'), 'console.log("official");');
+    fs.writeFileSync(path.join(patchedDir, 'package.json'), JSON.stringify({ name: 'antigravity', version: '2.34.0' }));
+    fs.writeFileSync(path.join(patchedDir, 'dist', 'main.js'), 'console.log("patched");');
+    fs.writeFileSync(path.join(patchedDir, 'dist', 'i18n.js'), '// patched');
+
+    const fakeAsar = path.join(tmpRestoreRoot, 'app.asar');
+    const fakeBak = path.join(tmpRestoreRoot, 'app.asar.bak');
+    await asar.createPackage(origDir, fakeBak);
+    await asar.createPackage(patchedDir, fakeAsar);
+    assert.strictEqual(hasAnyPatchArtifacts(fakeAsar), true);
+    assert.strictEqual(hasAnyPatchArtifacts(fakeBak), false);
+
+    const restored = await restoreAsar({ asarPath: fakeAsar, backupAsar: fakeBak, platform: 'win32' });
+    assert.strictEqual(restored.status, 'restored');
+    assert.strictEqual(restored.version, '2.34.0');
+    assert.strictEqual(hasAnyPatchArtifacts(fakeAsar), false);
+    assert(asar.extractFile(fakeAsar, path.join('dist', 'main.js')).toString('utf8').includes('official'));
+
+    // Without backup when already original -> already_original
+    fs.unlinkSync(fakeBak);
+    const alreadyOrig = await restoreAsar({ asarPath: fakeAsar, backupAsar: fakeBak, platform: 'win32' });
+    assert.strictEqual(alreadyOrig.status, 'already_original');
+
+    // Refuses to restore from a tampered/patched backup
+    await asar.createPackage(patchedDir, fakeBak);
+    await assert.rejects(
+      () => restoreAsar({ asarPath: fakeAsar, backupAsar: fakeBak, platform: 'win32' }),
+      /已被修改/
+    );
+  } finally {
+    try { asar.uncacheAll(); } catch (_) {}
+    fs.rmSync(tmpRestoreRoot, { recursive: true, force: true });
+  }
+}
+
 Promise.resolve()
   .then(() => runVerification())
   .then(() => runOtaControllerVerification())
+  .then(() => runGuardProxyAndRestoreVerification())
   .then(() => {
     console.log('OTA CONTROLLER & HOT-RELOAD VERIFICATION PASSED!');
   })

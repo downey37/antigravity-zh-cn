@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 讨论区（使用交流与建议）
+    url: https://github.com/downey37/antigravity-zh-cn/discussions
+    about: 提问、交流技巧或分享汉化建议
+  - name: 下载最新零依赖便携包
+    url: https://github.com/downey37/antigravity-zh-cn/releases/latest
+    about: 获取免安装 Node.js 的最新便携发布包

@@ -1,0 +1,40 @@
+name: Bug / 兼容性问题反馈
+description: 反馈安装、还原、中英切换、代理守护或客户端兼容性异常
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: 客户端版本与补丁版本
+      placeholder: Antigravity v2.34.0 / 补丁 v0.4.0
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述与复现步骤
+      placeholder: |
+        1. 我执行了什么操作（例如双击 一键修复或更新汉化.bat / 点击临时切换为英文）
+        2. 期望发生什么
+        3. 实际发生了什么
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 控制台报错输出或日志
+      description: 如方便，请粘贴终端错误输出或 build/auto_patch.log
+    validations:
+      required: false

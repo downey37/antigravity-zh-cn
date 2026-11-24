@@ -1,0 +1,63 @@
+name: Build & Attach Portable Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '目标 Release Tag（如 v0.4.0，留空则取当前仓库 tag）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-portable:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install production dependencies
+        run: npm ci --omit=dev
+
+      - name: Build engine, run local verification & build portable zip
+        run: |
+          npm run build
+          npm run verify:local
+          npm run version:check
+          npm run build:portable
+
+      - name: Upload or create GitHub Release with portable archive
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if [[ -n "${INPUT_TAG}" ]]; then
+              TAG="${INPUT_TAG}"
+            else
+              TAG="v$(node -e 'console.log(JSON.parse(require("fs").readFileSync("package.json","utf8")).version)')"
+            fi
+          fi
+          CLIENT_VER="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("assets/baseline/version.json","utf8")).version)')"
+          ZIP_FILE="$(ls build/antigravity-zh-cn-*-portable.zip | head -n 1)"
+          SHA_FILE="${ZIP_FILE}.sha256"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" "${ZIP_FILE}" "${SHA_FILE}" --clobber
+          else
+            gh release create "${TAG}" "${ZIP_FILE}" "${SHA_FILE}" \
+              --title "${TAG} (适配 Antigravity v${CLIENT_VER})" \
+              --notes "当前适配 **Antigravity 桌面客户端 v${CLIENT_VER}**，附件提供开箱即用的零依赖便携包（Windows / macOS）。"
+          fi

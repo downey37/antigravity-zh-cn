@@ -1,11 +1,27 @@
-# Antigravity 简体中文汉化补丁 (`antigravity-zh-cn`)
+<div align="center">
 
-[![Release](https://img.shields.io/github/v/release/downey37/antigravity-zh-cn?label=当前版本)](https://github.com/downey37/antigravity-zh-cn/releases)
-[![Antigravity](https://img.shields.io/badge/适配客户端-Antigravity%20v2.34.0-blue)](https://github.com/downey37/antigravity-zh-cn/releases)
-[![Discussions](https://img.shields.io/github/discussions/downey37/antigravity-zh-cn?label=讨论区)](https://github.com/downey37/antigravity-zh-cn/discussions)
-[![License](https://img.shields.io/github/license/downey37/antigravity-zh-cn?label=协议)](LICENSE)
+<img src="docs/images/banner.svg" alt="Antigravity 简体中文汉化补丁" width="100%" />
 
-**Antigravity 桌面客户端（Windows）** 全界面简体中文汉化补丁与跟版维护工程，当前版本：**`v0.3.0`**（适配 Antigravity 客户端 `v2.34.0`）。
+<br />
+<br />
+
+[![Release](https://img.shields.io/github/v/release/downey37/antigravity-zh-cn?style=flat-square&label=当前版本&color=0ea5e9)](https://github.com/downey37/antigravity-zh-cn/releases)
+[![Antigravity](https://img.shields.io/badge/适配客户端-Antigravity%20v2.34.0-blue?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases)
+[![Platforms](https://img.shields.io/badge/支持平台-Windows%20%7C%20macOS-0284c7?style=flat-square)](#快速安装使用)
+[![Portable](https://img.shields.io/badge/零依赖便携包-免%20Node.js-10b981?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases/latest)
+[![Stars](https://img.shields.io/github/stars/downey37/antigravity-zh-cn?style=flat-square&label=Stars&color=f59e0b)](https://github.com/downey37/antigravity-zh-cn/stargazers)
+[![Discussions](https://img.shields.io/github/discussions/downey37/antigravity-zh-cn?style=flat-square&label=讨论区&color=6366f1)](https://github.com/downey37/antigravity-zh-cn/discussions)
+[![License](https://img.shields.io/github/license/downey37/antigravity-zh-cn?style=flat-square&label=协议)](LICENSE)
+
+<p><b>专为 Google Antigravity 桌面客户端打造的高覆盖、无损可逆、支持 OTA 热更的简体中文本地化套件。</b></p>
+
+当前版本：**`v0.4.0`**（适配 Antigravity 客户端 `v2.34.0`）
+
+[界面预览](#界面效果预览) · [核心特性](#核心特性一览) · [快速安装](#快速安装使用) · [中英切换](#实用进阶功能) · [代理守护](#智能代理守护启动windows) · [架构原理](#工作原理) · [常见问题](#常见问题-faq) · [参与贡献](#参与贡献与维护)
+
+</div>
+
+---
 
 ## 界面效果预览
 
@@ -13,77 +29,207 @@
 | :---: | :---: |
 | ![主界面汉化效果](docs/images/preview-home.png) | ![常规设置汉化效果](docs/images/preview-settings-general.png) |
 
-**模型与用量（含 Orchestrator 设置）**
-
-![模型与用量汉化效果](docs/images/preview-settings-models.png)
-
-## 特性亮点
-
-- **全界面高覆盖翻译**：涵盖主进程原生菜单、系统托盘、弹窗、设置页、侧边栏、Tooltip 浮层与动态提示（4060+ 条静态词库 + 390+ 条属性译文 + 动态模板规则）。
-- **上下文精准消歧**：针对同词多义（如 `New`、`None` 等）按 DOM 上下文精确区分，避免全局替换误伤。
-- **代码与专有名词保护**：自动避开代码块、终端输出与用户输入区域；保留 `Antigravity`、`Google Drive` 及模型原名（`Gemini`、`Claude`、`GPT-OSS` 等）。
-- **云端词库热更新（OTA）**：客户端启动后自动从 `ota-dist` 通道静默拉取最新纯 JSON 词库与声明式模板（SHA-256 校验、零远端 JS 执行、零遥测），**免重启实时生效**；也可在顶部左上角 **「Antigravity → 检查汉化更新」** 或系统托盘右键 **「检查汉化更新」** 随时手动触发，或通过 `ANTIGRAVITY_I18N_NO_OTA=1` 禁用联网同步。
-- **无损备份与自动校验**：首次打补丁自动备份官方原版 `app.asar` 为 `app.asar.bak`，部署完成后自动执行 Node VM 沙箱回归校验。
-- **跟版扫漏工具**：支持在官方版本更新后一键从客户端缓存提取最新前端基线并扫描未翻译词条。
+<div align="center">
+<b>模型与用量（含 Orchestrator 设置与动态提示）</b><br /><br />
+<img src="docs/images/preview-settings-models.png" alt="模型与用量汉化效果" width="100%" />
+</div>
 
 ---
 
-## 环境要求
+## 核心特性一览
 
-- **操作系统**：Windows 10 / 11
-- **运行环境**：[Node.js](https://nodejs.org/)（建议 v18+）
-- 已安装 Antigravity 桌面客户端
+| 核心能力 | 实现方式与亮点 |
+| :--- | :--- |
+| **全界面高覆盖与精准消歧** | 收录 **4060+ 条静态词库 + 390+ 条属性译文**、动态变量模板与跨节点碎片重组规则；按 DOM 上下文精确区分同词多义（如 `New` 徽章 vs `新建`、`None` 分组为 `不分组` vs 思考深度为 `关闭思考`），并自动避开代码块、终端与用户输入区域，保留 `Antigravity`、`Google Drive`、`Gemini`、`Claude`、`GPT-OSS` 等原名。 |
+| **零依赖便携包与跨平台支持** | Releases 提供内置生产依赖的免 Node.js 便携包（`-portable.zip`），直接复用客户端自带 Electron 运行时执行注入；支持 **Windows 10 / 11** 与 **macOS**（修改后自动执行本地 `codesign` 深度签名）。 |
+| **界面内即时中 / 英文切换** | 基于 `WeakMap` 精确记录已汉化的 DOM 文本与属性原文，无需重启即可在中文与官方英文间无损往返切换，且英文模式下自动跳过新增英文节点；下次全新启动客户端时默认恢复中文显示。 |
+| **云端词库热更新（OTA）** | 启动后自动从 `ota-dist` 通道单向只读拉取纯 JSON 词库与声明式模板（SHA-256 校验、零远端 JS 执行、零遥测），**免重启实时生效**；亦支持菜单手动检查或 `ANTIGRAVITY_I18N_NO_OTA=1` 禁用。 |
+| **更新自愈与智能代理守护** | 官方客户端自动更新时主进程挂钩唤醒自愈重打补丁；配套启动守护支持读取 **Windows 系统代理** 并自动探测常见本地代理端口（`7897` / `10808` / `7890`），未检测到本地代理时干净走直连 / TUN。 |
+| **无损备份与一键还原** | 首次注入前自动备份原版核心为 `app.asar.bak`，支持 **一键还原官方英文原版** 与自动化 Node VM 沙箱回归校验。 |
 
 ---
 
 ## 快速安装使用
 
-### 1. 克隆仓库并安装依赖
+### 方案 A：零依赖便携包（推荐普通用户，无需安装 Node.js）
+
+1. 前往 [**GitHub Releases**](https://github.com/downey37/antigravity-zh-cn/releases/latest) 下载最新的 `antigravity-zh-cn-vX.Y.Z-portable.zip` 并解压到任意英文或中文目录（**请勿在安装过程中运行 Antigravity**）。
+2. 根据你的系统执行一键安装：
+   - **Windows 10 / 11**：直接双击根目录的 **`一键修复或更新汉化.bat`**。
+   - **macOS**：在终端进入解压目录执行：
+     ```bash
+     chmod +x install_macos.sh restore_macos.sh
+     ./install_macos.sh
+     ```
+     > [!TIP]
+     > `install_macos.sh` 会在注入完成后自动为 `/Applications/Antigravity.app` 执行本地 Ad-hoc 深度签名（`codesign --force --deep --sign -`）。如提示权限不足，可使用 `sudo ./install_macos.sh`。
+3. 看到校验通过提示后，在 Antigravity 窗口内按 **`Ctrl + Q`**（macOS 按 **`Cmd + Q`**）彻底退出客户端（或右键系统托盘退出），再重新打开即可使用简体中文界面。
+
+---
+
+### 方案 B：源码克隆（适合开发者与跟版维护）
+
+**环境要求**：已安装 Antigravity 客户端，以及 [Node.js](https://nodejs.org/)（`>= 20.19` / 推荐 `22+`）。
 
 ```powershell
 git clone https://github.com/downey37/antigravity-zh-cn.git
 cd antigravity-zh-cn
 npm install
+
+# Windows 一键编译、部署并校验：
+npm run deploy
+
+# macOS 一键部署并签名校验：
+./install_macos.sh
 ```
 
-### 2. 一键应用汉化补丁
+---
 
-方式一（命令行）：
+### 一键还原官方英文原版
+
+补丁脚本在首次部署前已将官方原始核心备份为 `app.asar.bak`。随时可无损还原：
+
+- **Windows**：双击根目录的 **`一键还原官方英文.bat`**（或在仓库目录运行 `npm run restore`）。
+- **macOS**：运行 **`./restore_macos.sh`**（或 `npm run restore`）。
+- 还原完成后按 `Ctrl + Q` / `Cmd + Q` 彻底退出并重开 Antigravity 即可恢复官方英文原版。
+
+---
+
+## 实用进阶功能
+
+### 1. 界面内临时切换中 / 英文
+
+排查问题或需要对照官方英文界面与文档时，可在客户端内**零重启瞬时切换**：
+
+- 左上角应用菜单：**「Antigravity → 临时切换为英文 / Switch to 简体中文」**
+- 顶部原生菜单栏：**「帮助 → 临时切换为英文 / Switch to 简体中文」**
+- 系统托盘右键菜单：**「临时切换为英文 / Switch to 简体中文」**
+
+切换会同步作用于主窗口、插件面板、原生菜单、托盘菜单与系统通知；**仅在当前会话生效**，下次重启客户端时默认重新启用简体中文。
+
+---
+
+### 2. 智能代理守护启动（Windows）
+
+若你在内网或本地代理环境下遇到客户端联网不稳定、或官方更新后忘记重打补丁，可直接双击 **`一键代理守护启动.bat`**（或命令行运行 `node scripts/guard_launch.js`）来启动 Antigravity：
+
+1. **启动前自动自愈**：毫秒级检测 `app.asar`，若刚被官方更新覆盖为原版则自动重打汉化补丁后再启动。
+2. **多级代理自动探测（无需写死端口）**：按以下优先级自动配置前端网络参数与后台 Go 核心环境变量：
+
+| 优先级 | 来源 / 规则 | 说明 |
+| :---: | :--- | :--- |
+| **1** | `ANTIGRAVITY_PROXY` 环境变量 | 最高优先级显式指定（如 `http://127.0.0.1:7897`）；设为 `direct` / `none` 则**强制直连** |
+| **2** | Windows 当前系统代理 | 自动读取注册表 `HKCU\...\Internet Settings` 的 `ProxyEnable` 与 `ProxyServer`，支持 `http`/`https`/`socks` |
+| **3** | 启动参数 `--proxy-server=...` | 通过快捷方式或命令行传入的代理地址 |
+| **4** | 常见本地代理端口自动探测 | 并行 TCP 探测 `127.0.0.1:7897`（Clash Verge Rev）→ `10808`（v2rayN）→ `7890`（Clash） |
+| **5** | 直连 / TUN 模式 | 若均未探测到活跃端口（或设置 `ANTIGRAVITY_AUTO_PROXY=0`），自动清理残留代理变量走直连 |
+
+---
+
+## 工作原理
+
+```mermaid
+flowchart LR
+    A["官方原版 app.asar<br/>(首次自动备份为 app.asar.bak)"] --> B["一键补丁 / 便携包注入<br/>(零依赖运行时 + macOS 重签名)"]
+    B --> C["主进程 Hook<br/>(原生菜单 / 托盘 / 弹窗 / 更新自愈)"]
+    B --> D["渲染进程确定性引擎<br/>(原型链拦截 + MutationObserver + 上下文消歧)"]
+    D --> E["WeakMap 原文追踪<br/>(界面内中英瞬时无损切换)"]
+    C --> F["SHA-256 云端 OTA 热更新<br/>(纯 JSON + 声明式正则，免重启生效)"]
+    C -.->|"官方自动更新覆盖后"| B
+    G["一键代理守护启动<br/>(Windows 系统代理 + 7897/10808/7890 探测)"] --> B
+```
+
+---
+
+## 常见问题 (FAQ)
+
+<details>
+<summary><b>1. 这个补丁安全吗？会上传数据或修改网络请求逻辑吗？</b></summary>
+<p>完全开源透明。仓库仅包含翻译词典与纯本地注入脚本，不包含任何闭源二进制文件；运行时引擎严格隔离 <code>plugin://</code> / <code>vscode-webview://</code> / 同源界面，不会注入任何第三方网页或本地开发预览。云端 OTA 通道仅从 GitHub <code>ota-dist</code> 单向只读拉取纯 JSON 词库并校验 SHA-256，不执行任何远端脚本、零遥测上报；如需完全离线运行，设置环境变量 <code>ANTIGRAVITY_I18N_NO_OTA=1</code> 即可。</p>
+</details>
+
+<details>
+<summary><b>2. Antigravity 官方客户端自动更新后汉化会失效吗？</b></summary>
+<p>本工程内置<b>双重自愈机制</b>：主进程更新器挂钩会在软件退出更新后自动重新注入补丁；通过 <code>一键代理守护启动.bat</code> 启动时也会在启动前自动检查并自愈。如果遇到跨大版本底层重写导致少量新词条未覆盖，重新执行一键更新脚本或等待云端 OTA 词库推送即可。</p>
+</details>
+
+<details>
+<summary><b>3. 我电脑没有安装 Node.js 也可以使用吗？</b></summary>
+<p><b>可以！</b>从 Releases 下载名称带 <code>-portable.zip</code> 的零依赖便携包后，脚本会自动通过客户端自带的 Electron 运行时（<code>ELECTRON_RUN_AS_NODE=1</code>）执行补丁、校验、还原与守护启动，全程无需单独安装 Node.js。</p>
+</details>
+
+<details>
+<summary><b>4. 如何在不断开汉化的情况下临时对照英文界面？</b></summary>
+<p>点击左上角 <b>Antigravity → 临时切换为英文</b>（或系统托盘右键 / 顶部帮助菜单中的同名选项）即可在当前窗口与菜单即时切换为官方英文，再次点击即可切回简体中文；下次重开软件自动恢复默认中文显示。</p>
+</details>
+
+<details>
+<summary><b>5. 我使用的是全局 TUN 虚拟网卡模式或不想启用自动代理探测怎么办？</b></summary>
+<p>当系统代理关闭且本地 <code>7897 / 10808 / 7890</code> 均未监听时，守护启动器会自动清理残留代理环境变量并走直连 / TUN。如需强制禁止自动探测，可设置环境变量 <code>ANTIGRAVITY_PROXY=direct</code> 或 <code>ANTIGRAVITY_AUTO_PROXY=0</code>。</p>
+</details>
+
+<details>
+<summary><b>6. 发现漏翻或翻译不够地道的地方怎么反馈？</b></summary>
+<p>欢迎点击 <a href="https://github.com/downey37/antigravity-zh-cn/issues/new/choose">提交 Issue（漏翻 / 错译反馈模板）</a> 或在 <a href="https://github.com/downey37/antigravity-zh-cn/discussions">Discussions</a> 留言，附上英文原文与所在界面截图，确认后会直接通过 OTA 热更推送到所有用户的客户端。</p>
+</details>
+
+---
+
+## 环境变量与开发者指南
+
+<details>
+<summary><b>点击展开：可选环境变量列表、仓库目录结构与开发命令</b></summary>
+
+### 可选环境变量
+
+| 变量名 | 说明 | 默认值 / 示例 |
+| :--- | :--- | :--- |
+| `ANTIGRAVITY_RESOURCES` | 自定义客户端 `resources` 目录 | Windows: `%LOCALAPPDATA%\Programs\antigravity\resources`<br/>macOS: `/Applications/Antigravity.app/Contents/Resources` |
+| `ANTIGRAVITY_DIR` / `ANTIGRAVITY_APP` | 自定义安装根目录或 macOS `.app` 路径 | 例如 `/Applications/Antigravity.app` |
+| `ANTIGRAVITY_EXE` | 自定义可执行文件路径 | 例如 `D:\Apps\Antigravity\Antigravity.exe` |
+| `ANTIGRAVITY_I18N_DISABLED` | 设为 `1` 时启动后默认进入临时英文模式 | 未设置（默认中文） |
+| `ANTIGRAVITY_I18N_NO_OTA` | 设为 `1` 时禁用云端 OTA 词库热更新 | 未设置（默认开启） |
+| `ANTIGRAVITY_I18N_OTA_URL` | 自定义 OTA 源（支持逗号分隔多源回退） | GitHub Raw + jsDelivr |
+| `ANTIGRAVITY_I18N_OTA_INTERVAL_MS` | 后台 OTA 轮询间隔（毫秒） | `7200000`（2 小时） |
+| `ANTIGRAVITY_PROXY` / `ANTIGRAVITY_NO_PROXY` | 显式指定代理（设 `direct` 可强制直连）与绕过列表 | 例：`http://127.0.0.1:7897` |
+| `ANTIGRAVITY_AUTO_PROXY` | 设为 `0` 时关闭 `guard_launch.js` 自动端口探测 | 默认开启 |
+
+### 目录结构
+
+- `assets/`：词库与白名单
+  - `dictionary.json`：主静态词库
+  - `attr_dict.json`：`title` / `aria-label` / `placeholder` 等属性译文表
+  - `preserve_list.json`：保留英文不译的品牌与专有名词白名单
+  - `ota_rules.json`：云端可热更的纯数据声明式正则模板
+  - `baseline/version.json`：当前适配基线版本信息
+- `scripts/`：注入、还原、便携打包与自动化测试脚本
+  - `engine/`：运行时引擎子模块（`dynamic_rules.js`、`context_rules.js`、`split_node_rules.js`、`runtime_bootstrap.js`）
+  - `ota/`：主进程 OTA 与会话语言切换调度模块（`i18n_ota_main.js`）
+  - `runtime_paths.js`：跨平台安装路径解析与 macOS 自动签名辅助
+  - `i18n_core.js`：基于 `app.asar.bak` 植入主进程与前端引擎并打包部署
+  - `restore_antigravity.js`：校验并无损还原 `app.asar.bak` 为官方英文原版
+  - `guard_launch.js` / `auto_patch_on_update.js`：启动守护、代理自动探测与更新自愈
+  - `build_clean_engine.js` / `build_ota_pack.js` / `build_portable_release.js`：引擎构建、OTA 包与零依赖便携包构建器
+  - `scan_updates.js` / `verify_engine.js` / `release_version.js`：跟版扫漏、Node VM 回归校验与 SemVer 发版工具
+- `docs/`：架构说明、文件清单与维护指南
+
+### 常用开发命令
 
 ```powershell
-npm run deploy
+npm run build           # 构建前端注入脚本 (build/i18n.js)
+npm run build:ota       # 构建云端 OTA 词库包 (build/ota/*)
+npm run build:portable  # 构建零依赖便携发布包 (build/*-portable.zip & .sha256)
+npm run verify:local    # 仅在沙箱校验本地构建、OTA、代理探测与还原流程
+npm run deploy          # 完整编译、部署并校验本地客户端 app.asar
+npm run restore         # 一键还原本地客户端为官方英文原版
+npm run scan            # 客户端升级后从本地缓存刷新基线并扫描遗漏英文
+npm run version:check   # 校验版本号、基线与 README 一致性
+npm run version:bump -- patch --dry-run  # 预演升级版本号
 ```
 
-方式二（图形化）：
+更多架构细节与跟版流程请查阅 [docs/session_continuation_handover.md](docs/session_continuation_handover.md) 与 [docs/i18n_architecture_and_history.md](docs/i18n_architecture_and_history.md)。
 
-直接双击项目根目录的 **`一键修复或更新汉化.bat`**。
-
-### 3. 重启客户端生效
-
-在 Antigravity 窗口内按 **`Ctrl + Q`** 彻底退出（或右键系统托盘退出），然后重新打开即可看到简体中文界面。
-
----
-
-## 如何恢复官方英文原版
-
-部署脚本在首次修改前会自动将官方原始文件备份为 `app.asar.bak`。如需还原：
-
-1. 按 `Ctrl + Q` 彻底退出 Antigravity。
-2. 打开目录 `%LOCALAPPDATA%\Programs\antigravity\resources\`。
-3. 删除 `app.asar`，并将 `app.asar.bak` 重命名为 `app.asar` 即可。
-
----
-
-## 环境变量说明（可选）
-
-如果您的 Antigravity 安装在非默认路径，或需要为客户端单独配置局部代理，可通过环境变量自定义：
-
-- `ANTIGRAVITY_RESOURCES`：自定义 `resources` 目录路径（默认 `%LOCALAPPDATA%\Programs\antigravity\resources`）。
-- `ANTIGRAVITY_DIR` / `ANTIGRAVITY_EXE`：自定义安装根目录与 `Antigravity.exe` 路径。
-- `ANTIGRAVITY_PROXY` / `ANTIGRAVITY_NO_PROXY`：可选的局部代理地址（默认**关闭**，不修改任何代理设置；仅当显式设置如 `http://127.0.0.1:7890` 时为客户端与后台进程启用）。
-- `ANTIGRAVITY_I18N_NO_OTA`：设为 `1` 时禁用在线词库热更新，仅使用本地内置词库（默认开启，仅单向只读拉取纯 JSON，零遥测）。
-- `ANTIGRAVITY_I18N_OTA_URL`：可选自定义 OTA 源地址（支持逗号分隔多源回退，默认主源 `raw.githubusercontent.com` + 备用源 `cdn.jsdelivr.net`）。
-- `ANTIGRAVITY_I18N_OTA_INTERVAL_MS`：自定义后台静默轮询间隔毫秒数（默认 `7200000`，即 2 小时）。
+</details>
 
 ---
 
@@ -91,64 +237,16 @@ npm run deploy
 
 本项目采用严格三段式语义化版本（`vMAJOR.MINOR.PATCH`），并与适配的客户端版本双线对应：
 
-- **修订号 (`PATCH`)**：同一 Antigravity 客户端版本内的漏翻补全、译文修正、规则微调与文档更新（例如 `v0.2.3` → `v0.2.4`）。
-- **次版本号 (`MINOR`)**：适配新版 Antigravity 官方客户端或新增重要工程能力（例如适配 `v2.35.0` 时发布 `v0.3.0`，固定写满三位，不使用两段式 `v0.3`）。
-- **主版本号 (`MAJOR`)**：`0.x.y` 表示打磨与高频迭代期；当架构定型且核心界面覆盖稳定后将升级为 `1.0.0`，此后仅在发生不兼容重大变更时递增。
-- **双版本标识约定**：每次 GitHub Release 标题统一使用 **`vX.Y.Z (适配 Antigravity vA.B.C)`**，并与本页顶部的适配客户端徽章保持同步。
+- **修订号 (`PATCH`)**：同一 Antigravity 客户端版本内的漏翻补全、译文修正、规则微调与文档更新。
+- **次版本号 (`MINOR`)**：适配新版 Antigravity 官方客户端或新增重要工程能力。
+- **主版本号 (`MAJOR`)**：架构与核心覆盖全面定型后升至 `1.0.0`，此后仅在发生不兼容变更时递增。
+- **双版本标识约定**：每次 GitHub Release 标题统一使用 **`vX.Y.Z (适配 Antigravity vA.B.C)`**，并与顶部适配徽章保持同步。
 
 ---
 
-## 参与贡献与跟版维护
+## 参与贡献与维护
 
 欢迎提交 [Issue](https://github.com/downey37/antigravity-zh-cn/issues)、[Pull Request](https://github.com/downey37/antigravity-zh-cn/pulls)，或前往 [Discussions](https://github.com/downey37/antigravity-zh-cn/discussions) 交流翻译建议与使用反馈！
-
-### 目录结构
-
-- `assets/`：词库与白名单（日常修改译文主要编辑这里）
-  - `dictionary.json`：主静态词库
-  - `attr_dict.json`：`title` / `aria-label` / `placeholder` 等属性译文表
-  - `preserve_list.json`：保留英文不译的品牌与专有名词白名单
-  - `ota_rules.json`：云端可热更的纯数据声明式正则模板
-  - `baseline/version.json`：当前适配基线版本信息
-- `scripts/`：构建、部署、跟版扫描与回归校验脚本
-  - `engine/`：运行时注入引擎子模块（`dynamic_rules.js`、`context_rules.js`、`split_node_rules.js`、`runtime_bootstrap.js`）
-  - `ota/`：主进程云端词库热同步模块（`i18n_ota_main.js`）
-  - `build_clean_engine.js`：组装生成 `build/i18n.js`
-  - `build_ota_pack.js`：生成 OTA 发布产物 `build/ota/manifest.json` 与 `dict-pack.json`
-  - `i18n_core.js`：基于 `app.asar.bak` 植入主进程与前端引擎并打包部署
-  - `scan_updates.js`：客户端升级后刷新本地基线并扫描未翻译文案
-  - `verify_engine.js`：Node VM 沙箱回归校验
-  - `release_version.js`：三段式版本号校验与发版信息同步工具
-- `docs/`：架构说明、文件清单与维护指南
-
-### 常用开发命令
-
-```powershell
-# 仅构建前端注入脚本（生成 build/i18n.js）
-npm run build
-
-# 生成 OTA 云端词库包（生成 build/ota/manifest.json 与 dict-pack.json）
-npm run build:ota
-
-# 仅校验本地构建产物（无需修改已安装客户端）
-npm run verify:local
-
-# 完整编译、部署并校验已安装的 app.asar
-npm run deploy
-
-# 客户端升级后，从本地缓存刷新基线并扫描新增未翻译英文
-npm run scan
-
-# 校验 package.json、基线版本与 README 版本信息一致性
-npm run version:check
-
-# 预演/升级三段式版本号并生成标准 Tag 与 Release 命令（支持 patch / minor / major / X.Y.Z）
-npm run version:bump -- patch --dry-run
-```
-
-更多架构细节与跟版流程请查阅 [docs/session_continuation_handover.md](docs/session_continuation_handover.md) 与 [docs/i18n_architecture_and_history.md](docs/i18n_architecture_and_history.md)。
-
----
 
 ## 免责声明
 
@@ -158,3 +256,9 @@ npm run version:bump -- patch --dry-run
 ## License
 
 [MIT](LICENSE)
+
+---
+
+<div align="center">
+如果这个项目帮到了你，欢迎点亮右上角的 ⭐ <b>Star</b> 支持一下！
+</div>

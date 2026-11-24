@@ -248,6 +248,11 @@ function createOtaController(options = {}) {
     return flag === '1' || flag === 'true' || flag === 'yes';
   }
 
+  function isI18nInitiallyDisabled() {
+    const flag = String(env.ANTIGRAVITY_I18N_DISABLED || '').trim().toLowerCase();
+    return flag === '1' || flag === 'true' || flag === 'yes';
+  }
+
   const cacheDir = resolveCacheDir();
   const packCachePath = path.join(cacheDir, 'dict-pack.json');
   const stateCachePath = path.join(cacheDir, 'state.json');
@@ -270,6 +275,8 @@ function createOtaController(options = {}) {
   let inFlightCheck = null;
   let inFlightManual = false;
   const trackedWebContents = new Set();
+  let i18nEnabled = !isI18nInitiallyDisabled();
+  const languageChangeListeners = new Set();
 
   function loadStateSync() {
     try {
@@ -425,6 +432,48 @@ function createOtaController(options = {}) {
       }
       applyPackToWebContents(wc, activeApplyScript);
     }
+  }
+
+  function isI18nEnabled() {
+    return i18nEnabled;
+  }
+
+  function getInitialStateScript() {
+    return `window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = ${i18nEnabled ? 'true' : 'false'};`;
+  }
+
+  function broadcastLanguageState(enabled) {
+    const scriptStr = `if (window.__antigravitySetI18nEnabled) { window.__antigravitySetI18nEnabled(${enabled ? 'true' : 'false'}); }`;
+    for (const wc of trackedWebContents) {
+      if (typeof wc.isDestroyed === 'function' && wc.isDestroyed()) {
+        trackedWebContents.delete(wc);
+        continue;
+      }
+      applyPackToWebContents(wc, scriptStr);
+    }
+  }
+
+  function setI18nEnabled(nextEnabled) {
+    const normalized = Boolean(nextEnabled);
+    if (normalized === i18nEnabled) return i18nEnabled;
+    i18nEnabled = normalized;
+    broadcastLanguageState(i18nEnabled);
+    for (const listener of languageChangeListeners) {
+      try {
+        listener(i18nEnabled);
+      } catch (_) {}
+    }
+    return i18nEnabled;
+  }
+
+  function toggleI18nEnabled() {
+    return setI18nEnabled(!i18nEnabled);
+  }
+
+  function onLanguageChange(fn) {
+    if (typeof fn !== 'function') return () => {};
+    languageChangeListeners.add(fn);
+    return () => languageChangeListeners.delete(fn);
   }
 
   function registerWebContents(wc) {
@@ -705,7 +754,12 @@ function createOtaController(options = {}) {
     applyCachedPackToFrame,
     checkForUpdates,
     startBackgroundSync,
-    stopBackgroundSync
+    stopBackgroundSync,
+    isI18nEnabled,
+    setI18nEnabled,
+    toggleI18nEnabled,
+    onLanguageChange,
+    getInitialStateScript
   };
 }
 
@@ -730,5 +784,10 @@ module.exports = {
   applyCachedPackToFrame: (frame) => getDefaultController().applyCachedPackToFrame(frame),
   getNativeContextDict: () => getDefaultController().getNativeContextDict(),
   checkForUpdates: (opts) => getDefaultController().checkForUpdates(opts),
-  startBackgroundSync: () => getDefaultController().startBackgroundSync()
+  startBackgroundSync: () => getDefaultController().startBackgroundSync(),
+  isI18nEnabled: () => getDefaultController().isI18nEnabled(),
+  setI18nEnabled: (enabled) => getDefaultController().setI18nEnabled(enabled),
+  toggleI18nEnabled: () => getDefaultController().toggleI18nEnabled(),
+  onLanguageChange: (fn) => getDefaultController().onLanguageChange(fn),
+  getInitialStateScript: () => getDefaultController().getInitialStateScript()
 };

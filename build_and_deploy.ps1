@@ -2,14 +2,15 @@
 
 $ErrorActionPreference = 'Stop'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$RuntimeRunner = Join-Path $ScriptDir 'scripts\run_with_runtime.ps1'
 
-node "$ScriptDir\scripts\i18n_core.js"
+& $RuntimeRunner -Script 'scripts\i18n_core.js'
 if ($LASTEXITCODE -ne 0) {
     Write-Host "部署失败，请检查报错输出。" -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
-node "$ScriptDir\scripts\verify_engine.js"
+& $RuntimeRunner -Script 'scripts\verify_engine.js'
 if ($LASTEXITCODE -ne 0) {
     Write-Host "部署校验失败，请检查 verify_engine.js 输出。" -ForegroundColor Red
     exit $LASTEXITCODE

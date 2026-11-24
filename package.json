@@ -1,6 +1,6 @@
 {
   "name": "antigravity-zh-cn",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Antigravity 桌面客户端全界面简体中文汉化补丁与跟版维护工程",
   "license": "MIT",
   "homepage": "https://github.com/downey37/antigravity-zh-cn#readme",
@@ -19,7 +19,9 @@
   "scripts": {
     "build": "node scripts/build_clean_engine.js",
     "build:ota": "node scripts/build_ota_pack.js",
+    "build:portable": "node scripts/build_portable_release.js",
     "deploy": "powershell -ExecutionPolicy Bypass -File build_and_deploy.ps1",
+    "restore": "node scripts/restore_antigravity.js",
     "verify": "node scripts/verify_engine.js",
     "verify:local": "node scripts/verify_engine.js --local",
     "scan": "node scripts/scan_updates.js --refresh",

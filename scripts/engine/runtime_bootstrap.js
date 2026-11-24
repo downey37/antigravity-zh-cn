@@ -15,12 +15,18 @@ function antigravityI18nBootstrap(
   'use strict';
 
   if (window.__ANTIGRAVITY_I18N_INITIALIZED__) {
-    if (window.__antigravityTranslateAll) {
+    if (typeof window.__antigravitySetI18nEnabled === 'function' && typeof window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ === 'boolean') {
+      window.__antigravitySetI18nEnabled(window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__);
+    } else if (window.__antigravityTranslateAll) {
       window.__antigravityTranslateAll();
     }
     return;
   }
   window.__ANTIGRAVITY_I18N_INITIALIZED__ = true;
+
+  let I18N_ENABLED = typeof window !== 'undefined' ? window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ !== false : true;
+  const ORIG_TEXT = typeof WeakMap === 'function' ? new WeakMap() : null;
+  const ORIG_ATTRS = typeof WeakMap === 'function' ? new WeakMap() : null;
 
   function normalizeKey(s) {
     return String(s)
@@ -380,25 +386,61 @@ function antigravityI18nBootstrap(
     return str;
   }
 
+  function applyTextTranslation(node, currentVal, nextVal) {
+    if (nextVal === currentVal) return;
+    if (ORIG_TEXT) {
+      const prev = ORIG_TEXT.get(node);
+      const trueOrig = prev && currentVal === prev.translated ? prev.orig : currentVal;
+      ORIG_TEXT.set(node, { orig: trueOrig, translated: nextVal });
+    }
+    node.nodeValue = nextVal;
+  }
+
+  function applyAttrTranslation(node, attr, currentVal, nextVal) {
+    if (nextVal === currentVal) return;
+    if (ORIG_ATTRS) {
+      let attrMap = ORIG_ATTRS.get(node);
+      if (!attrMap) {
+        attrMap = new Map();
+        ORIG_ATTRS.set(node, attrMap);
+      }
+      const prev = attrMap.get(attr);
+      const trueOrig = prev && currentVal === prev.translated ? prev.orig : currentVal;
+      attrMap.set(attr, { orig: trueOrig, translated: nextVal });
+    }
+    node.setAttribute(attr, nextVal);
+  }
+
+  function translateAttrValue(node, val) {
+    const nk = normalizeKey(val);
+    if (PRESERVE_SET.has(val.trim()) || (nk && PRESERVE_SET.has(nk))) return val;
+    const attrHit =
+      (ATTR_MAP.has(val) ? ATTR_MAP.get(val) : null) ||
+      (nk ? NORM_ATTR.get(nk) || NORM_ATTR_LOWER.get(nk.toLowerCase()) : null);
+    if (attrHit) return attrHit;
+    return translateString(val, node);
+  }
+
   function translateElementAttrs(node) {
-    if (!node || node.nodeType !== 1 || shouldIgnoreAttrElement(node)) return;
+    if (!I18N_ENABLED || !node || node.nodeType !== 1 || shouldIgnoreAttrElement(node)) return;
+    const prevMap = ORIG_ATTRS ? ORIG_ATTRS.get(node) : null;
     for (let i = 0; i < TARGET_ATTRS.length; i++) {
       const attr = TARGET_ATTRS[i];
       if (!node.hasAttribute || !node.hasAttribute(attr)) continue;
       const val = node.getAttribute(attr);
       if (!val) continue;
-      const nk = normalizeKey(val);
-      if (PRESERVE_SET.has(val.trim()) || (nk && PRESERVE_SET.has(nk))) continue;
-      const attrHit =
-        (ATTR_MAP.has(val) ? ATTR_MAP.get(val) : null) ||
-        (nk ? NORM_ATTR.get(nk) || NORM_ATTR_LOWER.get(nk.toLowerCase()) : null);
-      if (attrHit) {
-        if (attrHit !== val) node.setAttribute(attr, attrHit);
-      } else {
-        const trans = translateString(val, node);
-        if (trans !== val) {
-          node.setAttribute(attr, trans);
+      let nextVal = translateAttrValue(node, val);
+      if (nextVal === val && prevMap) {
+        const prev = prevMap.get(attr);
+        if (prev && val === prev.translated && prev.orig !== val) {
+          const retrans = translateAttrValue(node, prev.orig);
+          if (retrans !== prev.orig) {
+            nextVal = retrans;
+          }
         }
+      }
+      if (nextVal !== val) {
+        applyAttrTranslation(node, attr, val, nextVal);
       }
     }
   }
@@ -418,8 +460,25 @@ function antigravityI18nBootstrap(
     return cur === container;
   }
 
+  function isTitleMenuRelated(node) {
+    return Boolean(
+      node &&
+      node.nodeType === 1 &&
+      node.matches &&
+      (node.matches('[data-testid="title-menu-bar-option"], [data-browser-occluder="true"], [data-testid="title-menu-bar"]') ||
+        (node.closest && node.closest('[data-testid="title-menu-bar"]')))
+    );
+  }
+
   function translateNode(node) {
     if (!node) return;
+
+    if (!I18N_ENABLED) {
+      if (isTitleMenuRelated(node)) {
+        ensureTitleBarOtaMenuItem(node);
+      }
+      return;
+    }
 
     if (node.nodeType === 3) {
       const parent = node.parentElement || node.parentNode;
@@ -428,22 +487,40 @@ function antigravityI18nBootstrap(
       if (val) {
         const splitTrans = SPLIT_TEXT_TRANSLATOR(node, val, parent);
         if (splitTrans !== null) {
-          if (splitTrans !== val) node.nodeValue = splitTrans;
+          if (splitTrans !== val) applyTextTranslation(node, val, splitTrans);
           return;
         }
-        let trans = translateString(val, parent);
         const subtitleContainer = getSettingsPageSubtitleContainer(parent);
-        if (subtitleContainer && isTrailingNodeInContainer(node, subtitleContainer)) {
+        const isTrailingSub = Boolean(subtitleContainer && isTrailingNodeInContainer(node, subtitleContainer));
+        let trans = translateString(val, parent);
+        if (isTrailingSub) {
           trans = trans.replace(/。(\s*)$/, '$1');
         }
         if (trans !== val) {
-          node.nodeValue = trans;
+          applyTextTranslation(node, val, trans);
+          return;
+        }
+        if (ORIG_TEXT) {
+          const prev = ORIG_TEXT.get(node);
+          if (prev && val === prev.translated && prev.orig !== val) {
+            let retrans = translateString(prev.orig, parent);
+            if (isTrailingSub) {
+              retrans = retrans.replace(/。(\s*)$/, '$1');
+            }
+            if (retrans !== prev.orig && retrans !== val) {
+              applyTextTranslation(node, val, retrans);
+            }
+          }
         }
       }
       return;
     }
 
     if (node.nodeType === 1) {
+      if (node.matches && node.matches('[data-antigravity-i18n-ota-item="true"], [data-antigravity-i18n-toggle-item="true"]')) {
+        return;
+      }
+
       translateElementAttrs(node);
 
       if (shouldIgnoreElement(node)) {
@@ -469,11 +546,7 @@ function antigravityI18nBootstrap(
         translateNode(child);
       }
 
-      if (
-        node.matches &&
-        (node.matches('[data-testid="title-menu-bar-option"], [data-browser-occluder="true"]') ||
-          (node.closest && node.closest('[data-testid="title-menu-bar"]')))
-      ) {
+      if (isTitleMenuRelated(node)) {
         ensureTitleBarOtaMenuItem(node);
       }
     } else if (node.nodeType === 11) {
@@ -483,15 +556,74 @@ function antigravityI18nBootstrap(
     }
   }
 
+  function makeTitleMenuButton(optBtn, attrName, labelText, onClickFn) {
+    const wrapper = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.setAttribute('type', 'button');
+    btn.setAttribute('data-testid', 'title-menu-bar-option');
+    btn.setAttribute(attrName, 'true');
+    btn.className = optBtn.className || 'w-full px-3 py-1.5 text-left transition-colors flex justify-between items-center duration-100 select-none outline-none cursor-default hover:bg-secondary';
+    const span = document.createElement('span');
+    if (typeof document.createTextNode === 'function') {
+      span.appendChild(document.createTextNode(labelText));
+    } else {
+      span.textContent = labelText;
+    }
+    btn.appendChild(span);
+    if (typeof btn.addEventListener === 'function') {
+      btn.addEventListener('click', (ev) => {
+        if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+        try {
+          if (typeof KeyboardEvent === 'function' && typeof document.dispatchEvent === 'function') {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          }
+        } catch (_) {}
+        onClickFn();
+      });
+    }
+    wrapper.appendChild(btn);
+    return wrapper;
+  }
+
+  function setBtnLabelText(btn, label) {
+    if (!btn) return;
+    const span = btn.firstChild;
+    if (!span) return;
+    if (span.firstChild && span.firstChild.nodeType === 3) {
+      span.firstChild.nodeValue = label;
+    } else if (typeof document !== 'undefined' && typeof document.createTextNode === 'function') {
+      while (span.firstChild) span.removeChild(span.firstChild);
+      span.appendChild(document.createTextNode(label));
+    }
+  }
+
+  function updateInjectedTitleBarLabels() {
+    if (typeof document === 'undefined') return;
+    const queryRoot = (document.documentElement && typeof document.documentElement.querySelectorAll === 'function')
+      ? document.documentElement
+      : (typeof document.querySelectorAll === 'function' ? document : null);
+    if (!queryRoot) return;
+    const otaLabel = I18N_ENABLED ? '检查汉化更新' : 'Check i18n Updates';
+    const toggleLabel = I18N_ENABLED ? '临时切换为英文' : 'Switch to 简体中文';
+    const otaBtns = queryRoot.querySelectorAll('[data-antigravity-i18n-ota-item="true"]');
+    for (let i = 0; i < otaBtns.length; i++) setBtnLabelText(otaBtns[i], otaLabel);
+    const toggleBtns = queryRoot.querySelectorAll('[data-antigravity-i18n-toggle-item="true"]');
+    for (let i = 0; i < toggleBtns.length; i++) setBtnLabelText(toggleBtns[i], toggleLabel);
+  }
+
   function ensureTitleBarOtaMenuItem(rootEl) {
     if (
       typeof document === 'undefined' ||
       typeof document.createElement !== 'function' ||
-      !window.antigravityI18nOta ||
-      typeof window.antigravityI18nOta.checkForUpdates !== 'function'
+      !window.antigravityI18nOta
     ) {
       return;
     }
+    const otaBridge = window.antigravityI18nOta;
+    const canCheckUpdates = typeof otaBridge.checkForUpdates === 'function';
+    const canToggleLang = typeof otaBridge.toggleLanguage === 'function' || typeof window.__antigravitySetI18nEnabled === 'function';
+    if (!canCheckUpdates && !canToggleLang) return;
+
     const candidates = [];
     if (rootEl && rootEl.nodeType === 1) {
       if (rootEl.matches && rootEl.matches('[data-testid="title-menu-bar-option"]')) {
@@ -504,45 +636,101 @@ function antigravityI18nBootstrap(
     for (let i = 0; i < candidates.length; i++) {
       const optBtn = candidates[i];
       if (!optBtn || !optBtn.closest || !optBtn.closest('[data-testid="title-menu-bar"]')) continue;
-      if (optBtn.getAttribute && optBtn.getAttribute('data-antigravity-i18n-ota-item') === 'true') continue;
+      if (
+        optBtn.getAttribute &&
+        (optBtn.getAttribute('data-antigravity-i18n-ota-item') === 'true' ||
+          optBtn.getAttribute('data-antigravity-i18n-toggle-item') === 'true')
+      ) {
+        continue;
+      }
       const label = (optBtn.textContent || '').trim();
       if (label !== '检查更新' && label !== 'Check for Updates') continue;
       const itemWrapper = optBtn.parentElement;
       const menuPopup = itemWrapper && itemWrapper.parentElement;
       if (!menuPopup) continue;
-      if (menuPopup.querySelector && menuPopup.querySelector('[data-antigravity-i18n-ota-item="true"]')) continue;
 
-      const wrapper = document.createElement('div');
-      const btn = document.createElement('button');
-      btn.setAttribute('type', 'button');
-      btn.setAttribute('data-testid', 'title-menu-bar-option');
-      btn.setAttribute('data-antigravity-i18n-ota-item', 'true');
-      btn.className = optBtn.className || 'w-full px-3 py-1.5 text-left transition-colors flex justify-between items-center duration-100 select-none outline-none cursor-default hover:bg-secondary';
-      const span = document.createElement('span');
-      if (typeof document.createTextNode === 'function') {
-        span.appendChild(document.createTextNode('检查汉化更新'));
-      } else {
-        span.textContent = '检查汉化更新';
+      let anchor = itemWrapper;
+      if (canCheckUpdates && !(menuPopup.querySelector && menuPopup.querySelector('[data-antigravity-i18n-ota-item="true"]'))) {
+        const otaWrapper = makeTitleMenuButton(
+          optBtn,
+          'data-antigravity-i18n-ota-item',
+          I18N_ENABLED ? '检查汉化更新' : 'Check i18n Updates',
+          () => {
+            try {
+              Promise.resolve(otaBridge.checkForUpdates()).catch(() => {});
+            } catch (_) {}
+          }
+        );
+        if (anchor.nextSibling) {
+          menuPopup.insertBefore(otaWrapper, anchor.nextSibling);
+        } else {
+          menuPopup.appendChild(otaWrapper);
+        }
+        anchor = otaWrapper;
+      } else if (menuPopup.querySelector) {
+        const existingOtaBtn = menuPopup.querySelector('[data-antigravity-i18n-ota-item="true"]');
+        if (existingOtaBtn && existingOtaBtn.parentElement) {
+          anchor = existingOtaBtn.parentElement;
+        }
       }
-      btn.appendChild(span);
-      if (typeof btn.addEventListener === 'function') {
-        btn.addEventListener('click', (ev) => {
-          if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
-          try {
-            if (typeof KeyboardEvent === 'function' && typeof document.dispatchEvent === 'function') {
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-            }
-          } catch (_) {}
-          try {
-            Promise.resolve(window.antigravityI18nOta.checkForUpdates()).catch(() => {});
-          } catch (_) {}
-        });
+
+      if (canToggleLang && !(menuPopup.querySelector && menuPopup.querySelector('[data-antigravity-i18n-toggle-item="true"]'))) {
+        const toggleWrapper = makeTitleMenuButton(
+          optBtn,
+          'data-antigravity-i18n-toggle-item',
+          I18N_ENABLED ? '临时切换为英文' : 'Switch to 简体中文',
+          () => {
+            try {
+              if (typeof otaBridge.toggleLanguage === 'function') {
+                Promise.resolve(otaBridge.toggleLanguage()).catch(() => {});
+              } else if (typeof window.__antigravitySetI18nEnabled === 'function') {
+                window.__antigravitySetI18nEnabled(!I18N_ENABLED);
+              }
+            } catch (_) {}
+          }
+        );
+        if (anchor.nextSibling) {
+          menuPopup.insertBefore(toggleWrapper, anchor.nextSibling);
+        } else {
+          menuPopup.appendChild(toggleWrapper);
+        }
       }
-      wrapper.appendChild(btn);
-      if (itemWrapper.nextSibling) {
-        menuPopup.insertBefore(wrapper, itemWrapper.nextSibling);
-      } else {
-        menuPopup.appendChild(wrapper);
+    }
+  }
+
+  function restoreOriginalAttrs(node) {
+    if (!ORIG_ATTRS || !node || node.nodeType !== 1) return;
+    const attrMap = ORIG_ATTRS.get(node);
+    if (!attrMap) return;
+    attrMap.forEach((rec, attr) => {
+      if (node.getAttribute && node.getAttribute(attr) === rec.translated && rec.orig !== rec.translated) {
+        node.setAttribute(attr, rec.orig);
+      }
+    });
+  }
+
+  function restoreOriginalSubtree(root) {
+    if (!root) return;
+    if (root.nodeType === 3) {
+      if (ORIG_TEXT) {
+        const rec = ORIG_TEXT.get(root);
+        if (rec && root.nodeValue === rec.translated && rec.orig !== rec.translated) {
+          root.nodeValue = rec.orig;
+        }
+      }
+      return;
+    }
+    if (root.nodeType === 1) {
+      restoreOriginalAttrs(root);
+      if (root.shadowRoot) {
+        restoreOriginalSubtree(root.shadowRoot);
+      }
+      for (let child = root.firstChild; child; child = child.nextSibling) {
+        restoreOriginalSubtree(child);
+      }
+    } else if (root.nodeType === 11) {
+      for (let child = root.firstChild; child; child = child.nextSibling) {
+        restoreOriginalSubtree(child);
       }
     }
   }
@@ -554,10 +742,42 @@ function antigravityI18nBootstrap(
 
   window.__antigravityTranslateString = translateString;
   window.__antigravityTranslateAll = function () {
+    if (!I18N_ENABLED) return;
     const root = typeof document !== 'undefined' ? (document.documentElement || document.body) : null;
     if (root) {
       translateSubtree(root);
     }
+  };
+  window.__antigravityIsI18nEnabled = function () {
+    return I18N_ENABLED;
+  };
+  window.__antigravitySetI18nEnabled = function (enabled) {
+    const nextEnabled = Boolean(enabled);
+    if (nextEnabled === I18N_ENABLED) {
+      updateInjectedTitleBarLabels();
+      return I18N_ENABLED;
+    }
+    I18N_ENABLED = nextEnabled;
+    const root = typeof document !== 'undefined' ? (document.documentElement || document.body) : null;
+    if (I18N_ENABLED) {
+      if (root) translateSubtree(root);
+      if (typeof document !== 'undefined') translatePortals();
+    } else {
+      if (root) restoreOriginalSubtree(root);
+      if (typeof document !== 'undefined') {
+        const queryRoot = (document.documentElement && typeof document.documentElement.querySelectorAll === 'function')
+          ? document.documentElement
+          : (typeof document.querySelectorAll === 'function' ? document : null);
+        if (queryRoot) {
+          const portals = queryRoot.querySelectorAll(PORTAL_SELECTOR);
+          for (let i = 0; i < portals.length; i++) {
+            restoreOriginalSubtree(portals[i]);
+          }
+        }
+      }
+    }
+    updateInjectedTitleBarLabels();
+    return I18N_ENABLED;
   };
   window.__antigravityApplyOtaPack = function (pack) {
     if (!pack || typeof pack !== 'object') return false;
@@ -579,12 +799,14 @@ function antigravityI18nBootstrap(
       attrCount: ATTR_MAP.size,
       ruleCount: OTA_DYNAMIC_RULES.length
     };
-    try {
-      window.__antigravityTranslateAll();
-      if (typeof document !== 'undefined' && document.querySelectorAll) {
-        translatePortals();
-      }
-    } catch (_) {}
+    if (I18N_ENABLED) {
+      try {
+        window.__antigravityTranslateAll();
+        if (typeof document !== 'undefined' && document.querySelectorAll) {
+          translatePortals();
+        }
+      } catch (_) {}
+    }
     return true;
   };
 
@@ -615,6 +837,17 @@ function antigravityI18nBootstrap(
       const observer = new MutationObserver((mutations) => {
         for (let i = 0; i < mutations.length; i++) {
           const m = mutations[i];
+          if (!I18N_ENABLED) {
+            if (m.type === 'childList') {
+              for (let j = 0; j < m.addedNodes.length; j++) {
+                const added = m.addedNodes[j];
+                if (isTitleMenuRelated(added)) {
+                  ensureTitleBarOtaMenuItem(added);
+                }
+              }
+            }
+            continue;
+          }
           if (m.type === 'childList') {
             for (let j = 0; j < m.addedNodes.length; j++) {
               translateSubtree(m.addedNodes[j]);
@@ -705,9 +938,21 @@ function antigravityI18nBootstrap(
           if (this && this.isConnected && !shouldIgnoreTextParent(this)) {
             for (let i = 0; i < nodes.length; i++) {
               if (typeof nodes[i] === 'string') {
-                try {
-                  nodes[i] = translateString(nodes[i], this);
-                } catch (e) {}
+                if (I18N_ENABLED) {
+                  try {
+                    const rawStr = nodes[i];
+                    const transStr = translateString(rawStr, this);
+                    if (transStr !== rawStr) {
+                      if (typeof document !== 'undefined' && typeof document.createTextNode === 'function') {
+                        const tn = document.createTextNode(rawStr);
+                        applyTextTranslation(tn, rawStr, transStr);
+                        nodes[i] = tn;
+                      } else {
+                        nodes[i] = transStr;
+                      }
+                    }
+                  } catch (e) {}
+                }
               } else if (nodes[i] && typeof nodes[i] === 'object' && nodes[i].nodeType) {
                 const collected = collectInsertTargets(nodes[i]);
                 if (Array.isArray(collected)) {
@@ -737,7 +982,7 @@ function antigravityI18nBootstrap(
         const shadow = origAttachShadow.call(this, init);
         try {
           observeRoot(shadow);
-          if (this && this.isConnected) {
+          if (I18N_ENABLED && this && this.isConnected) {
             translateSubtree(shadow);
           }
         } catch (e) {}
@@ -756,8 +1001,11 @@ function antigravityI18nBootstrap(
   ].join(', ');
 
   function translatePortals() {
-    if (!document.querySelectorAll) return;
-    const portals = document.querySelectorAll(PORTAL_SELECTOR);
+    if (!I18N_ENABLED || !document.querySelectorAll) return;
+    const queryRoot = (document.documentElement && typeof document.documentElement.querySelectorAll === 'function')
+      ? document.documentElement
+      : document;
+    const portals = queryRoot.querySelectorAll(PORTAL_SELECTOR);
     for (let i = 0; i < portals.length; i++) {
       translateSubtree(portals[i]);
     }
@@ -765,7 +1013,7 @@ function antigravityI18nBootstrap(
 
   let portalRafId = 0;
   function schedulePortalTranslate() {
-    if (portalRafId) return;
+    if (!I18N_ENABLED || portalRafId) return;
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
     portalRafId = raf(() => {
       portalRafId = 0;
@@ -802,6 +1050,7 @@ function antigravityI18nBootstrap(
   }
 
   function scheduleDelayedHoverTranslate(targetEl) {
+    if (!I18N_ENABLED) return;
     for (let i = 0; i < hoverDelayTimers.length; i++) {
       clearTimeout(hoverDelayTimers[i]);
     }
@@ -809,6 +1058,7 @@ function antigravityI18nBootstrap(
     for (let i = 0; i < HOVER_DELAY_STEPS.length; i++) {
       const delay = HOVER_DELAY_STEPS[i];
       const tid = setTimeout(() => {
+        if (!I18N_ENABLED) return;
         if (isSmallHoverTarget(targetEl) && targetEl.isConnected) {
           translateSubtree(targetEl);
         }
@@ -820,7 +1070,7 @@ function antigravityI18nBootstrap(
 
   let fullTimer = 0;
   function scheduleFullTranslate() {
-    if (fullTimer) return;
+    if (!I18N_ENABLED || fullTimer) return;
     fullTimer = setTimeout(() => {
       fullTimer = 0;
       window.__antigravityTranslateAll();
@@ -832,6 +1082,7 @@ function antigravityI18nBootstrap(
       observeRoot(document.documentElement);
     }
     window.__antigravityTranslateAll();
+    updateInjectedTitleBarLabels();
   }
 
   if (typeof document !== 'undefined') {
@@ -843,6 +1094,7 @@ function antigravityI18nBootstrap(
 
     ['pointerenter', 'focusin'].forEach((eventName) => {
       document.addEventListener(eventName, (e) => {
+        if (!I18N_ENABLED) return;
         const target = e ? e.target : null;
         if (isSmallHoverTarget(target) && target !== lastHoverTarget) {
           lastHoverTarget = target;
@@ -857,6 +1109,7 @@ function antigravityI18nBootstrap(
 
     ['click', 'keydown'].forEach((eventName) => {
       document.addEventListener(eventName, (e) => {
+        if (!I18N_ENABLED) return;
         if (eventName === 'keydown' && e && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'Enter' && e.key !== 'Escape') {
           return;
         }
