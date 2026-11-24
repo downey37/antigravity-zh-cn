@@ -18,10 +18,13 @@
   ],
   "scripts": {
     "build": "node scripts/build_clean_engine.js",
+    "build:ota": "node scripts/build_ota_pack.js",
     "deploy": "powershell -ExecutionPolicy Bypass -File build_and_deploy.ps1",
     "verify": "node scripts/verify_engine.js",
     "verify:local": "node scripts/verify_engine.js --local",
-    "scan": "node scripts/scan_updates.js --refresh"
+    "scan": "node scripts/scan_updates.js --refresh",
+    "version:check": "node scripts/release_version.js --check",
+    "version:bump": "node scripts/release_version.js"
   },
   "dependencies": {
     "@electron/asar": "^4.3.0"

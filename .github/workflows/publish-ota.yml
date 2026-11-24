@@ -1,0 +1,71 @@
+name: Publish OTA i18n Pack
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'assets/dictionary.json'
+      - 'assets/attr_dict.json'
+      - 'assets/preserve_list.json'
+      - 'assets/ota_rules.json'
+      - 'package.json'
+      - 'scripts/build_ota_pack.js'
+      - 'scripts/build_clean_engine.js'
+      - '.github/workflows/publish-ota.yml'
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: '可选：本次词库热更新说明'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-ota-dist
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build engine, OTA pack & run full verification gate
+        env:
+          OTA_NOTES: ${{ github.event.inputs.notes || github.event.head_commit.message }}
+        run: |
+          npm run build
+          npm run build:ota
+          npm run verify:local
+
+      - name: Publish single-commit orphan branch ota-dist
+        run: |
+          set -euo pipefail
+          STAGE_DIR="$(mktemp -d)"
+          cp build/ota/manifest.json "$STAGE_DIR/manifest.json"
+          cp build/ota/dict-pack.json "$STAGE_DIR/dict-pack.json"
+
+          cd "$STAGE_DIR"
+          git init -b ota-dist
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json dict-pack.json
+          PACK_VER="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("manifest.json","utf8")).packVersion)')"
+          git commit -m "chore(ota): publish dict-pack v${PACK_VER}"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin ota-dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

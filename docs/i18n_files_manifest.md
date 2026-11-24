@@ -14,7 +14,7 @@
 - `assets/attr_dict.json`：元素属性（`title`、`aria-label`、`placeholder`、`tooltip` 等）专用译文表。
 - `assets/preserve_list.json`：严格保留原英文的品牌、模型与专有名词白名单。
 - `assets/extracted_tooltips.json`：历史逆向提取的 Tooltip 对照参考。
-- `assets/baseline/bundle_main.js` & `version.json`：与当前安装端 `v2.32.2` 同步的完整渲染端代码基线，用于版本升级扫漏。
+- `assets/baseline/bundle_main.js` & `version.json`：与当前适配客户端版本（记录于 `assets/baseline/version.json`）同步的完整渲染端代码基线，用于版本升级扫漏。
 
 ## 3. 核心脚本与模块（`scripts/`）
 
@@ -26,6 +26,7 @@
 - `scripts/engine/runtime_bootstrap.js`：DOM 原型链拦截、`MutationObserver` 与浮层/悬停调度器。
 - `scripts/scan_updates.js`：从 `%APPDATA%\Antigravity\Cache\Cache_Data` 刷新最新前端 `bundle_main.js` 基线并扫描遗漏英文 UI 字符串。
 - `scripts/verify_engine.js`：使用 Node `vm` 对已部署 `app.asar` 执行回归测试。
+- `scripts/release_version.js`：校验 `package.json`、`assets/baseline/version.json` 与 `README.md` 版本一致性，并辅助递增三段式版本号及生成标准 Tag / Release 命令。
 - `scripts/guard_launch.js` & `scripts/auto_patch_on_update.js` & `scripts/patch_antigravity.js`：启动守护与官方更新后自动重打补丁入口。
 
 ## 4. 构建产物与文档

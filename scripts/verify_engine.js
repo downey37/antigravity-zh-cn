@@ -4,6 +4,7 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 const asar = require('@electron/asar');
+const { verifyVersionConsistency } = require('./release_version');
 
 const projectRoot = path.resolve(__dirname, '..');
 const dictPath = path.join(projectRoot, 'assets', 'dictionary.json');
@@ -171,11 +172,30 @@ function runVerification() {
     assert(ipcCode.includes('updater_1.quitAndInstall'), 'ipcHandlers.js updater:quit-and-install must delegate to updater_1.quitAndInstall');
     assert(ipcCode.includes('translateNativeNotificationText'), 'ipcHandlers.js must include translateNativeNotificationText');
     assert(ipcCode.includes('translateContextMenuLabel'), 'ipcHandlers.js must include translateContextMenuLabel');
+    assert(ipcCode.includes('getNativeContextDict'), 'ipcHandlers.js must integrate OTA getNativeContextDict');
+    assert(ipcCode.includes('i18n-ota:check-updates'), 'ipcHandlers.js must register i18n-ota:check-updates IPC handler');
+    const preloadCode = asar.extractFile(deployedAsar, path.join('dist', 'preload.js')).toString('utf8');
+    assert(preloadCode.includes('antigravityI18nOta') && preloadCode.includes('i18n-ota:check-updates'), 'preload.js must expose antigravityI18nOta bridge');
+    const mainCode = asar.extractFile(deployedAsar, path.join('dist', 'main.js')).toString('utf8');
+    assert(mainCode.includes('antigravity-i18n-check-update') && mainCode.includes('检查汉化更新'), 'main.js must add OTA check item to Windows tray menu');
     assert(asar.statFile(deployedAsar, path.join('dist', 'native_context_dict.json')), 'app.asar must include dist/native_context_dict.json');
-    assert(menuCode.includes('translateMenuRecursively'), 'menu.js must include translateMenuRecursively');
+    assert(asar.statFile(deployedAsar, path.join('dist', 'i18n_ota.js')), 'app.asar must include dist/i18n_ota.js');
+    assert(asar.statFile(deployedAsar, path.join('dist', 'i18n_meta.json')), 'app.asar must include dist/i18n_meta.json');
+    const embeddedMeta = JSON.parse(asar.extractFile(deployedAsar, path.join('dist', 'i18n_meta.json')).toString('utf8'));
+    assert.strictEqual(embeddedMeta.schemaVersion, 1, 'dist/i18n_meta.json must have schemaVersion 1');
+    assert(menuCode.includes('translateMenuRecursively') && menuCode.includes('antigravity-i18n-check-update') && menuCode.includes('检查汉化更新'), 'menu.js must include translateMenuRecursively and OTA check menu item');
     const getCodeIdx = utilsCode.indexOf('function _getAntigravityI18nCode');
     const createWinIdx = utilsCode.indexOf('function createWindow');
-    assert(getCodeIdx !== -1 && createWinIdx !== -1 && getCodeIdx < createWinIdx && !utilsCode.includes('http://localhost:') && utilsCode.includes('frameOrigin === mainOrigin'), 'utils.js must define module-level _getAntigravityI18nCode cache and use exact frameOrigin matching');
+    assert(
+      getCodeIdx !== -1 &&
+      createWinIdx !== -1 &&
+      getCodeIdx < createWinIdx &&
+      !utilsCode.includes('http://localhost:') &&
+      utilsCode.includes('frameOrigin === mainOrigin') &&
+      utilsCode.includes('_getAntigravityI18nOta') &&
+      utilsCode.includes('applyCachedPackToWebContents'),
+      'utils.js must define module-level _getAntigravityI18nCode / _getAntigravityI18nOta caches and use exact frameOrigin matching'
+    );
     assert(secCode.includes('颁发给：') && secCode.includes('请勿在此网站上输入任何敏感信息'), 'webviewPopupSecurity.js must translate body and certificate fields');
     assert(wizardCode.includes('Antigravity 已全新重构'), 'wizardHtml.js must translate body paragraph');
 
@@ -195,7 +215,7 @@ function runVerification() {
       new vm.Script(code, { filename: rel });
       assert(code.includes(needle), `${rel} must include localized text: ${needle}`);
     }
-    for (const rel of ['dist/utils.js', 'dist/menu.js', 'dist/tray.js', 'dist/main.js', 'dist/updater.js', 'dist/provisionSplash.js', 'dist/ipcHandlers.js', 'dist/webviewPopupSecurity.js', 'dist/ideInstall/wizardHtml.js', 'dist/languageServer.js']) {
+    for (const rel of ['dist/utils.js', 'dist/menu.js', 'dist/tray.js', 'dist/main.js', 'dist/preload.js', 'dist/updater.js', 'dist/provisionSplash.js', 'dist/ipcHandlers.js', 'dist/webviewPopupSecurity.js', 'dist/ideInstall/wizardHtml.js', 'dist/languageServer.js', 'dist/i18n_ota.js']) {
       new vm.Script(asar.extractFile(deployedAsar, path.normalize(rel)).toString('utf8'), { filename: rel });
     }
     assert(!fs.existsSync(path.join(projectRoot, 'build', 'app.asar.unpacked')), 'build/app.asar.unpacked should be cleaned after packaging');
@@ -1057,7 +1077,15 @@ function runVerification() {
   // 8. Full DOM lifecycle hooks & hot-path guards (running unmodified i18nCode without early return)
   runDomLifecycleVerification(i18nCode);
 
-  console.log(`ALL VERIFY CHECKS PASSED! version=v${pkgVersion}, EXACT_DICT=${Object.keys(api.EXACT_DICT).length}, ATTR_DICT=${Object.keys(api.ATTR_DICT).length}, asarEntries=${asarEntriesCount}`);
+  // 9. Version & README/baseline metadata consistency
+  const verCheck = verifyVersionConsistency(projectRoot);
+  assert.strictEqual(
+    verCheck.ok,
+    true,
+    `Version metadata consistency failed:\n - ${verCheck.errors.join('\n - ')}`
+  );
+
+  console.log(`ALL VERIFY CHECKS PASSED! version=v${pkgVersion}, patch=v${verCheck.patchVersion}, baseline=v${verCheck.clientVersion}, EXACT_DICT=${Object.keys(api.EXACT_DICT).length}, ATTR_DICT=${Object.keys(api.ATTR_DICT).length}, asarEntries=${asarEntriesCount}`);
 }
 
 function runDomLifecycleVerification(i18nCode) {
@@ -1123,8 +1151,31 @@ function runDomLifecycleVerification(i18nCode) {
     }
     return null;
   };
-  DomNode.prototype.querySelector = () => null;
-  DomNode.prototype.querySelectorAll = () => [];
+  DomNode.prototype.querySelector = function (sel) {
+    const visit = (node) => {
+      if (node !== this && node.nodeType === 1 && node.matches(sel)) return node;
+      for (const c of node.childNodes) {
+        const hit = visit(c);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    return visit(this);
+  };
+  DomNode.prototype.querySelectorAll = function (sel) {
+    const out = [];
+    const visit = (node) => {
+      if (node !== this && node.nodeType === 1 && node.matches(sel)) out.push(node);
+      for (const c of node.childNodes) visit(c);
+    };
+    visit(this);
+    return out;
+  };
+  DomNode.prototype.addEventListener = function (ev, fn) {
+    this._listeners = this._listeners || {};
+    this._listeners[ev] = this._listeners[ev] || [];
+    this._listeners[ev].push(fn);
+  };
   DomNode.prototype.appendChild = function (child) {
     if (child.nodeType === 11) {
       const moved = [...child.childNodes];
@@ -1201,23 +1252,36 @@ function runDomLifecycleVerification(i18nCode) {
   let observerCb = null;
   const observedTargets = [];
   const docListeners = {};
+  let otaMenuClickedCount = 0;
+  const dispatchedDocEvents = [];
   const sandbox = {
     console, setTimeout, clearTimeout,
     Node: DomNode,
     Element: DomElement,
+    KeyboardEvent: function (type, init) { this.type = type; Object.assign(this, init || {}); },
     NodeFilter: { SHOW_TEXT: 4, SHOW_ELEMENT: 1 },
     MutationObserver: class {
       constructor(cb) { observerCb = cb; }
       observe(target) { observedTargets.push(target); }
     },
     requestAnimationFrame: (cb) => { cb(); return 1; },
-    window: { location: { protocol: 'app:' }, history: {}, addEventListener() {} },
+    window: {
+      location: { protocol: 'app:' },
+      history: {},
+      addEventListener() {},
+      antigravityI18nOta: {
+        checkForUpdates: () => { otaMenuClickedCount++; return Promise.resolve({ status: 'up_to_date' }); }
+      }
+    },
     location: { protocol: 'app:' },
     document: {
       readyState: 'complete',
       title: 'Antigravity',
       documentElement: html,
       body,
+      createElement: (tag) => new DomElement(String(tag).toUpperCase()),
+      createTextNode: (val) => makeText(val),
+      dispatchEvent: (ev) => { dispatchedDocEvents.push(ev); },
       querySelectorAll: () => [],
       addEventListener: (ev, fn) => { docListeners[ev] = fn; }
     }
@@ -1341,6 +1405,296 @@ function runDomLifecycleVerification(i18nCode) {
     tipText.nodeValue,
     '请使用 Hydrogen 以获得更高质量与更低配额消耗。将于 11月30日下线。'
   );
+
+  // 10. Live OTA hot-reload (__antigravityApplyOtaPack): adds/overrides dict, applies declarative rules, ignores bad regexes, idempotent per version
+  const otaSpan = new DomElement('SPAN');
+  otaSpan.setAttribute('title', 'Brand New OTA Tooltip');
+  const otaText = makeText('Brand New Server Label');
+  otaSpan.appendChild(otaText);
+  const otaRuleSpan = new DomElement('SPAN');
+  const otaRuleText = makeText('Gemini 5 Ultra will launch on Dec 25.');
+  otaRuleSpan.appendChild(otaRuleText);
+  const otaPreserveSpan = new DomElement('SPAN');
+  const otaPreserveText = makeText('CustomBrandX');
+  otaPreserveSpan.appendChild(otaPreserveText);
+  rootDiv.appendChild(otaSpan);
+  rootDiv.appendChild(otaRuleSpan);
+  rootDiv.appendChild(otaPreserveSpan);
+  assert.strictEqual(otaText.nodeValue, 'Brand New Server Label');
+  assert.strictEqual(otaSpan.getAttribute('title'), 'Brand New OTA Tooltip');
+  assert.strictEqual(otaRuleText.nodeValue, 'Gemini 5 Ultra will launch on Dec 25.');
+
+  const otaPack = {
+    schemaVersion: 1,
+    packVersion: '2099.01.01.000001',
+    builtAt: '2099-01-01T00:00:01.000Z',
+    dictionary: {
+      'Brand New Server Label': '全新服务端标签',
+      'Settings': '系统设置（热更测试）',
+      'CustomBrandX': '不应翻译的品牌'
+    },
+    attrDict: {
+      'Brand New OTA Tooltip': '全新热更提示'
+    },
+    preserveList: ['Antigravity', 'CustomBrandX'],
+    rules: [
+      {
+        id: 'ota-launch-test',
+        pattern: '^(.+?)\\s+will\\s+launch\\s+on\\s+(.+?)\\.$',
+        flags: 'i',
+        replace: '$1 将于 $2 发布。',
+        requireAscii: true
+      },
+      { id: 'bad-regex', pattern: '[invalid(', flags: 'i', replace: 'x' },
+      { id: 'unsafe-flag', pattern: '^foo$', flags: 'g', replace: 'bar' }
+    ]
+  };
+  assert.strictEqual(sandbox.window.__antigravityApplyOtaPack(otaPack), true);
+  assert.strictEqual(otaText.nodeValue, '全新服务端标签');
+  assert.strictEqual(otaSpan.getAttribute('title'), '全新热更提示');
+  assert.strictEqual(otaRuleText.nodeValue, 'Gemini 5 Ultra 将于 Dec 25 发布。');
+  assert.strictEqual(otaPreserveText.nodeValue, 'CustomBrandX');
+  assert.strictEqual(sandbox.window.__antigravityTranslateString('Settings'), '系统设置（热更测试）');
+  assert.strictEqual(sandbox.window.__antigravityTranslateString('foo'), 'foo');
+  assert.strictEqual(sandbox.window.__antigravityApplyOtaPack(otaPack), false, 'Re-applying same OTA packVersion must be idempotent no-op');
+
+  // 11. Windows custom title-menu-bar ("Antigravity" dropdown) injects "检查汉化更新" right below "检查更新"
+  const titleBar = new DomElement('DIV');
+  titleBar.setAttribute('data-testid', 'title-menu-bar');
+  const menuWrap = new DomElement('DIV');
+  titleBar.appendChild(menuWrap);
+  rootDiv.appendChild(titleBar);
+
+  const popup = new DomElement('DIV');
+  popup.setAttribute('data-browser-occluder', 'true');
+  const verDiv = new DomElement('DIV');
+  const verBtn = new DomElement('BUTTON');
+  verBtn.setAttribute('data-testid', 'title-menu-bar-option');
+  const verSpan = new DomElement('SPAN');
+  verSpan.appendChild(makeText('Version 2.34.0'));
+  verBtn.appendChild(verSpan);
+  verDiv.appendChild(verBtn);
+  const updDiv = new DomElement('DIV');
+  const updBtn = new DomElement('BUTTON');
+  updBtn.setAttribute('data-testid', 'title-menu-bar-option');
+  updBtn.className = 'w-full px-3 py-1.5 hover:bg-secondary';
+  const updSpan = new DomElement('SPAN');
+  updSpan.appendChild(makeText('Check for Updates'));
+  updBtn.appendChild(updSpan);
+  updDiv.appendChild(updBtn);
+  popup.appendChild(verDiv);
+  popup.appendChild(updDiv);
+  menuWrap.appendChild(popup);
+
+  const injectedBtns = popup.querySelectorAll('[data-antigravity-i18n-ota-item="true"]');
+  assert.strictEqual(injectedBtns.length, 1, 'Windows Antigravity title menu must inject exactly one 检查汉化更新 item');
+  assert.strictEqual(injectedBtns[0].textContent, '检查汉化更新');
+  assert.strictEqual(injectedBtns[0].className, updBtn.className);
+  assert.strictEqual(popup.children.length, 3);
+  // Click dispatches Escape to close React menu & triggers IPC checkForUpdates
+  injectedBtns[0]._listeners.click[0]({ stopPropagation() {} });
+  assert.strictEqual(otaMenuClickedCount, 1);
+  assert.strictEqual(dispatchedDocEvents.some((e) => e.key === 'Escape'), true);
 }
 
-runVerification();
+async function runOtaControllerVerification() {
+  const crypto = require('crypto');
+  const http = require('http');
+  const { buildOtaPack, validateOtaRules } = require('./build_ota_pack');
+  const { createOtaController } = require('./ota/i18n_ota_main');
+
+  // 1. Validate buildOtaPack & declarative rule guards
+  const dry = buildOtaPack({ dryRun: true, notes: 'verify-smoke' });
+  assert.strictEqual(dry.manifest.schemaVersion, 1);
+  assert(/^[a-f0-9]{64}$/.test(dry.manifest.sha256));
+  assert(dry.manifest.dictCount >= 4000, 'OTA pack dictCount sanity check');
+  assert.throws(() => validateOtaRules([{ pattern: '(a+)+$', flags: 'i', replace: 'x' }]), /嵌套量词/);
+  assert.throws(() => validateOtaRules([{ pattern: '^a$', flags: 'g', replace: 'x' }]), /flags/);
+  assert.strictEqual(validateOtaRules([{ id: 'ok', pattern: '^Hello (.+)$', flags: 'i', replace: '你好 $1' }]).length, 1);
+
+  // 2. Spin up local mock HTTP OTA server (primary fails 500 -> secondary serves valid manifest + pack with ETag)
+  const samplePack = {
+    schemaVersion: 1,
+    packVersion: '2026.12.01.120000',
+    builtAt: '2026-12-01T12:00:00.000Z',
+    engineVersion: '0.3.0',
+    minEngineVersion: '0.3.0',
+    dictionary: {
+      'OTA Live Test Key': 'OTA 实时测试词条',
+      'Copy Link': '复制链接（OTA）'
+    },
+    attrDict: {
+      'OTA Attr Tip': 'OTA 属性提示'
+    },
+    preserveList: ['Antigravity'],
+    rules: [
+      { id: 'r1', pattern: '^Deploy\\s+(\\d+)$', flags: 'i', replace: '部署 $1' }
+    ]
+  };
+  const samplePackText = JSON.stringify(samplePack);
+  const sampleSha = crypto.createHash('sha256').update(samplePackText, 'utf8').digest('hex');
+  const sampleManifest = {
+    schemaVersion: 1,
+    packVersion: samplePack.packVersion,
+    builtAt: samplePack.builtAt,
+    engineVersion: '0.3.0',
+    minEngineVersion: '0.3.0',
+    packFile: 'dict-pack.json',
+    sha256: sampleSha,
+    dictCount: 2,
+    attrCount: 1,
+    ruleCount: 1,
+    releaseUrl: 'https://github.com/downey37/antigravity-zh-cn/releases/latest',
+    notes: 'mock ota update'
+  };
+
+  let mode = 'normal';
+  let manifestEtag = '"etag-v1"';
+  let packDownloads = 0;
+
+  const server = http.createServer((req, res) => {
+    const cleanUrl = (req.url || '').split('?')[0];
+    if (cleanUrl.startsWith('/primary/')) {
+      res.writeHead(500);
+      res.end('primary down');
+      return;
+    }
+    if (cleanUrl === '/backup/manifest.json') {
+      if (mode === 'incompatible') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...sampleManifest, engineVersion: '9.9.9', minEngineVersion: '9.9.9' }));
+        return;
+      }
+      if (mode === 'tampered') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...sampleManifest, packVersion: '2026.12.02.000000', builtAt: '2026-12-02T00:00:00.000Z', sha256: '0'.repeat(64) }));
+        return;
+      }
+      if (req.headers['if-none-match'] === manifestEtag) {
+        res.writeHead(304, { ETag: manifestEtag });
+        res.end();
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json', ETag: manifestEtag });
+      res.end(JSON.stringify(sampleManifest));
+      return;
+    }
+    if (cleanUrl === '/backup/dict-pack.json') {
+      packDownloads++;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(samplePackText);
+      return;
+    }
+    res.writeHead(404);
+    res.end('not found');
+  });
+
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const baseUrls = [`http://127.0.0.1:${port}/primary`, `http://127.0.0.1:${port}/backup`];
+  const tmpCacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-i18n-ota-test-'));
+
+  try {
+    const mainExecs = [];
+    const pluginFrameExecs = [];
+    const extFrameExecs = [];
+    const mockWc = {
+      isDestroyed: () => false,
+      getURL: () => 'https://antigravity.local/app',
+      once: () => {},
+      executeJavaScript: (code) => { mainExecs.push(code); return Promise.resolve(); },
+      mainFrame: {
+        framesInSubtree: [
+          { url: 'plugin://swarm/index.html', executeJavaScript: (code) => { pluginFrameExecs.push(code); return Promise.resolve(); } },
+          { url: 'https://example.com/third-party', executeJavaScript: (code) => { extFrameExecs.push(code); return Promise.resolve(); } }
+        ]
+      }
+    };
+    mockWc.mainFrame.framesInSubtree.unshift(mockWc.mainFrame);
+
+    const ctrl = createOtaController({
+      electron: null,
+      cacheDir: tmpCacheDir,
+      baseUrls,
+      minDictCount: 1,
+      minAttrCount: 1,
+      builtinMeta: {
+        schemaVersion: 1,
+        engineVersion: '0.3.0',
+        packVersion: '2026.11.24.000000',
+        builtAt: '2026-11-24T00:00:00.000Z'
+      },
+      env: {}
+    });
+    ctrl.registerWebContents(mockWc);
+
+    // 2a. Primary fails -> fallback succeeds -> broadcasts to main + plugin subframe only (never external https)
+    const r1 = await ctrl.checkForUpdates({ manual: false });
+    assert.strictEqual(r1.status, 'updated');
+    assert.strictEqual(r1.packVersion, samplePack.packVersion);
+    assert.strictEqual(packDownloads, 1);
+    assert.strictEqual(mainExecs.length, 1);
+    assert.strictEqual(pluginFrameExecs.length, 1);
+    assert.strictEqual(extFrameExecs.length, 0, 'OTA broadcast must never inject into third-party external subframes');
+    assert.strictEqual(ctrl.getNativeContextDict().exactMap.get('OTA Live Test Key'), 'OTA 实时测试词条');
+
+    // 2b. Second background check hits ETag 304 without downloading pack again
+    const r2 = await ctrl.checkForUpdates({ manual: false });
+    assert.strictEqual(r2.status, 'up_to_date');
+    assert.strictEqual(packDownloads, 1);
+
+    // 2c. Tampered SHA-256 is rejected and previous valid pack remains active
+    mode = 'tampered';
+    const r3 = await ctrl.checkForUpdates({ manual: false });
+    assert.strictEqual(r3.status, 'error');
+    assert.strictEqual(ctrl.getActiveVersion(), samplePack.packVersion);
+
+    // 2d. Engine upgrade required when minEngineVersion > local engineVersion
+    mode = 'incompatible';
+    const r4 = await ctrl.checkForUpdates({ manual: false });
+    assert.strictEqual(r4.status, 'engine_upgrade_required');
+    assert.strictEqual(ctrl.getActiveVersion(), samplePack.packVersion);
+
+    // 2e. Stale cache guard: newer local built-in baseline ignores older cached OTA pack
+    const newerCtrl = createOtaController({
+      electron: null,
+      cacheDir: tmpCacheDir,
+      baseUrls,
+      minDictCount: 1,
+      minAttrCount: 1,
+      builtinMeta: {
+        schemaVersion: 1,
+        engineVersion: '0.2.5',
+        packVersion: '2027.01.01.000000',
+        builtAt: '2027-01-01T00:00:00.000Z'
+      },
+      env: {}
+    });
+    assert.strictEqual(newerCtrl.loadCachedPackSync(), null, 'Stale OTA cache older than built-in baseline must be ignored');
+
+    // 2f. ANTIGRAVITY_I18N_NO_OTA=1 completely disables network calls
+    const disabledCtrl = createOtaController({
+      electron: null,
+      cacheDir: tmpCacheDir,
+      baseUrls,
+      fetchText: () => { throw new Error('Should never fetch when NO_OTA=1'); },
+      env: { ANTIGRAVITY_I18N_NO_OTA: '1' }
+    });
+    const rDisabled = await disabledCtrl.checkForUpdates({ manual: false });
+    assert.strictEqual(rDisabled.status, 'disabled');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(tmpCacheDir, { recursive: true, force: true });
+  }
+}
+
+Promise.resolve()
+  .then(() => runVerification())
+  .then(() => runOtaControllerVerification())
+  .then(() => {
+    console.log('OTA CONTROLLER & HOT-RELOAD VERIFICATION PASSED!');
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

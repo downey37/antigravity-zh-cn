@@ -8,7 +8,9 @@ function antigravityI18nBootstrap(
   PRESERVE_LIST,
   DYNAMIC_RULES_FACTORY,
   CONTEXT_RULES_FACTORY,
-  SPLIT_TEXT_TRANSLATOR
+  SPLIT_TEXT_TRANSLATOR,
+  INITIAL_OTA_RULES,
+  BUILTIN_META
 ) {
   'use strict';
 
@@ -30,36 +32,91 @@ function antigravityI18nBootstrap(
       .trim();
   }
 
-  const PRESERVE_SET = new Set(PRESERVE_LIST);
+  const PRESERVE_SET = new Set();
   const EXACT_MAP = new Map();
   const LOWER_EXACT = new Map();
   const NORM_EXACT = new Map();
   const NORM_LOWER = new Map();
-
-  for (const [k, v] of Object.entries(EXACT_DICT)) {
-    EXACT_MAP.set(k, v);
-    const lk = k.toLowerCase().trim();
-    if (!LOWER_EXACT.has(lk)) LOWER_EXACT.set(lk, v);
-    const nk = normalizeKey(k);
-    if (nk) {
-      if (!NORM_EXACT.has(nk)) NORM_EXACT.set(nk, v);
-      const nkl = nk.toLowerCase();
-      if (!NORM_LOWER.has(nkl)) NORM_LOWER.set(nkl, v);
-    }
-  }
-
   const ATTR_MAP = new Map();
   const NORM_ATTR = new Map();
   const NORM_ATTR_LOWER = new Map();
-  for (const [k, v] of Object.entries(ATTR_DICT)) {
-    ATTR_MAP.set(k, v);
-    const nk = normalizeKey(k);
-    if (nk) {
-      if (!NORM_ATTR.has(nk)) NORM_ATTR.set(nk, v);
-      const nkl = nk.toLowerCase();
-      if (!NORM_ATTR_LOWER.has(nkl)) NORM_ATTR_LOWER.set(nkl, v);
+  let OTA_DYNAMIC_RULES = [];
+
+  function compileOtaRules(rawRules) {
+    const compiled = [];
+    if (!Array.isArray(rawRules)) return compiled;
+    const limit = Math.min(rawRules.length, 200);
+    for (let i = 0; i < limit; i++) {
+      const r = rawRules[i];
+      if (!r || typeof r !== 'object') continue;
+      if (typeof r.pattern !== 'string' || !r.pattern || r.pattern.length > 240) continue;
+      if (typeof r.replace !== 'string' || r.replace.length > 240) continue;
+      const flags = r.flags === undefined ? 'i' : String(r.flags);
+      if (!/^[iu]*$/.test(flags)) continue;
+      if (/\([^)]*[+*][^)]*\)[+*{]/.test(r.pattern)) continue;
+      try {
+        const re = new RegExp(r.pattern, flags);
+        compiled.push({
+          re,
+          replace: r.replace,
+          requireAscii: r.requireAscii !== false
+        });
+      } catch (_) {}
     }
+    return compiled;
   }
+
+  function rebuildDictIndexes(nextDict, nextAttrDict, nextPreserveList, nextRules) {
+    PRESERVE_SET.clear();
+    if (Array.isArray(nextPreserveList)) {
+      for (let i = 0; i < nextPreserveList.length; i++) {
+        if (typeof nextPreserveList[i] === 'string' && nextPreserveList[i]) {
+          PRESERVE_SET.add(nextPreserveList[i]);
+        }
+      }
+    }
+
+    EXACT_MAP.clear();
+    LOWER_EXACT.clear();
+    NORM_EXACT.clear();
+    NORM_LOWER.clear();
+    if (nextDict && typeof nextDict === 'object') {
+      for (const [k, v] of Object.entries(nextDict)) {
+        if (typeof v !== 'string' || PRESERVE_SET.has(k)) continue;
+        EXACT_MAP.set(k, v);
+        const lk = k.toLowerCase().trim();
+        if (!LOWER_EXACT.has(lk)) LOWER_EXACT.set(lk, v);
+        const nk = normalizeKey(k);
+        if (nk) {
+          if (!NORM_EXACT.has(nk)) NORM_EXACT.set(nk, v);
+          const nkl = nk.toLowerCase();
+          if (!NORM_LOWER.has(nkl)) NORM_LOWER.set(nkl, v);
+        }
+      }
+    }
+
+    ATTR_MAP.clear();
+    NORM_ATTR.clear();
+    NORM_ATTR_LOWER.clear();
+    if (nextAttrDict && typeof nextAttrDict === 'object') {
+      for (const [k, v] of Object.entries(nextAttrDict)) {
+        if (typeof v !== 'string' || PRESERVE_SET.has(k)) continue;
+        ATTR_MAP.set(k, v);
+        const nk = normalizeKey(k);
+        if (nk) {
+          if (!NORM_ATTR.has(nk)) NORM_ATTR.set(nk, v);
+          const nkl = nk.toLowerCase();
+          if (!NORM_ATTR_LOWER.has(nkl)) NORM_ATTR_LOWER.set(nkl, v);
+        }
+      }
+    }
+
+    OTA_DYNAMIC_RULES = compileOtaRules(nextRules);
+  }
+
+  rebuildDictIndexes(EXACT_DICT, ATTR_DICT, PRESERVE_LIST, INITIAL_OTA_RULES);
+  window.__ANTIGRAVITY_I18N_META__ = BUILTIN_META && typeof BUILTIN_META === 'object' ? { ...BUILTIN_META } : { schemaVersion: 1 };
+  window.__ANTIGRAVITY_I18N_PACK_VERSION__ = window.__ANTIGRAVITY_I18N_META__.packVersion || 'builtin';
 
   function lookupExact(trimmed, norm) {
     if (EXACT_MAP.has(trimmed)) return EXACT_MAP.get(trimmed);
@@ -237,11 +294,22 @@ function antigravityI18nBootstrap(
       }
     }
 
-    // 2. 动态模板正则匹配
+    // 2. 动态模板正则匹配（内置动态规则 + 云端 OTA 声明式正则规则）
     for (let i = 0; i < DYNAMIC_RULES.length; i++) {
       const rule = DYNAMIC_RULES[i];
       if (rule[0].test(norm)) {
         const res = norm.replace(rule[0], rule[1]);
+        if (res !== norm) {
+          return leadWs + res + trailWs;
+        }
+      }
+    }
+    const hasCjk = /[\u4e00-\u9fff]/.test(norm);
+    for (let i = 0; i < OTA_DYNAMIC_RULES.length; i++) {
+      const rule = OTA_DYNAMIC_RULES[i];
+      if (rule.requireAscii && hasCjk) continue;
+      if (rule.re.test(norm)) {
+        const res = norm.replace(rule.re, rule.replace);
         if (res !== norm) {
           return leadWs + res + trailWs;
         }
@@ -400,9 +468,81 @@ function antigravityI18nBootstrap(
       for (let child = node.firstChild; child; child = child.nextSibling) {
         translateNode(child);
       }
+
+      if (
+        node.matches &&
+        (node.matches('[data-testid="title-menu-bar-option"], [data-browser-occluder="true"]') ||
+          (node.closest && node.closest('[data-testid="title-menu-bar"]')))
+      ) {
+        ensureTitleBarOtaMenuItem(node);
+      }
     } else if (node.nodeType === 11) {
       for (let child = node.firstChild; child; child = child.nextSibling) {
         translateNode(child);
+      }
+    }
+  }
+
+  function ensureTitleBarOtaMenuItem(rootEl) {
+    if (
+      typeof document === 'undefined' ||
+      typeof document.createElement !== 'function' ||
+      !window.antigravityI18nOta ||
+      typeof window.antigravityI18nOta.checkForUpdates !== 'function'
+    ) {
+      return;
+    }
+    const candidates = [];
+    if (rootEl && rootEl.nodeType === 1) {
+      if (rootEl.matches && rootEl.matches('[data-testid="title-menu-bar-option"]')) {
+        candidates.push(rootEl);
+      } else if (rootEl.querySelectorAll) {
+        const list = rootEl.querySelectorAll('[data-testid="title-menu-bar-option"]');
+        for (let i = 0; i < list.length; i++) candidates.push(list[i]);
+      }
+    }
+    for (let i = 0; i < candidates.length; i++) {
+      const optBtn = candidates[i];
+      if (!optBtn || !optBtn.closest || !optBtn.closest('[data-testid="title-menu-bar"]')) continue;
+      if (optBtn.getAttribute && optBtn.getAttribute('data-antigravity-i18n-ota-item') === 'true') continue;
+      const label = (optBtn.textContent || '').trim();
+      if (label !== '检查更新' && label !== 'Check for Updates') continue;
+      const itemWrapper = optBtn.parentElement;
+      const menuPopup = itemWrapper && itemWrapper.parentElement;
+      if (!menuPopup) continue;
+      if (menuPopup.querySelector && menuPopup.querySelector('[data-antigravity-i18n-ota-item="true"]')) continue;
+
+      const wrapper = document.createElement('div');
+      const btn = document.createElement('button');
+      btn.setAttribute('type', 'button');
+      btn.setAttribute('data-testid', 'title-menu-bar-option');
+      btn.setAttribute('data-antigravity-i18n-ota-item', 'true');
+      btn.className = optBtn.className || 'w-full px-3 py-1.5 text-left transition-colors flex justify-between items-center duration-100 select-none outline-none cursor-default hover:bg-secondary';
+      const span = document.createElement('span');
+      if (typeof document.createTextNode === 'function') {
+        span.appendChild(document.createTextNode('检查汉化更新'));
+      } else {
+        span.textContent = '检查汉化更新';
+      }
+      btn.appendChild(span);
+      if (typeof btn.addEventListener === 'function') {
+        btn.addEventListener('click', (ev) => {
+          if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+          try {
+            if (typeof KeyboardEvent === 'function' && typeof document.dispatchEvent === 'function') {
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            }
+          } catch (_) {}
+          try {
+            Promise.resolve(window.antigravityI18nOta.checkForUpdates()).catch(() => {});
+          } catch (_) {}
+        });
+      }
+      wrapper.appendChild(btn);
+      if (itemWrapper.nextSibling) {
+        menuPopup.insertBefore(wrapper, itemWrapper.nextSibling);
+      } else {
+        menuPopup.appendChild(wrapper);
       }
     }
   }
@@ -414,10 +554,38 @@ function antigravityI18nBootstrap(
 
   window.__antigravityTranslateString = translateString;
   window.__antigravityTranslateAll = function () {
-    const root = document.documentElement || document.body;
+    const root = typeof document !== 'undefined' ? (document.documentElement || document.body) : null;
     if (root) {
       translateSubtree(root);
     }
+  };
+  window.__antigravityApplyOtaPack = function (pack) {
+    if (!pack || typeof pack !== 'object') return false;
+    if (!pack.dictionary || typeof pack.dictionary !== 'object' || Array.isArray(pack.dictionary)) return false;
+    if (!pack.attrDict || typeof pack.attrDict !== 'object' || Array.isArray(pack.attrDict)) return false;
+    if (typeof pack.packVersion === 'string' && pack.packVersion && window.__ANTIGRAVITY_I18N_PACK_VERSION__ === pack.packVersion) {
+      return false;
+    }
+    const nextPreserve = Array.isArray(pack.preserveList) ? pack.preserveList : PRESERVE_LIST;
+    rebuildDictIndexes(pack.dictionary, pack.attrDict, nextPreserve, Array.isArray(pack.rules) ? pack.rules : []);
+    if (typeof pack.packVersion === 'string' && pack.packVersion) {
+      window.__ANTIGRAVITY_I18N_PACK_VERSION__ = pack.packVersion;
+    }
+    window.__ANTIGRAVITY_I18N_META__ = {
+      ...(window.__ANTIGRAVITY_I18N_META__ || {}),
+      packVersion: window.__ANTIGRAVITY_I18N_PACK_VERSION__,
+      builtAt: pack.builtAt || (window.__ANTIGRAVITY_I18N_META__ && window.__ANTIGRAVITY_I18N_META__.builtAt) || '',
+      dictCount: EXACT_MAP.size,
+      attrCount: ATTR_MAP.size,
+      ruleCount: OTA_DYNAMIC_RULES.length
+    };
+    try {
+      window.__antigravityTranslateAll();
+      if (typeof document !== 'undefined' && document.querySelectorAll) {
+        translatePortals();
+      }
+    } catch (_) {}
+    return true;
   };
 
   const observedRoots = new WeakSet();
@@ -733,7 +901,7 @@ function antigravityI18nBootstrap(
     }
   }
 
-  console.log('[Antigravity-i18n] 全量确定性汉化引擎已就绪 (' + Object.keys(EXACT_DICT).length + ' 词条)！');
+  console.log('[Antigravity-i18n] 全量确定性汉化引擎已就绪 (' + EXACT_MAP.size + ' 词条)！');
 }
 
 if (typeof module !== 'undefined') {

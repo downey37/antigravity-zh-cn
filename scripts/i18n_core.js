@@ -11,6 +11,18 @@ const asarPath = path.join(installDir, 'app.asar');
 const projectRoot = path.resolve(__dirname, '..');
 const buildDir = path.join(projectRoot, 'build');
 
+function readPatchMeta() {
+  let patchVersion = 'unknown';
+  let baselineVersion = 'unknown';
+  try {
+    patchVersion = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).version || 'unknown';
+  } catch (_) {}
+  try {
+    baselineVersion = JSON.parse(fs.readFileSync(path.join(projectRoot, 'assets', 'baseline', 'version.json'), 'utf8')).version || 'unknown';
+  } catch (_) {}
+  return { patchVersion, baselineVersion };
+}
+
 function hasAnyPatchArtifacts(targetAsar = asarPath) {
   if (!fs.existsSync(targetAsar)) return false;
   try {
@@ -39,10 +51,12 @@ function isAsarPatched(targetAsar = asarPath) {
     try { asar.uncache(targetAsar); } catch (_) {}
     const i18nStat = asar.statFile(targetAsar, path.join('dist', 'i18n.js'));
     if (!i18nStat) return false;
+    const otaStat = asar.statFile(targetAsar, path.join('dist', 'i18n_ota.js'));
+    if (!otaStat) return false;
     const menuBuf = asar.extractFile(targetAsar, path.join('dist', 'menu.js'));
-    if (!menuBuf.includes('translateMenuRecursively')) return false;
+    if (!menuBuf.includes('translateMenuRecursively') || !menuBuf.includes('antigravity-i18n-check-update')) return false;
     const utilsBuf = asar.extractFile(targetAsar, path.join('dist', 'utils.js'));
-    if (!utilsBuf.includes('__antigravityTranslateAll') || !utilsBuf.includes('did-frame-finish-load')) return false;
+    if (!utilsBuf.includes('__antigravityTranslateAll') || !utilsBuf.includes('did-frame-finish-load') || !utilsBuf.includes('_getAntigravityI18nOta')) return false;
     const updaterBuf = asar.extractFile(targetAsar, path.join('dist', 'updater.js'));
     return updaterBuf.includes('spawnAutoPatcherOnUpdate');
   } catch (_) {
@@ -100,8 +114,9 @@ function detectUnpackedDirs(targetAsar) {
  */
 async function patchAsar() {
   const startTime = Date.now();
+  const { patchVersion, baselineVersion } = readPatchMeta();
   console.log('==========================================');
-  console.log('  Antigravity 高性能极速自愈补丁引擎      ');
+  console.log(`  Antigravity 简体中文补丁 v${patchVersion} (适配基线 v${baselineVersion})`);
   console.log('==========================================');
 
   if (!fs.existsSync(asarPath)) {
@@ -120,6 +135,10 @@ async function patchAsar() {
   try {
     currentVersion = JSON.parse(asar.extractFile(asarPath, 'package.json').toString('utf8')).version || 'unknown';
   } catch (_) {}
+
+  if (currentVersion !== 'unknown' && baselineVersion !== 'unknown' && currentVersion !== baselineVersion) {
+    console.log(`[提示] 当前安装的 Antigravity 为 v${currentVersion}，本补丁适配基线为 v${baselineVersion}；若发现少量新增英文，可运行 npm run scan 扫漏跟版。`);
+  }
 
   const hasPatchedFiles = hasAnyPatchArtifacts(asarPath);
   if (hasPatchedFiles && fs.existsSync(backupAsar) && !hasAnyPatchArtifacts(backupAsar)) {
@@ -168,12 +187,13 @@ async function patchAsar() {
 
   console.log('[2/4] 正在动态植入核心钩子...');
 
-  // 1. 注入 utils.js (模块级缓存 + DOM-ready 零延迟引擎加载 + 内部/插件 subframe 注入，严格隔离外部网页与用户本地预览)
+  // 1. 注入 utils.js (模块级缓存 + DOM-ready 零延迟引擎加载 + OTA 词库热同步 + 内部/插件 subframe 注入，严格隔离外部网页与用户本地预览)
   patchFile(tempDir, 'dist/utils.js', (code) => {
     if (
       code.includes('did-frame-finish-load') &&
       code.includes('__antigravityTranslateAll') &&
       code.includes('_getAntigravityI18nCode') &&
+      code.includes('_getAntigravityI18nOta') &&
       code.indexOf('function _getAntigravityI18nCode') < code.indexOf('function createWindow')
     ) {
       return code;
@@ -189,15 +209,36 @@ function _getAntigravityI18nCode() {
     }
     return _cachedAntigravityI18nCode;
 }
+let _cachedAntigravityI18nOta = undefined;
+function _getAntigravityI18nOta() {
+    if (_cachedAntigravityI18nOta === undefined) {
+        try {
+            _cachedAntigravityI18nOta = require('./i18n_ota');
+        } catch (_) {
+            _cachedAntigravityI18nOta = null;
+        }
+    }
+    return _cachedAntigravityI18nOta;
+}
 `;
     const hook = `
     const _i18nWc = typeof hubContents !== 'undefined' ? hubContents : win.webContents;
     if (_i18nWc) {
+        const _i18nOta = _getAntigravityI18nOta();
+        if (_i18nOta) {
+            _i18nOta.registerWebContents(_i18nWc);
+            _i18nOta.startBackgroundSync();
+        }
         _i18nWc.on('dom-ready', () => {
             if (_i18nWc.isDestroyed && _i18nWc.isDestroyed()) return;
             const code = _getAntigravityI18nCode();
             if (code) {
-                _i18nWc.executeJavaScript(code).catch(console.error);
+                _i18nWc.executeJavaScript(code)
+                    .then(() => {
+                        const ota = _getAntigravityI18nOta();
+                        if (ota) ota.applyCachedPackToWebContents(_i18nWc);
+                    })
+                    .catch(console.error);
             }
         });
         _i18nWc.on('did-finish-load', () => {
@@ -212,7 +253,15 @@ function _getAntigravityI18nCode() {
             \`).then((ran) => {
                 if (!ran && !(_i18nWc.isDestroyed && _i18nWc.isDestroyed())) {
                     const code = _getAntigravityI18nCode();
-                    if (code) _i18nWc.executeJavaScript(code).catch(console.error);
+                    if (code) {
+                        return _i18nWc.executeJavaScript(code).then(() => {
+                            const ota = _getAntigravityI18nOta();
+                            if (ota) ota.applyCachedPackToWebContents(_i18nWc);
+                        });
+                    }
+                } else if (ran) {
+                    const ota = _getAntigravityI18nOta();
+                    if (ota) ota.applyCachedPackToWebContents(_i18nWc);
                 }
             }).catch(console.error);
         });
@@ -233,7 +282,12 @@ function _getAntigravityI18nCode() {
                 ) {
                     const i18nCode = _getAntigravityI18nCode();
                     if (i18nCode) {
-                        frame.executeJavaScript(i18nCode).catch(() => {});
+                        frame.executeJavaScript(i18nCode)
+                            .then(() => {
+                                const ota = _getAntigravityI18nOta();
+                                if (ota) ota.applyCachedPackToFrame(frame);
+                            })
+                            .catch(() => {});
                     }
                 }
             } catch (_) {}
@@ -253,16 +307,29 @@ function _getAntigravityI18nCode() {
     return next.replace(/void\s+win\.loadURL\(url\);/, (matched) => `${hook}\n    ${matched}`);
   });
   const utilsPatched = fs.readFileSync(path.join(tempDir, 'dist', 'utils.js'), 'utf8');
-  if (utilsPatched.includes('__antigravityTranslateAll') && utilsPatched.includes('did-frame-finish-load')) {
-    console.log(' - utils.js 零延迟引擎与插件框架注入完成');
+  if (utilsPatched.includes('__antigravityTranslateAll') && utilsPatched.includes('did-frame-finish-load') && utilsPatched.includes('_getAntigravityI18nOta')) {
+    console.log(' - utils.js 零延迟引擎、OTA 热同步与插件框架注入完成');
   } else {
     console.warn(' [警告] utils.js 注入钩子未命中，请检查官方代码是否变更！');
   }
 
-  // 2. 注入 menu.js (系统菜单栏递归翻译 + 异步 WSL 菜单兼容 + 已打补丁增量升级)
+  // 2. 注入 menu.js (系统菜单栏递归翻译 + 异步 WSL 菜单兼容 + 已打补丁增量升级 + OTA 手动检查入口)
   if (patchFile(tempDir, 'dist/menu.js', (code) => {
+    const otaMenuItemCode = `
+    addItemToSubmenu(menu, 'Help', 1, new electron_1.MenuItem({
+        id: 'antigravity-i18n-check-update',
+        label: '检查汉化更新',
+        click: async () => {
+            try {
+                const ota = require('./i18n_ota');
+                await ota.checkForUpdates({ manual: true });
+            } catch (err) {
+                console.error('[Antigravity-i18n] 手动检查汉化更新失败:', err);
+            }
+        },
+    }));`;
     if (code.includes('MENU_I18N')) {
-      return applyPairs(code, [
+      let upgraded = applyPairs(code, [
         [/'Toggle Full Screen':\s*'全屏模式'/g, "'Toggle Full Screen': '切换全屏'"],
         [/'Toggle Fullscreen':\s*'全屏模式'/g, "'Toggle Fullscreen': '切换全屏'"],
         [/'Zoom':\s*'最大化\/缩放'/g, "'Zoom': '缩放'"],
@@ -270,6 +337,13 @@ function _getAntigravityI18nCode() {
         [/'Update Available':\s*'发现可用更新'/g, "'Update Available': '有可用更新'"],
         [/label:\s*'文档指南'/g, "label: '文档'"]
       ]);
+      if (!upgraded.includes('antigravity-i18n-check-update')) {
+        upgraded = upgraded.replace(
+          /(addItemToSubmenu\(menu,\s*'Help',\s*0,\s*new electron_1\.MenuItem\(\{[\s\S]*?\}\)\);)/,
+          `$1${otaMenuItemCode}`
+        );
+      }
+      return upgraded;
     }
     const menuHook = `
 const MENU_I18N = {
@@ -301,13 +375,14 @@ function translateMenuRecursively(menu) {
       [/(exports\.setupApplicationMenu\s*=\s*setupApplicationMenu;)/, `$1\n${menuHook}`],
       [/label:\s*'New Window'/g, "label: '新建窗口'"],
       [/label:\s*'Docs'/g, "label: '文档'"],
+      [/(addItemToSubmenu\(menu,\s*'Help',\s*0,\s*new electron_1\.MenuItem\(\{[\s\S]*?\}\)\);)/, `$1${otaMenuItemCode}`],
       [/label:\s*'Connect to WSL'/g, "label: '连接到 WSL'"],
       [/label:\s*'Reopen Locally'/g, "label: '在本地重新打开'"],
       [/appMenu\.items\.find\(\(item\)\s*=>\s*item\.label\s*===\s*submenuLabel\)/g, "appMenu.items.find((item) => item.label === submenuLabel || (MENU_I18N[submenuLabel] && item.label === MENU_I18N[submenuLabel]))"],
       [/electron_1\.Menu\.setApplicationMenu\(menu\);/g, "{ translateMenuRecursively(menu); electron_1.Menu.setApplicationMenu(menu); }"]
     ]);
   })) {
-    console.log(' - menu.js 菜单递归汉化与 WSL 子菜单修复完成');
+    console.log(' - menu.js 菜单递归汉化、WSL 子菜单与 OTA 更新入口注入完成');
   }
 
   // 3. 注入 tray.js
@@ -318,24 +393,56 @@ function translateMenuRecursively(menu) {
     console.log(' - tray.js 托盘文字汉化完成');
   }
 
-  // 4. 注入 main.js
-  if (patchFile(tempDir, 'dist/main.js', (code) => applyPairs(code, [
-    [/label:\s*'New Window'/g, "label: '新建窗口'"],
-    [/label:\s*'(?:No agents running|当前无运行中的智能体)'/g, "label: '暂无运行中的智能体'"],
-    [/label:\s*`Open \$\{electron_1\.app\.getName\(\)\}`/g, "label: `打开 ${electron_1.app.getName()}`"],
-    [/label:\s*'Quit'/g, "label: '退出'"],
-    [/buttons:\s*\['Cancel',\s*'Quit'\]/g, "buttons: ['取消', '退出']"],
-    [/title:\s*'Confirm Quit'/g, "title: '确认退出'"],
-    [/message:\s*'Are you sure you want to quit\?'/g, "message: '确定要退出吗？'"],
-    [/detail:\s*'There may be agents or background tasks running\.'/g, "detail: '当前可能有智能体或后台任务正在运行。'"],
-    [/showErrorBox\('Binary not found'/g, "showErrorBox('未找到核心程序'"],
-    [/title:\s*'WSL distro not found'/g, "title: '未找到 WSL 发行版'"],
-    [/message:\s*`(?:The WSL distro "\$\{WSL_DISTRO\}" is no longer installed\.|WSL 发行版“\$\{WSL_DISTRO\}”已不再安装。)`/g, "message: `WSL 发行版“${WSL_DISTRO}”未安装或已被卸载。`"],
-    [/detail:\s*'Antigravity opened on Windows instead\.'/g, "detail: '已改为在 Windows 本地打开 Antigravity。'"],
-    [/showErrorBox\('WSL setup failed'/g, "showErrorBox('WSL 配置失败'"],
-    [/showErrorBox\('Startup failed'/g, "showErrorBox('启动失败'"]
-  ]))) {
-    console.log(' - main.js 托盘初始项与系统弹窗汉化完成');
+  // 4. 注入 main.js (托盘初始项、系统弹窗与托盘右键“检查汉化更新”入口)
+  if (patchFile(tempDir, 'dist/main.js', (code) => {
+    let next = applyPairs(code, [
+      [/label:\s*'New Window'/g, "label: '新建窗口'"],
+      [/label:\s*'(?:No agents running|当前无运行中的智能体)'/g, "label: '暂无运行中的智能体'"],
+      [/label:\s*`Open \$\{electron_1\.app\.getName\(\)\}`/g, "label: `打开 ${electron_1.app.getName()}`"],
+      [/label:\s*'Quit'/g, "label: '退出'"],
+      [/buttons:\s*\['Cancel',\s*'Quit'\]/g, "buttons: ['取消', '退出']"],
+      [/title:\s*'Confirm Quit'/g, "title: '确认退出'"],
+      [/message:\s*'Are you sure you want to quit\?'/g, "message: '确定要退出吗？'"],
+      [/detail:\s*'There may be agents or background tasks running\.'/g, "detail: '当前可能有智能体或后台任务正在运行。'"],
+      [/showErrorBox\('Binary not found'/g, "showErrorBox('未找到核心程序'"],
+      [/title:\s*'WSL distro not found'/g, "title: '未找到 WSL 发行版'"],
+      [/message:\s*`(?:The WSL distro "\$\{WSL_DISTRO\}" is no longer installed\.|WSL 发行版“\$\{WSL_DISTRO\}”已不再安装。)`/g, "message: `WSL 发行版“${WSL_DISTRO}”未安装或已被卸载。`"],
+      [/detail:\s*'Antigravity opened on Windows instead\.'/g, "detail: '已改为在 Windows 本地打开 Antigravity。'"],
+      [/showErrorBox\('WSL setup failed'/g, "showErrorBox('WSL 配置失败'"],
+      [/showErrorBox\('Startup failed'/g, "showErrorBox('启动失败'"]
+    ]);
+    if (!next.includes('antigravity-i18n-check-update')) {
+      const trayOtaItem = `{
+                id: 'antigravity-i18n-check-update',
+                label: '检查汉化更新',
+                click: () => {
+                    try {
+                        void require('./i18n_ota').checkForUpdates({ manual: true });
+                    } catch (err) {
+                        console.error('[Antigravity-i18n] 托盘检查汉化更新失败:', err);
+                    }
+                },
+            },
+            `;
+      next = next.replace(
+        /(\{\s*label:\s*'退出',\s*click:\s*\(\)\s*=>\s*\{)/,
+        `${trayOtaItem}$1`
+      );
+    }
+    return next;
+  })) {
+    console.log(' - main.js 托盘初始项、系统弹窗与托盘 OTA 入口汉化完成');
+  }
+
+  // 4.5 注入 preload.js（仅本地窗口暴露安全的 OTA 手动检查 IPC 通道）
+  if (patchFile(tempDir, 'dist/preload.js', (code) => {
+    if (code.includes('antigravityI18nOta')) return code;
+    return code.replace(
+      /(electron_1\.contextBridge\.exposeInMainWorld\('electronUpdater',\s*updaterAPI\);)/,
+      `$1\n    electron_1.contextBridge.exposeInMainWorld('antigravityI18nOta', {\n        checkForUpdates: () => electron_1.ipcRenderer.invoke('i18n-ota:check-updates'),\n    });`
+    );
+  })) {
+    console.log(' - preload.js OTA 手动检查桥接注入完成');
   }
 
   // 5. 注入 updater.js（菜单更新文案 + quitAndInstall / will-quit 自愈唤醒钩子）
@@ -433,6 +540,12 @@ function spawnAutoPatcherOnUpdate(shouldRelaunch = true) {
         '$1(0, updater_1.quitAndInstall)();$2'
       ]
     ]);
+    if (!next.includes('i18n-ota:check-updates')) {
+      next = next.replace(
+        /(localOnly\('updater:check-for-updates',\s*\(\)\s*=>\s*\{[\s\S]*?\}\);)/,
+        `$1\n    localOnly('i18n-ota:check-updates', () => {\n        try {\n            return require('./i18n_ota').checkForUpdates({ manual: true });\n        } catch (err) {\n            console.error('[Antigravity-i18n] IPC 检查汉化更新失败:', err);\n            return { status: 'error', error: String((err && err.message) || err) };\n        }\n    });`
+      );
+    }
     if (!next.includes('translateContextMenuLabel')) {
       const ctxMenuHelper = `let _nativeContextDict = null;
 let _nativeContextLower = null;
@@ -453,13 +566,20 @@ function translateContextMenuLabel(rawLabel) {
             }
         }
         const trimmed = rawLabel.trim();
-        if (_nativeContextDict.has(trimmed)) return _nativeContextDict.get(trimmed);
+        let otaMaps = null;
+        try {
+            const ota = require('./i18n_ota');
+            otaMaps = ota && typeof ota.getNativeContextDict === 'function' ? ota.getNativeContextDict() : null;
+        } catch (_) {}
+        const exactMap = (otaMaps && otaMaps.exactMap) || _nativeContextDict;
+        const lowerMap = (otaMaps && otaMaps.lowerMap) || _nativeContextLower;
+        if (exactMap.has(trimmed)) return exactMap.get(trimmed);
         const low = trimmed.toLowerCase();
-        if (_nativeContextLower.has(low)) return _nativeContextLower.get(low);
+        if (lowerMap.has(low)) return lowerMap.get(low);
         const defMatch = trimmed.match(/^(.+?)\\s+\\(Default\\)$/i);
         if (defMatch) {
             const base = defMatch[1].trim();
-            const baseZh = _nativeContextDict.get(base) || _nativeContextLower.get(base.toLowerCase()) || base;
+            const baseZh = exactMap.get(base) || lowerMap.get(base.toLowerCase()) || base;
             return \`\${baseZh}（默认）\`;
         }
     } catch (_) {}
@@ -720,11 +840,17 @@ function translateContextMenuLabel(rawLabel) {
     console.log(` - 其余主进程弹窗与远程页面补丁完成 (${extraMainPatched} 个模块)`);
   }
 
-  // 8. 编译并写入前端 i18n 引擎与原生菜单字典至打包临时目录
+  // 8. 编译并写入前端 i18n 引擎、主进程 OTA 热更新模块与原生菜单字典至打包临时目录
   const { buildEngine, cleanDictObject } = require('./build_clean_engine');
-  const { engineScript, dictCount } = buildEngine();
-  console.log(`[3/4] 正在内联生成 ${dictCount || '全量'} 词条确定性引擎...`);
+  const { engineScript, dictCount, builtinMeta } = buildEngine();
+  console.log(`[3/4] 正在内联生成 ${dictCount || '全量'} 词条确定性引擎与 OTA 热更模块...`);
   fs.writeFileSync(path.join(tempDir, 'dist', 'i18n.js'), engineScript, 'utf8');
+  fs.writeFileSync(path.join(tempDir, 'dist', 'i18n_meta.json'), JSON.stringify(builtinMeta, null, 2) + '\n', 'utf8');
+  const otaMainSrc = path.join(__dirname, 'ota', 'i18n_ota_main.js');
+  if (!fs.existsSync(otaMainSrc)) {
+    throw new Error(`未找到主进程 OTA 模块: ${otaMainSrc}`);
+  }
+  fs.copyFileSync(otaMainSrc, path.join(tempDir, 'dist', 'i18n_ota.js'));
   const preserveList = JSON.parse(fs.readFileSync(path.join(projectRoot, 'assets', 'preserve_list.json'), 'utf8'));
   const rawDict = JSON.parse(fs.readFileSync(path.join(projectRoot, 'assets', 'dictionary.json'), 'utf8'));
   const cleanedDict = cleanDictObject(rawDict, preserveList);
@@ -753,7 +879,7 @@ function translateContextMenuLabel(rawLabel) {
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
   console.log('==========================================');
-  console.log(`  成功！Antigravity v${version} 汉化完成 (耗时: ${duration}s) `);
+  console.log(`  成功！Antigravity v${version} 汉化完成 [补丁 v${patchVersion}] (耗时: ${duration}s) `);
   console.log('==========================================');
 }
 
