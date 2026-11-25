@@ -687,6 +687,35 @@ function runVerification() {
   assert.strictEqual(api.translateString('Type your own answer'), '输入你自己的回答');
   assert.strictEqual(api.translateString('Search by name or username'), '按姓名或用户名搜索');
 
+  // 3h. Customizations marketplace shelves, categories, plugin descriptions, suggested prompts & builtin skills
+  assert.strictEqual(api.translateString('Featured'), '精选');
+  assert.strictEqual(api.translateString('Design, Creative & Media'), '设计、创意与媒体');
+  assert.strictEqual(
+    api.translateString('Plan work, track issues, sign documents, and manage your notes and files.'),
+    '规划工作、追踪议题、签署文档以及管理笔记与文件。'
+  );
+  assert.strictEqual(api.translateString('Read, draft, and edit docs.'), '读取、起草并编辑 Google Docs 文档。');
+  assert.strictEqual(
+    api.translateString('Create, edit, review, resize, and brand-check Canva designs with the Canva MCP server.'),
+    '通过 Canva MCP 服务创建、编辑、审阅、调整尺寸并检查 Canva 设计的品牌规范一致性。'
+  );
+  assert.strictEqual(
+    api.translateString('Build, deploy and manage apps on Cloudflare Workers, storage and AI, with platform skills and the Cloudflare API through one MCP server.'),
+    '通过统一 MCP 服务与平台技能，使用 Cloudflare API 在 Cloudflare Workers、存储与 AI 平台上构建、部署及管理应用。'
+  );
+  assert.strictEqual(
+    api.translateString('Deploy this project to Cloudflare Workers'),
+    '将此项目部署到 Cloudflare Workers'
+  );
+  assert.strictEqual(
+    api.translateString('ONLY for the coordinator of an active /swarm session. What the coordinator writes so the Swarm UI\'s Overview can show the swarm\'s goal, its groups of work and a screenshot timeline; load it before you brief and add the first workers. Outside /swarm, do not load this.'),
+    '仅限活跃 /swarm 会话的协调器使用。用于写入蜂群界面「概览」所需的蜂群目标、工作分组及截图时间线；请在向首批工作节点派发任务并添加前加载。非 /swarm 会话请勿加载。'
+  );
+  assert.strictEqual(
+    api.translateString('Manage local Antigravity conversations programmatically over HTTP+JSON: create a new conversation (with an optional initial prompt), list conversations, read conversation metadata and run state, rename, archive, pin, star, tag, or group conversations, and delete conversations. Use when the user asks to list, rename, pin, star, archive, delete, or start conversations, including the current one, or when a script, plugin, or automation needs to manage conversations outside of subagent tool calls.'),
+    '通过 HTTP+JSON 以编程方式管理本地 Antigravity 会话：创建新会话（可选附带初始提示词）、列出会话、读取会话元数据与运行状态、重命名、归档、置顶、标星、添加标签、分组以及删除会话。当用户要求列出、重命名、置顶、标星、归档、删除或启动会话（包括当前会话），或脚本、插件与自动化任务需要在子智能体工具调用之外管理会话时使用。'
+  );
+
   // 3d. v2.33.0 Keyboard Shortcuts & Keybinding Scheme translations
   assert.strictEqual(api.translateString('Keybinding Scheme'), '按键绑定方案');
   assert.strictEqual(api.translateString('VS Code Default'), 'VS Code 默认');
@@ -3274,6 +3303,61 @@ async function runAutoMtVerification() {
     assert(ipcRequests.includes('Unmatched server onboarding guidance message.'), 'p inside onboarding-brand-shell must trigger auto-MT');
     assert(!ipcRequests.includes('locations/global/workforcePools/custom-pool'), '.font-mono inside onboarding-brand-shell must NOT trigger auto-MT');
     assert(!ipcRequests.includes('Raw input placeholder value inside shell'), 'input inside onboarding-brand-shell must NOT trigger auto-MT');
+
+    // 3f. Customizations marketplace & plugin detail auto-MT whitelist positive & negative guards
+    const pluginCard = new DomElement('DIV');
+    pluginCard.setAttribute('data-testid', 'customization-card');
+    const cardTitleWrap = new DomElement('DIV');
+    cardTitleWrap.className = 'font-medium text-foreground truncate';
+    const cardTitleText = makeText('New Future Brand');
+    cardTitleWrap.appendChild(cardTitleText);
+    const cardDescWrap = new DomElement('DIV');
+    cardDescWrap.className = 'text-sm text-muted-foreground truncate';
+    const cardDescText = makeText('Unmatched future plugin description for marketplace cards.');
+    cardDescWrap.appendChild(cardDescText);
+    pluginCard.appendChild(cardTitleWrap);
+    pluginCard.appendChild(cardDescWrap);
+    rootDiv.appendChild(pluginCard);
+    assert(ipcRequests.includes('Unmatched future plugin description for marketplace cards.'), 'customization-card description must trigger auto-MT');
+    assert(!ipcRequests.includes('New Future Brand'), 'customization-card brand name must NOT trigger auto-MT');
+
+    const promptRow = new DomElement('BUTTON');
+    promptRow.setAttribute('data-testid', 'plugin-suggested-prompt-row');
+    const promptSpan = new DomElement('SPAN');
+    const promptText = makeText('Unmatched future suggested prompt for this new plugin.');
+    promptSpan.appendChild(promptText);
+    promptRow.appendChild(promptSpan);
+    rootDiv.appendChild(promptRow);
+    assert(ipcRequests.includes('Unmatched future suggested prompt for this new plugin.'), 'plugin-suggested-prompt-row must trigger auto-MT');
+
+    const marketplaceWrap = new DomElement('DIV');
+    marketplaceWrap.setAttribute('data-testid', 'customizations-marketplace');
+    const shelfSub = new DomElement('P');
+    shelfSub.className = 'text-sm text-muted-foreground';
+    const shelfSubText = makeText('Unmatched future marketplace shelf subtitle text.');
+    shelfSub.appendChild(shelfSubText);
+    marketplaceWrap.appendChild(shelfSub);
+    rootDiv.appendChild(marketplaceWrap);
+    assert(ipcRequests.includes('Unmatched future marketplace shelf subtitle text.'), 'customizations-marketplace shelf subtitle must trigger auto-MT');
+
+    const detailRoot = new DomElement('DIV');
+    detailRoot.setAttribute('data-testid', 'plugin-detail');
+    const detailDesc = new DomElement('P');
+    detailDesc.className = 'text-sm text-muted-foreground';
+    const detailDescText = makeText('Unmatched future plugin detail header description.');
+    detailDesc.appendChild(detailDescText);
+    const readmeMdRoot = new DomElement('DIV');
+    readmeMdRoot.setAttribute('data-markdown-root', 'true');
+    const readmeP = new DomElement('P');
+    readmeP.className = 'text-sm text-muted-foreground';
+    const readmePText = makeText('Unmatched plugin README paragraph inside markdown root.');
+    readmeP.appendChild(readmePText);
+    readmeMdRoot.appendChild(readmeP);
+    detailRoot.appendChild(detailDesc);
+    detailRoot.appendChild(readmeMdRoot);
+    rootDiv.appendChild(detailRoot);
+    assert(ipcRequests.includes('Unmatched future plugin detail header description.'), 'plugin-detail header description must trigger auto-MT');
+    assert(!ipcRequests.includes('Unmatched plugin README paragraph inside markdown root.'), 'plugin-detail README inside [data-markdown-root] must NOT trigger auto-MT');
   } finally {
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(tmpCacheDir, { recursive: true, force: true });

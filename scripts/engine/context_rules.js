@@ -24,7 +24,8 @@ function createContextRules() {
     '[data-testid="onboarding-auth-code-error"]',
     '[data-testid="jetbox-access-blocked-screen"]',
     '[data-testid="persona-description"]',
-    '[data-testid*="persona-option-"]'
+    '[data-testid*="persona-option-"]',
+    '[data-testid="plugin-suggested-prompt-row"]'
   ].join(', ');
 
   function isAutoMtEligibleContext(contextEl) {
@@ -33,7 +34,27 @@ function createContextRules() {
       contextEl.closest('[data-testid="onboarding-brand-shell"]') &&
       contextEl.closest('p, [role="alert"], .text-xl, .text-error')
     );
-    if (!contextEl.closest(AUTO_MT_WHITELIST_SELECTOR) && !isOnboardingShellText) return false;
+    const isMarketplaceCardDesc = Boolean(
+      contextEl.closest('[data-testid="customization-card"]') &&
+      contextEl.closest('div.text-sm.text-muted-foreground')
+    );
+    const isMarketplaceShelfSubtitle = Boolean(
+      contextEl.closest('[data-testid="customizations-marketplace"]') &&
+      contextEl.closest('p.text-sm.text-muted-foreground')
+    );
+    const isPluginDetailDesc = Boolean(
+      contextEl.closest('[data-testid="plugin-detail"]') &&
+      contextEl.closest('p.text-sm.text-muted-foreground')
+    );
+    if (
+      !contextEl.closest(AUTO_MT_WHITELIST_SELECTOR) &&
+      !isOnboardingShellText &&
+      !isMarketplaceCardDesc &&
+      !isMarketplaceShelfSubtitle &&
+      !isPluginDetailDesc
+    ) {
+      return false;
+    }
     if (contextEl.closest('code, pre, kbd, samp, var, input, textarea, .font-mono, [data-testid="user-message-content"], [data-markdown-root]')) {
       return false;
     }
