@@ -65,7 +65,7 @@ function createZipArchive(stagingDir, zipPath) {
       stdio: 'inherit'
     });
   } else {
-    for (const sh of ['install_macos.sh', 'restore_macos.sh']) {
+    for (const sh of ['install_macos.sh', 'restore_macos.sh', path.join('scripts', 'run_with_runtime.sh')]) {
       const shPath = path.join(stagingDir, sh);
       if (fs.existsSync(shPath)) {
         fs.chmodSync(shPath, 0o755);
@@ -133,7 +133,7 @@ function buildPortableRelease(options = {}) {
   copyDirFiltered(
     path.join(projectRoot, 'scripts'),
     path.join(stagingDir, 'scripts'),
-    (name) => name.endsWith('.js') || name.endsWith('.ps1')
+    (name) => name.endsWith('.js') || name.endsWith('.ps1') || name.endsWith('.sh')
   );
 
   const prodDeps = collectProdDependencies(projectRoot);

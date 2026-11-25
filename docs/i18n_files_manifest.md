@@ -23,7 +23,8 @@
 ## 3. 核心脚本与模块（`scripts/`）
 
 - `scripts/runtime_paths.js`：设置 `process.noAsar = true`，解析 Windows / macOS / Linux 安装路径并在 macOS 注入/还原后执行本地 Ad-hoc `codesign`。
-- `scripts/run_with_runtime.ps1`：Windows PowerShell 5.1/7 通用运行时包装器，优先使用 Node `>= 20.19`，未安装时自动回落至 `Antigravity.exe` (`ELECTRON_RUN_AS_NODE=1`)。
+- `scripts/run_with_runtime.ps1`：Windows PowerShell 5.1/7 通用运行时包装器，优先使用 Node `>= 20.19`，未安装时自动回落至 `Antigravity.exe` (`ELECTRON_RUN_AS_NODE=1`) 并实时流式输出日志。
+- `scripts/run_with_runtime.sh`：macOS / POSIX 共享运行时包装器，统一处理依赖安装与内置 Electron 运行时回落。
 - `scripts/i18n_core.js`：解包官方干净备份 `app.asar.bak`，注入 `utils.js`、`menu.js`、`tray.js`、`main.js`、`preload.js`、`updater.js`、`ipcHandlers.js`、`webviewPopupSecurity.js`、`ideInstall/wizardHtml.js`、`languageServer.js` 等主进程补丁，并内置 `build/i18n.js` 与 `dist/i18n_ota.js`。
 - `scripts/restore_antigravity.js`：校验 `app.asar.bak` 完整性并无损恢复官方英文原版 `app.asar`。
 - `scripts/build_clean_engine.js`：组装词库、属性表、保留表与 `scripts/engine/*` 子模块，输出 `build/i18n.js`。
@@ -35,7 +36,7 @@
 - `scripts/engine/split_node_rules.js`：React 相邻 TextNode 碎片翻译规则。
 - `scripts/engine/runtime_bootstrap.js`：DOM 原型链拦截、`MutationObserver`、`WeakMap` 原文追踪（支持无损即时中英切换）、顶部标题栏 `[ 中 | EN ]` 常驻切换开关与标题栏菜单注入、浮层/悬停调度器。
 - `scripts/scan_updates.js`：从 `%APPDATA%\Antigravity\Cache\Cache_Data` 刷新最新前端 `bundle_main.js` 基线并扫描遗漏英文 UI 字符串。
-- `scripts/verify_engine.js`：使用 Node `vm` 对已部署 `app.asar`、DOM 切换、OTA 热更、代理自动探测与还原逻辑执行回归测试。
+- `scripts/verify_engine.js` & `scripts/verify/*`：模块化回归测试入口（支持 `--local` 沙箱全量测试与 `--smoke` 终端快速验收），覆盖 `app.asar` 钩子、VM 引擎、中英切换、OTA、Auto-MT、代理自动探测、Lexical 提示词与还原逻辑。
 - `scripts/release_version.js`：校验 `package.json`、`assets/baseline/version.json` 与 `README.md` 版本一致性，并辅助递增三段式版本号及生成标准 Tag / Release 命令。
 - `scripts/guard_launch.js` & `scripts/auto_patch_on_update.js` & `scripts/patch_antigravity.js`：免 TUN 联网启动（内置 Windows 系统代理读取与 `7897 / 10808 / 7890` 自动探测）、官方更新后自动重打补丁与一键修复入口。
 

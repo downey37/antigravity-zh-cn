@@ -7,10 +7,6 @@ const { resolveInstallPaths } = require('./runtime_paths');
 const { isAsarPatched, patchAsar, asarPath } = require('./i18n_core');
 const { detectActiveProxy, buildProxyLaunchConfig } = require('./guard_launch');
 
-const { exePath } = resolveInstallPaths();
-const watchIdx = process.argv.indexOf('--watch-after-quit');
-const targetPid = watchIdx !== -1 ? process.argv[watchIdx + 1] : process.argv[3];
-const noRelaunch = process.argv.includes('--no-relaunch');
 const logPath = path.resolve(__dirname, '..', 'build', 'auto_patch.log');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -22,12 +18,28 @@ function logLine(msg) {
   } catch (_) {}
 }
 
+function parseTargetPid(argv = process.argv) {
+  const args = Array.isArray(argv) ? argv : [];
+  const watchIdx = args.indexOf('--watch-after-quit');
+  let raw = '';
+  if (watchIdx !== -1 && watchIdx + 1 < args.length) {
+    raw = String(args[watchIdx + 1] || '').trim();
+  } else if (args.length > 3 && args[3] && !String(args[3]).startsWith('-')) {
+    raw = String(args[3]).trim();
+  }
+  if (!/^\d+$/.test(raw)) return null;
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
 function isRunning(pid) {
+  const n = Number(pid);
+  if (!Number.isSafeInteger(n) || n <= 0) return false;
   try {
-    process.kill(Number(pid), 0);
+    process.kill(n, 0);
     return true;
-  } catch (_) {
-    return false;
+  } catch (err) {
+    return Boolean(err && err.code === 'EPERM');
   }
 }
 
@@ -46,7 +58,35 @@ async function waitForStableFile(filePath) {
   return false;
 }
 
-(async () => {
+function relaunchApplication(resolvedPaths, launchArgs, isolatedEnv) {
+  const { exePath, appBundle, platform } = resolvedPaths;
+  if (platform === 'darwin' && appBundle && fs.existsSync(appBundle)) {
+    const openArgs = ['-a', appBundle];
+    if (launchArgs.length > 0) {
+      openArgs.push('--args', ...launchArgs);
+    }
+    const child = spawn('open', openArgs, {
+      detached: true,
+      stdio: 'ignore',
+      env: isolatedEnv
+    });
+    child.unref();
+    return;
+  }
+  const child = spawn(exePath, launchArgs, {
+    detached: true,
+    stdio: 'ignore',
+    env: isolatedEnv
+  });
+  child.unref();
+}
+
+async function runAutoPatchWatcher() {
+  const resolvedPaths = resolveInstallPaths();
+  const { exePath } = resolvedPaths;
+  const targetPid = parseTargetPid(process.argv);
+  const noRelaunch = process.argv.includes('--no-relaunch');
+
   try {
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
     fs.writeFileSync(logPath, `[${new Date().toISOString()}] Auto-patch watcher started (targetPid=${targetPid || 'none'})\n`, 'utf8');
@@ -112,12 +152,7 @@ async function waitForStableFile(filePath) {
       const activeEndpoints = await detectActiveProxy('');
       const { args: launchArgs, env: isolatedEnv } = buildProxyLaunchConfig(activeEndpoints, [], process.env);
 
-      const child = spawn(exePath, launchArgs, {
-        detached: true,
-        stdio: 'ignore',
-        env: isolatedEnv
-      });
-      child.unref();
+      relaunchApplication(resolvedPaths, launchArgs, isolatedEnv);
       logLine('Successfully re-patched and relaunched Antigravity.');
       process.exit(0);
     } catch (err) {
@@ -127,4 +162,17 @@ async function waitForStableFile(filePath) {
   }
   logLine('Exhausted all retries; exiting with code 1.');
   process.exit(1);
-})();
+}
+
+if (require.main === module) {
+  runAutoPatchWatcher().catch((err) => {
+    logLine(`Fatal error: ${err && err.stack ? err.stack : err}`);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  parseTargetPid,
+  isRunning,
+  runAutoPatchWatcher
+};

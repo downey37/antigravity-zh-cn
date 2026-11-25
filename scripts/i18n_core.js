@@ -134,6 +134,26 @@ function detectUnpackedDirs(targetAsar) {
   return [...dirs];
 }
 
+function deployAsarSafely(srcPath, destPath, platform = process.platform) {
+  const tmpDest = `${destPath}.tmp.${process.pid}`;
+  try {
+    fs.copyFileSync(srcPath, tmpDest);
+    fs.renameSync(tmpDest, destPath);
+  } catch (err) {
+    try {
+      if (fs.existsSync(tmpDest)) fs.unlinkSync(tmpDest);
+    } catch (_) {}
+    const code = err && err.code;
+    if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES') {
+      const hint = platform === 'win32'
+        ? '请先在 Antigravity 窗口内按 Ctrl + Q（或右键系统托盘图标 -> 退出）彻底关闭客户端后重试。'
+        : '请先完全退出 Antigravity 客户端（Cmd + Q），若安装目录需要管理员权限请使用 sudo 重新运行。';
+      throw new Error(`无法写入 ${destPath} (${code})。${hint}`);
+    }
+    throw err;
+  }
+}
+
 /**
  * 纯内联、零外部进程、极速自动注入汉化补丁
  */
@@ -150,11 +170,13 @@ async function patchAsar() {
 
   fs.mkdirSync(buildDir, { recursive: true });
   const tempDir = path.join(buildDir, '.temp-patch-dir');
+  const buildUnpackedDir = path.join(buildDir, 'app.asar.unpacked');
   if (fs.existsSync(tempDir)) {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 
-  const backupAsar = path.join(installDir, 'app.asar.bak');
+  try {
+  const backupAsar = resolvedPaths.backupAsar;
   let sourceAsar = asarPath;
   let currentVersion = 'unknown';
   try {
@@ -278,15 +300,15 @@ function _getAntigravityI18nOta() {
                 if (window.__antigravitySetI18nEnabled) {
                     window.__antigravitySetI18nEnabled(\${enabledFlag ? 'true' : 'false'});
                     \${enabledFlag ? 'if (window.__antigravityTranslateAll) window.__antigravityTranslateAll();' : ''}
-                    true;
+                    { ran: true, packVersion: window.__ANTIGRAVITY_I18N_PACK_VERSION__ || '' };
                 } else if (window.__antigravityTranslateAll) {
                     window.__antigravityTranslateAll();
-                    true;
+                    { ran: true, packVersion: window.__ANTIGRAVITY_I18N_PACK_VERSION__ || '' };
                 } else {
-                    false;
+                    { ran: false, packVersion: '' };
                 }
-            \`).then((ran) => {
-                if (!ran && !(_i18nWc.isDestroyed && _i18nWc.isDestroyed())) {
+            \`).then((res) => {
+                if ((!res || !res.ran) && !(_i18nWc.isDestroyed && _i18nWc.isDestroyed())) {
                     const code = _getAntigravityI18nCode();
                     if (code) {
                         const otaNow = _getAntigravityI18nOta();
@@ -296,9 +318,12 @@ function _getAntigravityI18nOta() {
                             if (otaAfter) otaAfter.applyCachedPackToWebContents(_i18nWc);
                         });
                     }
-                } else if (ran) {
+                } else if (res && res.ran) {
                     const otaAfter = _getAntigravityI18nOta();
-                    if (otaAfter) otaAfter.applyCachedPackToWebContents(_i18nWc);
+                    const activeVer = otaAfter && typeof otaAfter.getActiveVersion === 'function' ? otaAfter.getActiveVersion() : '';
+                    if (otaAfter && (!activeVer || res.packVersion !== activeVer)) {
+                        otaAfter.applyCachedPackToWebContents(_i18nWc);
+                    }
                 }
             }).catch(console.error);
         });
@@ -541,6 +566,41 @@ function _ensureMenuLangSubscription() {
             /(addItemToSubmenu\(menu,\s*'Help',\s*0,\s*new electron_1\.MenuItem\(\{[\s\S]*?\}\)\);)/,
             `$1${otaMenuItemCode}`
           );
+        }
+      }
+      if (!upgraded.includes('antigravity-i18n-toggle-auto-mt')) {
+        if (!upgraded.includes('_isMenuAutoMtEnabled')) {
+          upgraded = upgraded.replace(
+            /(function\s+_isMenuI18nEnabled\(\)\s*\{[\s\S]*?\n\})/,
+            `$1\nfunction _isMenuAutoMtEnabled() {\n    try {\n        const ota = require('./i18n_ota');\n        return !ota || typeof ota.isAutoMtEnabled !== 'function' || ota.isAutoMtEnabled();\n    } catch (_) {\n        return true;\n    }\n}`
+          );
+        }
+        if (upgraded.includes('MENU_CUSTOM_LABELS') && !upgraded.includes('antigravity-i18n-toggle-auto-mt')) {
+          upgraded = upgraded.replace(
+            /('antigravity-i18n-toggle-lang':\s*\{[^}]+\},?)/,
+            `$1\n    'antigravity-i18n-toggle-auto-mt': { zh: '自动翻译动态公告', en: 'Auto-Translate Announcements' },`
+          );
+        }
+        if (upgraded.includes('translateMenuRecursively') && !upgraded.includes("item.id === 'antigravity-i18n-toggle-auto-mt'")) {
+          upgraded = upgraded.replace(
+            /(item\.label\s*=\s*enabled\s*\?\s*MENU_CUSTOM_LABELS\[item\.id\]\.zh\s*:\s*MENU_CUSTOM_LABELS\[item\.id\]\.en;)/,
+            `$1\n            if (item.id === 'antigravity-i18n-toggle-auto-mt') {\n                item.checked = _isMenuAutoMtEnabled();\n            }`
+          );
+        }
+        if (upgraded.includes('_ensureMenuLangSubscription') && !upgraded.includes('onAutoMtChange')) {
+          upgraded = upgraded.replace(
+            /(ota\.onLanguageChange\([\s\S]*?\n\s*\}\);)/,
+            `$1\n        if (ota && typeof ota.onAutoMtChange === 'function') {\n            ota.onAutoMtChange(() => {\n                try {\n                    const cur = electron_1.Menu.getApplicationMenu();\n                    if (cur) {\n                        translateMenuRecursively(cur, _isMenuI18nEnabled());\n                        electron_1.Menu.setApplicationMenu(cur);\n                    }\n                } catch (_) {}\n            });\n        }`
+          );
+        }
+        const autoMtMenuItem = `    addItemToSubmenu(menu, 'Help', 3, new electron_1.MenuItem({\n        id: 'antigravity-i18n-toggle-auto-mt',\n        type: 'checkbox',\n        checked: _isMenuAutoMtEnabled(),\n        label: _isMenuI18nEnabled() ? '自动翻译动态公告' : 'Auto-Translate Announcements',\n        click: () => {\n            try {\n                require('./i18n_ota').toggleAutoMtEnabled();\n            } catch (err) {\n                console.error('[Antigravity-i18n] 切换自动翻译动态公告失败:', err);\n            }\n        },\n    }));`;
+        if (upgraded.includes('antigravity-i18n-toggle-lang')) {
+          upgraded = upgraded.replace(
+            /(addItemToSubmenu\(menu,\s*'Help',\s*2,\s*new electron_1\.MenuItem\(\{[\s\S]*?antigravity-i18n-toggle-lang[\s\S]*?\}\)\);)/,
+            `$1\n${autoMtMenuItem}`
+          );
+        } else {
+          console.warn(' [警告] menu.js 原地升级未找到 antigravity-i18n-toggle-lang 锚点，跳过 auto-mt 菜单项注入。');
         }
       }
       return upgraded;
@@ -951,13 +1011,21 @@ function translateContextMenuLabel(rawLabel) {
   if (patchFile(tempDir, 'dist/languageServer.js', (lsCode) => {
     if (lsCode.includes('ANTIGRAVITY_PROXY_INJECTED')) return lsCode;
     const proxyHook = `
-        // ANTIGRAVITY_PROXY_INJECTED: 仅当显式设置 ANTIGRAVITY_PROXY 时为 Go 后台核心注入局部代理
+        // ANTIGRAVITY_PROXY_INJECTED: 仅当显式设置有效的 ANTIGRAVITY_PROXY 时为 Go 后台核心注入局部代理；设为 direct/none/off/false/0 时强制清空代理走直连
         const _agyRawProxy = (process.env.ANTIGRAVITY_PROXY || '').trim();
-        if (_agyRawProxy) {
-          const _agyDefaultProxy = /^socks\\d*:\\/\\//i.test(_agyRawProxy)
-              ? _agyRawProxy.replace(/^socks\\d*:\\/\\//i, 'http://')
+        if (/^(?:none|direct|off|false|0)$/i.test(_agyRawProxy)) {
+          delete env.HTTP_PROXY;
+          delete env.HTTPS_PROXY;
+          delete env.ALL_PROXY;
+          delete env.http_proxy;
+          delete env.https_proxy;
+          delete env.all_proxy;
+        } else if (_agyRawProxy) {
+          const _agyIsSocks = /^socks\\d*:\\/\\//i.test(_agyRawProxy);
+          const _agyDefaultProxy = _agyIsSocks
+              ? _agyRawProxy
               : (/^https?:\\/\\//i.test(_agyRawProxy) ? _agyRawProxy : \`http://\${_agyRawProxy}\`);
-          const _agyDefaultSocks = /^socks\\d*:\\/\\//i.test(_agyRawProxy)
+          const _agyDefaultSocks = _agyIsSocks
               ? _agyRawProxy
               : (/^https?:\\/\\//i.test(_agyRawProxy) ? _agyRawProxy.replace(/^https?:\\/\\//i, 'socks5://') : \`socks5://\${_agyRawProxy}\`);
           const _agyDefaultBypass = process.env.ANTIGRAVITY_NO_PROXY || 'localhost,127.0.0.1,::1';
@@ -1173,19 +1241,22 @@ function translateContextMenuLabel(rawLabel) {
     unpackDir: unpackGlob
   });
 
-  fs.copyFileSync(outputAsar, asarPath);
+  deployAsarSafely(outputAsar, asarPath);
   try { asar.uncacheAll(); } catch (_) {}
   resignMacAppIfNeeded(appBundle);
-  fs.rmSync(tempDir, { recursive: true, force: true });
-  const buildUnpackedDir = path.join(buildDir, 'app.asar.unpacked');
-  if (fs.existsSync(buildUnpackedDir)) {
-    fs.rmSync(buildUnpackedDir, { recursive: true, force: true });
-  }
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
   console.log('==========================================');
   console.log(`  成功！Antigravity v${version} 汉化完成 [补丁 v${patchVersion}] (耗时: ${duration}s) `);
   console.log('==========================================');
+  } finally {
+    try {
+      if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+    } catch (_) {}
+    try {
+      if (fs.existsSync(buildUnpackedDir)) fs.rmSync(buildUnpackedDir, { recursive: true, force: true });
+    } catch (_) {}
+  }
 }
 
 if (require.main === module) {

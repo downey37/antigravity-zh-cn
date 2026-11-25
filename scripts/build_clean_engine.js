@@ -25,6 +25,19 @@ function cleanDictObject(rawDict, preserveList) {
   return cleaned;
 }
 
+/**
+ * 仅保留在主词典中不存在或译文不同的属性条目，避免向每个渲染窗口重复注入冗余数据。
+ */
+function dedupeAttrDict(attrDict, dict) {
+  const deduped = {};
+  for (const [k, v] of Object.entries(attrDict)) {
+    if (!Object.prototype.hasOwnProperty.call(dict, k) || dict[k] !== v) {
+      deduped[k] = v;
+    }
+  }
+  return deduped;
+}
+
 function formatUtcPackVersion(date) {
   const d = date instanceof Date ? date : new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -40,7 +53,8 @@ function formatUtcPackVersion(date) {
 function buildEngine(options = {}) {
   const preserveList = JSON.parse(fs.readFileSync(preservePath, 'utf8'));
   const dict = cleanDictObject(JSON.parse(fs.readFileSync(dictPath, 'utf8')), preserveList);
-  const attrDict = cleanDictObject(JSON.parse(fs.readFileSync(attrDictPath, 'utf8')), preserveList);
+  const fullAttrDict = cleanDictObject(JSON.parse(fs.readFileSync(attrDictPath, 'utf8')), preserveList);
+  const slimAttrDict = dedupeAttrDict(fullAttrDict, dict);
   const otaRules = fs.existsSync(otaRulesPath)
     ? JSON.parse(fs.readFileSync(otaRulesPath, 'utf8'))
     : [];
@@ -52,7 +66,7 @@ function buildEngine(options = {}) {
     packVersion: options.packVersion || formatUtcPackVersion(now),
     builtAt: options.builtAt || now.toISOString(),
     dictCount: Object.keys(dict).length,
-    attrCount: Object.keys(attrDict).length,
+    attrCount: Object.keys(fullAttrDict).length,
     ruleCount: Array.isArray(otaRules) ? otaRules.length : 0
   };
 
@@ -61,7 +75,7 @@ function buildEngine(options = {}) {
     `// Antigravity 全量本地化引擎 (${dictCount} 词条 + Unicode 归一化 + 动态模板 + 上下文消歧 + 浮层/Swarm/OTA 支持)\n` +
     `(${antigravityI18nBootstrap.toString()})(\n` +
     `  ${JSON.stringify(dict)},\n` +
-    `  ${JSON.stringify(attrDict)},\n` +
+    `  ${JSON.stringify(slimAttrDict)},\n` +
     `  ${JSON.stringify(preserveList)},\n` +
     `  ${createDynamicRules.toString()},\n` +
     `  ${createContextRules.toString()},\n` +
@@ -81,4 +95,4 @@ if (require.main === module) {
   console.log(`Successfully generated modular i18n engine (${dictCount} entries) at: ${outPath}`);
 }
 
-module.exports = { buildEngine, cleanDictObject, formatUtcPackVersion };
+module.exports = { buildEngine, cleanDictObject, dedupeAttrDict, formatUtcPackVersion };

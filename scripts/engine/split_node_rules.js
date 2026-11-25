@@ -430,6 +430,29 @@ function translateSplitTextNode(node, val, parent) {
     return '”。';
   }
 
+  // 28. 侧栏智能体悬停卡片等待数量拆分节点：<span>{d} waiting</span>
+  const waitingMatch = val.match(/^(\s*)waiting(\s*)$/i);
+  if (
+    waitingMatch &&
+    node.previousSibling &&
+    /^\d+$/.test((node.previousSibling.textContent || '').trim()) &&
+    parent.closest &&
+    parent.closest('[data-testid="sidebar-agent-hover-card-status"]')
+  ) {
+    return `${waitingMatch[1] || ' '}项等待中${waitingMatch[2]}`;
+  }
+
+  // 29. 删除项目/工作区确认弹窗尾缀："This will permanently delete " + <strong>{n}</strong> + " within it."
+  if (val === 'within it.' && /This will permanently delete|永久删除/.test(parentText)) {
+    return '。';
+  }
+
+  // 30. 数字 + files changed 拆分节点：{n} + "files changed"
+  const filesChangedMatch = val.match(/^(\s*)files?\s+changed(\s*)$/i);
+  if (filesChangedMatch && node.previousSibling && /^\d+$/.test((node.previousSibling.textContent || '').trim())) {
+    return `${filesChangedMatch[1] || ' '}个文件已更改${filesChangedMatch[2]}`;
+  }
+
   return null;
 }
 

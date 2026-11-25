@@ -251,8 +251,31 @@ function createContextRules() {
     return cn.split(/\s+/).includes(cls);
   }
 
+  function isExecutionElapsedContext(contextEl) {
+    if (!contextEl || contextEl.nodeType !== 1) return false;
+    if (contextEl.getAttribute && contextEl.getAttribute('data-testid') === 'tool-group-elapsed') {
+      return true;
+    }
+    return Boolean(contextEl.closest && contextEl.closest('[data-testid="tool-group-elapsed"]'));
+  }
+
+  function isRuntimeStatusContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    return Boolean(
+      contextEl.closest(
+        '[data-testid="tool-group-collapsible"], ' +
+        '[data-testid="ephemeral-tool-status"], ' +
+        '[data-testid="agent-loading"], ' +
+        '[data-testid="worked-for-collapsible"], ' +
+        '[data-testid="live-status-row"], ' +
+        '[data-testid="queued-messages-status"]'
+      )
+    );
+  }
+
   function isRelativeTimestampContext(contextEl) {
     if (!contextEl || contextEl.nodeType !== 1) return false;
+    if (isExecutionElapsedContext(contextEl)) return false;
     const tag = contextEl.nodeName;
     if (
       tag === 'SPAN' &&
@@ -476,6 +499,8 @@ function createContextRules() {
     isSwarmContext,
     isRelativeTimestampContext,
     isElapsedDurationContext,
+    isExecutionElapsedContext,
+    isRuntimeStatusContext,
     isModelEffortContext,
     isModelLabelContext,
     isAutomationScheduleContext,

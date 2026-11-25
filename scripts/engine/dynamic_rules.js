@@ -56,6 +56,103 @@ function createDynamicRules(helpers) {
     return translateDuration(s);
   }
 
+  function translateExecutionDuration(d) {
+    return String(d)
+      .replace(/[.,]+$/g, '')
+      .replace(/,/g, ' ')
+      .replace(/\band\b/gi, ' ')
+      .replace(/\b(\d+)\s*(?:days?|d)\b/gi, '$1 天')
+      .replace(/\b(\d+)\s*(?:hours?|hrs?|h)\b/gi, '$1 小时')
+      .replace(/\b(\d+)\s*(?:minutes?|mins?|m)\b/gi, '$1 分')
+      .replace(/\b(\d+)\s*(?:seconds?|secs?|s)\b/gi, '$1 秒')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function translateCompactExecutionDuration(str) {
+    const s = String(str || '').trim();
+    if (!/^\d+\s*[smhd](?:\s+\d+\s*[smhd])*$/.test(s)) {
+      return null;
+    }
+    return translateExecutionDuration(s);
+  }
+
+  function translateCountdownDuration(d) {
+    const s = String(d || '').trim();
+    if (/\d+\s*[mhd]/i.test(s) && /\d+\s*s\b/i.test(s)) {
+      return translateExecutionDuration(s);
+    }
+    return translateDuration(s);
+  }
+
+  function translateCompletedToolSummaryClause(clause) {
+    const c = String(clause || '').trim().toLowerCase();
+    if (c === 'explored') return '已浏览';
+    if (/^explored files?$/.test(c)) return '已浏览文件';
+    if (/^explored artifacts?$/.test(c)) return '已浏览产物';
+    if (/^ran commands?$/.test(c)) return '已运行命令';
+    if (/^edited files?$/.test(c)) return '已编辑文件';
+    if (/^edited artifacts?$/.test(c)) return '已编辑产物';
+    return null;
+  }
+
+  function translateBrowserAction(action) {
+    const s = normalizeKey(action);
+    if (!s) return action;
+    let m = s.match(/^Thinking\s*\((\d+)s\)(?:\.\.\.)?$/i);
+    if (m) return `正在思考（${m[1]} 秒）...`;
+    if (/^Thinking(?:\.\.\.)?$/i.test(s)) return '正在思考...';
+    m = s.match(/^Opening\s+([a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?|localhost(?::\d+)?)$/i);
+    if (m) return `正在打开 ${m[1]}`;
+    m = s.match(/^Pressing\s+([A-Za-z0-9_+\- ]{1,24})$/i);
+    if (m) {
+      const key = m[1].trim();
+      return key.toLowerCase() === 'key' ? '正在按键' : `正在按下 ${key}`;
+    }
+    return lookupExact(s, s) || action;
+  }
+
+  function translateIdleStatusPart(part) {
+    const s = normalizeKey(part);
+    if (!s) return null;
+    let m = s.match(/^Waiting for\s+(\d+)\s+timers$/i);
+    if (m) return `正在等待 ${m[1]} 个计时器`;
+    if (/^Waiting for timer$/i.test(s)) return '正在等待计时器';
+    m = s.match(/^Waiting for\s+(.+?)\s+timer$/i);
+    if (m) return `正在等待 ${m[1]} 计时器`;
+    m = s.match(/^(\d+)\s+subagents\/tasks running$/i);
+    if (m) return `${m[1]} 个子智能体/任务运行中`;
+    m = s.match(/^(\d+)\s+subagents?\s+running$/i);
+    if (m) return `${m[1]} 个子智能体运行中`;
+    m = s.match(/^(\d+)\s+tasks?\s+running$/i);
+    if (m) return `${m[1]} 个任务运行中`;
+    m = s.match(/^(\d+)\s+subagents?\s+blocked$/i);
+    if (m) return `${m[1]} 个子智能体已阻塞`;
+    m = s.match(/^(\d+)\s+blocked$/i);
+    if (m) return `${m[1]} 项已阻塞`;
+    m = s.match(/^(\d+)\s+accumulated items$/i);
+    if (m) return `${m[1]} 项待处理条目`;
+    return null;
+  }
+
+  function translateRuntimeStatusText(str) {
+    const s = normalizeKey(str);
+    if (!s) return str;
+    let m = s.match(/^Editing\s+(.+)$/);
+    if (m) return `正在编辑 ${m[1]}`;
+    m = s.match(/^Reading\s+(.+)$/);
+    if (m) return `正在读取 ${m[1]}`;
+    m = s.match(/^Listing\s+(.+)$/);
+    if (m) return `正在列出 ${m[1]}`;
+    m = s.match(/^Searching\s+(.+)$/);
+    if (m) return `正在搜索 ${m[1]}`;
+    m = s.match(/^Running\s+(.+)$/);
+    if (m) return `正在运行 ${m[1]}`;
+    m = s.match(/^Waiting on\s+(.+)$/);
+    if (m) return `正在等待 ${m[1]}`;
+    return str;
+  }
+
   const EFFORT_LEVEL_MAP = {
     minimal: '极简',
     low: '低',
@@ -1177,6 +1274,16 @@ function createDynamicRules(helpers) {
       }
     }
 
+    // 15b. "(You can) Upgrade to {KnownPlan}."（无 to {verb} 尾句的简短升级提示）
+    m = s.match(/^(You\s+can\s+)?upgrade\s+to\s+(.+?)(\.)?$/i);
+    if (m) {
+      const planZh = translatePlanOrAudience(m[2], 'allowBare');
+      if (planZh) {
+        const canPrefix = m[1] ? '你可以升级到' : '升级到';
+        return joinZhSegment(canPrefix, planZh, m[3] ? '。' : '');
+      }
+    }
+
     // 16. "This/Your account is ineligible/not eligible for higher rate limits [through {Plan}] [at this time]."
     m = s.match(/^(This|Your)\s+account\s+is\s+(?:ineligible|not\s+eligible)\s+for\s+higher\s+rate\s+limits(?:\s+through\s+(.+?))?(?:\s+at\s+this\s+time)?\.?$/i);
     if (m) {
@@ -1529,15 +1636,60 @@ function createDynamicRules(helpers) {
 
     // 思考、运行耗时、步骤、子智能体、轮次
     [/^Thinking for\s+(\d+)\s*s$/i, '正在思考（$1 秒）'],
-    [/^Thinking for\s+(.+)$/i, (_, d) => `正在思考（${translateDuration(d)}）`],
+    [/^Thinking for\s+(.+)$/i, (_, d) => `正在思考（${translateExecutionDuration(d)}）`],
+    [/^Thinking\s*\((\d+)s\)(?:\.\.\.)?$/i, '正在思考（$1 秒）...'],
+    [/^Compacting\s*\u00b7\s*(\d+\s*[smhd](?:\s+\d+\s*[smhd])*)$/i, (_, d) => `正在压缩上下文 · ${translateExecutionDuration(d)}`],
     [/^Thought for\s+(\d+)\s*s$/i, '已思考 $1 秒'],
     [/^Thought for\s+(.+)$/i, (_, d) => `已思考 ${translateDuration(d)}`],
     [/^Still thinking,\s+(\d+)\s+seconds?$/i, '仍在思考（已用时 $1 秒）'],
+    [/^Worked for\s+(.+?)\s*·\s*(\d+)\s+updates?$/i, (_, d, n) => `已运行 ${translateDuration(d)} · ${n} 条更新`],
     [/^Worked for\s+(.+?)\s*·\s*(.+)$/i, (_, d, v) => `已运行 ${translateDuration(d)} · ${v}`],
     [/^Worked for\s+(.+)$/i, (_, d) => `已运行 ${translateDuration(d)}`],
+    [/^(\d+)\s+updates?$/i, '$1 条更新'],
+    [/^(?:Explored(?:\s+(?:files?|artifacts?))?|Ran\s+commands?|Edited\s+(?:files?|artifacts?))(?:\s*,\s*(?:ran\s+commands?|edited\s+(?:files?|artifacts?)))+$/i, (m) => m.split(/\s*,\s*/).map((p) => translateCompletedToolSummaryClause(p) || p).join('，')],
     [/^Ran\s+(\d+)\s+commands?$/i, '已运行 $1 条命令'],
     [/^Running\s+(\d+)\s+commands?$/i, '正在运行 $1 条命令'],
     [/^Explored\s+(\d+)\s+files?$/i, '已浏览 $1 个文件'],
+    [/^Starting\s+(\d+)\s+subagents?$/i, '正在启动 $1 个子智能体'],
+    [/^Started\s+(\d+)\s+subagents?$/i, '已启动 $1 个子智能体'],
+    [/^(Waiting for\s+(?:\d+\s+timers|.+?\s+timer|timer))\s*\u00b7\s*(\d+\s*[smhd](?:\s+\d+\s*[smhd])*)\s+left$/i, (_, head, d) => `${translateIdleStatusPart(head) || head} · 剩余 ${translateCountdownDuration(d)}`],
+    [/^(\d+\s*[smhd](?:\s+\d+\s*[smhd])*)\s+left$/i, (_, d) => `剩余 ${translateCountdownDuration(d)}`],
+    [/^(?:Waiting for\s+(?:\d+\s+timers|[^,]+?\s+timer|timer)|\d+\s+(?:subagents\/tasks|subagents?|tasks?)\s+running|\d+\s+subagents?\s+blocked|\d+\s+blocked|\d+\s+accumulated items)(?:\s*,\s*(?:\d+\s+(?:subagents\/tasks|subagents?|tasks?)\s+running|\d+\s+subagents?\s+blocked|\d+\s+blocked|\d+\s+accumulated items))*$/i, (m) => m.split(/\s*,\s*/).map((p) => translateIdleStatusPart(p) || p).join('，')],
+    [/^(\d+)\/(\d+)\s+steps(?:\s*\u00b7\s*(\d+)\s+failed)?(?:\s*\u00b7\s*(\d+)\s+skipped)?(?:\.\s*(Show|Hide)\s+plan)?$/i, (_, done, total, failed, skipped, toggle) => {
+      const parts = [`${done}/${total} 步`];
+      if (failed) parts.push(`${failed} 项失败`);
+      if (skipped) parts.push(`${skipped} 项跳过`);
+      let out = parts.join(' · ');
+      if (toggle) out += toggle.toLowerCase() === 'hide' ? '。隐藏计划' : '。显示计划';
+      return out;
+    }],
+    [/^Plan,\s+(\d+)\s+of\s+(\d+)\s+steps?\s+done$/i, '计划，已完成 $1/$2 步'],
+    [/^Waiting for approval to\s+(read file|write file|edit file|run command|read|write|run\s*\(unsandboxed\)|run|use|download from|access)(?::\s*(.+))?$/i, (_, act, target) => {
+      const low = act.toLowerCase().replace(/\s+/g, ' ');
+      const map = {
+        read: '读取',
+        'read file': '读取文件',
+        write: '写入',
+        'write file': '写入文件',
+        'edit file': '编辑文件',
+        run: '运行',
+        'run command': '运行命令',
+        'run (unsandboxed)': '在沙箱外运行',
+        use: '使用',
+        'download from': '下载自',
+        access: '访问'
+      };
+      const verbZh = map[low] || act;
+      return target ? `正在等待批准${verbZh}：${target}` : `正在等待批准${verbZh}`;
+    }],
+    [/^(Sending|Sent|Rejected sending|Suggested sending|Error sending)\s+(.+?)\s+to command$/i, (_, act, what) => {
+      const low = act.toLowerCase();
+      if (low === 'sending') return `正在向命令发送 ${what}`;
+      if (low === 'sent') return `已向命令发送 ${what}`;
+      if (low === 'rejected sending') return `已拒绝向命令发送 ${what}`;
+      if (low === 'suggested sending') return `建议向命令发送 ${what}`;
+      return `向命令发送 ${what} 时出错`;
+    }],
     [/^Show\s+(\d+)\s+breakdowns?$/i, '显示 $1 项用量明细'],
     [/^Show\s+(\d+)\s+earlier\s+steps?$/i, '显示更早的 $1 个步骤'],
     [/^Show\s+(\d+)\s+more\s+subagents?$/i, '显示另外 $1 个子智能体'],
@@ -1572,8 +1724,8 @@ function createDynamicRules(helpers) {
     [/^Wants to run:\s*(.+)$/i, '请求运行：$1'],
     [/^Running:\s*(.+)$/i, '正在运行：$1'],
     [/^Ran command:\s*(.+)$/i, '已运行命令：$1'],
-    [/^Started "(.+?)"\.?$/i, '已启动“$1”。'],
-    [/^Restarted "(.+?)"\.?$/i, '已重启“$1”。'],
+    [/^Started\s+"(.+?)"\.?$/i, '已启动“$1”。'],
+    [/^Restarted\s+"(.+?)"\.?$/i, '已重启“$1”。'],
     [/^Used MCP tool:\s*(.+)$/i, '已使用 MCP 工具：$1'],
     [/^Used tool:\s*(.+)$/i, '已使用工具：$1'],
     [/^Searched for "(.+?)"$/i, '已搜索“$1”'],
@@ -1582,9 +1734,11 @@ function createDynamicRules(helpers) {
     [/^Searched for files:\s*(.+)$/i, '已搜索文件：$1'],
     [/^Read URL:\s*(.+)$/i, '已读取网址：$1'],
     [/^Opened browser:\s*(.+)$/i, '已打开浏览器：$1'],
-    [/^Using browser\s*·\s*(.+?)\s+\((\d+)s\)$/i, '正在使用浏览器 · $1（$2 秒）'],
-    [/^Using browser\s*·\s*(.+)$/i, '正在使用浏览器 · $1'],
+    [/^Using browser\s*·\s*(.+?)\s+\((\d+)s\)$/i, (_, act, sec) => `正在使用浏览器 · ${translateBrowserAction(act)}（${sec} 秒）`],
+    [/^Using browser\s*·\s*(.+)$/i, (_, act) => `正在使用浏览器 · ${translateBrowserAction(act)}`],
     [/^Using browser\s+\((\d+)s\)$/i, '正在使用浏览器（$1 秒）'],
+    [/^Opening\s+([a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?|localhost(?::\d+)?)$/i, '正在打开 $1'],
+    [/^Pressing\s+(Enter|Esc|Escape|Tab|Space|Return|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|PageUp|PageDown|F\d{1,2}|[A-Za-z0-9])$/i, '正在按下 $1'],
     [/^Web app:\s*(.+)$/i, 'Web 应用：$1'],
     [/^MCP App:\s*(.+)$/i, 'MCP 应用：$1'],
     [/^Started voice chat\s*·\s*(.*)$/i, '已开始语音对话 · $1'],
@@ -1813,8 +1967,14 @@ function createDynamicRules(helpers) {
     [/^Render error on page\s+(\d+):?$/i, '第 $1 页渲染错误：'],
     [/^Scroll to:\s*(.+?)\s+on page\s+(\d+)$/i, '滚动到第 $2 页：$1'],
     [/^Microphone blocked\.\s+Allow in\s+(.+?)\.?$/i, '麦克风已被阻止，请在 $1 中允许。'],
-    [/^Model unavailable,\s+retrying in\s+(\d+)s(.*)$/i, '模型暂不可用，$1 秒后重试$2'],
-    [/^Model unavailable,\s+retrying(.*)$/i, '模型暂不可用，正在重试$1'],
+    [/^Model unavailable,\s+retrying in\s+(\d+)s(?:\s*\(attempt\s+(\d+)\/(\d+)\))?(.*)$/i, (_, sec, cur, max, tail) => {
+      const attempt = cur && max ? `（第 ${cur}/${max} 次尝试）` : '';
+      return `模型暂不可用，${sec} 秒后重试${attempt}${tail}`;
+    }],
+    [/^Model unavailable,\s+retrying(?:\s*\(attempt\s+(\d+)\/(\d+)\))?(.*)$/i, (_, cur, max, tail) => {
+      const attempt = cur && max ? `（第 ${cur}/${max} 次尝试）` : '';
+      return `模型暂不可用，正在重试${attempt}${tail}`;
+    }],
     [/^Recording exceeds 15MB limit\s*\((.+?)\)$/i, '录制大小超过 15MB 限制 ($1)'],
     [/^Total media size exceeds\s+(\d+)MB limit$/i, '媒体总大小超过 $1MB 限制'],
     [/^The folder "(.+?)" does not exist\.\s+Would you like to create it\?$/i, '文件夹“$1”不存在，是否创建？'],
@@ -1836,7 +1996,8 @@ function createDynamicRules(helpers) {
     }],
     [/^Upgrade to\s+(.+)$/i, (m, plan) => {
       const translated = translatePlanOrAudience(plan, 'allowBare');
-      return translated ? joinZhSegment('升级到', translated, '') : m;
+      const hasDot = /\.\s*$/.test(plan);
+      return translated ? joinZhSegment('升级到', translated, hasDot ? '。' : '') : m;
     }],
     [/^Sorry,\s*this account is ineligible to use\s+(.+?)\.?$/i, '抱歉，此账号无法使用 $1'],
     [/^Further action is required to use\s+(.+?)\.?$/i, '需要进一步操作才能使用 $1'],
@@ -1921,7 +2082,6 @@ function createDynamicRules(helpers) {
     [/^Failed to unarchive project:\s*(.+)$/i, '取消归档项目失败：$1'],
     [/^Failed to select workspace:\s*(.+)$/i, '选择工作区失败：$1'],
     [/^Failed to create project:\s*(.+)$/i, '创建项目失败：$1'],
-    [/^Failed to resolve folder:\s*(.+?)\s*\((.+)\)$/i, '解析文件夹失败：$1 ($2)'],
     [/^Failed to create\s+"(.+?)"\.?$/i, '创建“$1”失败'],
     [/^Failed to create\s+(?!https?:\/\/)(.+?):\s+(.+)$/i, (m, what, err) => isKnownFailedTarget(what) ? `${joinZhSegment('创建', translateFailedTarget(what), '失败')}：${err}` : m],
     [/^Failed to create\s+(.+?)\.?$/i, (m, what) => isKnownFailedTarget(what) ? joinZhSegment('创建', translateFailedTarget(what), '失败') : m],
@@ -1946,9 +2106,7 @@ function createDynamicRules(helpers) {
       return zh ? `无法${zh}` : m;
     }],
     [/^Enabled\s+"(.+?)"\.?$/i, '已启用“$1”。'],
-    [/^Started\s+"(.+?)"\.?$/i, '已启动“$1”。'],
     [/^Failed to start\s+"(.+?)"\.?$/i, '启动“$1”失败'],
-    [/^Restarted\s+"(.+?)"\.?$/i, '已重启“$1”。'],
     [/^Failed to update\s+"(.+?)"$/i, '更新“$1”失败'],
     [/^Failed to save\s+"(.+?)"$/i, '保存“$1”失败'],
     [/^Deleted\s+"(.+?)"\.?$/i, '已删除“$1”。'],
@@ -2011,7 +2169,6 @@ function createDynamicRules(helpers) {
     [/^Models within this group:\s*(.+)$/i, '此分组包含的模型：$1'],
     [/^Forked from\s+"(.+?)"$/i, '分支自“$1”'],
     [/^Forked from\s+(.+)$/i, '分支自 $1'],
-    [/^(\d+)\s+tasks?\s+running$/i, '$1 个任务运行中'],
     [/^Updated\s+(.+)$/i, (m, rest) => {
       const t = String(rest).trim();
       if (/^now$/i.test(t) || /^just now$/i.test(t)) return '刚刚更新';
@@ -2047,7 +2204,7 @@ function createDynamicRules(helpers) {
 
     // 模型标签说明 (i) 与不同订阅套餐提示动态模板（统一术语与多句组合支持）
     [/^(.+?)\s+that may offload routine steps to\s+(.+?)\.\s*Same\s+(.+?)-level quality,\s*fewer tokens used\.?$/i, '$1，可将常规步骤分流至 $2。同等 $3 级质量，消耗更少 Token。'],
-    [/^(?=.*\b(?:available|unavailable|removed|removal|removing|deprecated|deprecating|retired|retiring|sunset|leaving|leaves|leave|replaced|until|subscribers?|plans?|tiers?|rate\s+limits?|base\s+limits?|quota|limit|ineligible|not\s+eligible|third-party|upgrade\s+to|managed\s+by|administrator|switch(?:ing)?\s+to|migrat(?:e|ing)\s+to|transition\s+to|recommend|try|use|instead|do\s+not\s+include|requires?)\b)[\s\S]+$/i, (m) => translatePlanOrModelNotice(m) || m],
+    [/^(?=.*\b(?:available|unavailable|removed|removal|removing|deprecated|deprecating|retired|retiring|sunset|leaving|leaves|leave|replaced|until|subscribers?|plans?|tiers?|rate\s+limits?|base\s+limits?|quota|limit|ineligible|not\s+eligible|third-party|upgrade\s+to|managed\s+by|administrator|switch(?:ing)?\s+to|migrat(?:e|ing)\s+to|transition\s+to|recommend|try|use|instead|do\s+not\s+include|requires?)\b)[\s\S]+$/i, (m) => (/\s/.test(m) ? (translatePlanOrModelNotice(m) || m) : m)],
     [/^(?=.*(?:Rpc failed due to xhr error|Failed to fetch|NetworkError\b|context deadline exceeded|Client\.Timeout exceeded|i\/o timeout|operation timed out|connection timed out|TLS handshake timeout|connection refused|connection reset by peer|no such host|network is unreachable|network is down|no route to host|proxy authentication required|Remote instance is unreachable|InstanceUnreachableError|is not (?:currently )?available in your (?:country|region|location)|(?:This|Your) account is not eligible|(?:This|Your) account is not supported|(?:organization|administrator)\s+has\s+disabled|must be at least \d+ years old to use))[\s\S]+$/i, (m) => translateAuthErrorDetail(m)],
 
     // 云端资源接入、Notebook 与草稿计数动态模板
@@ -2075,9 +2232,12 @@ function createDynamicRules(helpers) {
   return {
     DYNAMIC_RULES,
     translateDuration,
+    translateExecutionDuration,
     translateClockTime,
     translateCompactRelativeTime,
     translateCompactDuration,
+    translateCompactExecutionDuration,
+    translateRuntimeStatusText,
     translateEffortLevel,
     translateModelWithEffort,
     translateModelParenEffort,

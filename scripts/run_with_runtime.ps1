@@ -113,12 +113,12 @@ $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
 $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
 
 $proc = [System.Diagnostics.Process]::Start($psi)
-$stdoutTask = $proc.StandardOutput.ReadToEndAsync()
 $stderrTask = $proc.StandardError.ReadToEndAsync()
+while ($null -ne ($line = $proc.StandardOutput.ReadLine())) {
+  [Console]::Out.WriteLine($line)
+}
 $proc.WaitForExit()
-$outText = $stdoutTask.GetAwaiter().GetResult()
 $errText = $stderrTask.GetAwaiter().GetResult()
 
-if ($outText) { [Console]::Out.Write($outText) }
 if ($errText) { [Console]::Error.Write($errText) }
 exit $proc.ExitCode

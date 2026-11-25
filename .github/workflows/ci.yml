@@ -17,7 +17,11 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,8 +35,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build engine, run sandbox verification & check versions
+      - name: Build engine, OTA pack, run sandbox verification & check versions
         run: |
           npm run build
+          npm run build:ota
           npm run verify:local
           npm run version:check

@@ -178,6 +178,30 @@ function escapeRegExp(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const _PROTECT_TERM_CACHE = typeof WeakMap === 'function' ? new WeakMap() : null;
+
+function getCompiledPreserveMatchers(preserveList) {
+  if (!Array.isArray(preserveList) || preserveList.length === 0) return [];
+  if (_PROTECT_TERM_CACHE && _PROTECT_TERM_CACHE.has(preserveList)) {
+    return _PROTECT_TERM_CACHE.get(preserveList);
+  }
+  const compiled = [];
+  const sorted = preserveList
+    .filter((item) => typeof item === 'string' && item.trim().length > 0)
+    .slice()
+    .sort((a, b) => b.length - a.length);
+  for (let i = 0; i < sorted.length; i++) {
+    const term = sorted[i].trim();
+    if (!term) continue;
+    const flags = term.toLowerCase() === 'antigravity' ? 'gi' : 'g';
+    compiled.push(new RegExp(`(?<![A-Za-z0-9])${escapeRegExp(term)}(?![A-Za-z0-9])`, flags));
+  }
+  if (_PROTECT_TERM_CACHE) {
+    _PROTECT_TERM_CACHE.set(preserveList, compiled);
+  }
+  return compiled;
+}
+
 function protectDynamicMtTerms(text, preserveList = []) {
   const input = String(text || '');
   const spans = [];
@@ -196,17 +220,9 @@ function protectDynamicMtTerms(text, preserveList = []) {
   collectMatches(/\b(?:Gemini|Claude|GPT(?:-OSS)?|DeepSeek)\s+\d+(?:\.\d+)?(?:\s+(?:Pro|Ultra|Flash|Nano|Neon|Carbon|Argon|Hydrogen|Opus|Sonnet|Haiku|Mini|Preview|Thinking|Exp|Lite|Fast|\d+[BM]))*\b/gi);
   collectMatches(/\b(?:Claude\s+(?:Opus|Sonnet|Haiku)|GPT-OSS|Google\s+AI\s+(?:Pro|Ultra|Plus)|Google\s+(?:Workspace|Cloud|Drive|Docs|Sheets|Slides|Chat|Chrome)|AI\s+Credits)\b/gi);
 
-  if (Array.isArray(preserveList) && preserveList.length > 0) {
-    const sorted = preserveList
-      .filter((item) => typeof item === 'string' && item.trim().length > 0)
-      .slice()
-      .sort((a, b) => b.length - a.length);
-    for (let i = 0; i < sorted.length; i++) {
-      const term = sorted[i].trim();
-      if (!term) continue;
-      const flags = term.toLowerCase() === 'antigravity' ? 'gi' : 'g';
-      collectMatches(new RegExp(`(?<![A-Za-z0-9])${escapeRegExp(term)}(?![A-Za-z0-9])`, flags));
-    }
+  const preserveMatchers = getCompiledPreserveMatchers(preserveList);
+  for (let i = 0; i < preserveMatchers.length; i++) {
+    collectMatches(preserveMatchers[i]);
   }
 
   collectMatches(/\b(?:Antigravity|Orchestrator|Gemini|Claude|Carbon|Argon|Hydrogen|Neon|Opus|Sonnet|Haiku|Flash|Swarm|Cascade|MCP|WSL|SSH|API|CLI|IDE|Tokens?)\b/g);
@@ -308,7 +324,7 @@ function parseOpenAiMtResponse(rawText) {
   }
 }
 
-function nodeHttpFetchText(urlStr, headers, timeoutMs, reqOptions = {}) {
+function nodeHttpFetchText(urlStr, headers, timeoutMs, reqOptions = {}, redirectDepth = 0) {
   return new Promise((resolve, reject) => {
     let parsed;
     try {
@@ -335,14 +351,14 @@ function nodeHttpFetchText(urlStr, headers, timeoutMs, reqOptions = {}) {
         timeout: timeoutMs
       },
       (res) => {
-        if (method === 'GET' && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && (!headers || !headers._redirectDepth || headers._redirectDepth < 3)) {
+        if (method === 'GET' && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectDepth < 3) {
           res.resume();
           const nextUrl = new URL(res.headers.location, parsed).toString();
-          const nextHeaders = { ...(headers || {}), _redirectDepth: ((headers && headers._redirectDepth) || 0) + 1 };
-          return nodeHttpFetchText(nextUrl, nextHeaders, timeoutMs, reqOptions).then(resolve, reject);
+          return nodeHttpFetchText(nextUrl, headers, timeoutMs, reqOptions, redirectDepth + 1).then(resolve, reject);
         }
         const chunks = [];
         let total = 0;
+        res.on('error', reject);
         res.on('data', (chunk) => {
           total += chunk.length;
           if (total > MAX_PACK_BYTES) {
@@ -587,9 +603,40 @@ function createOtaController(options = {}) {
         if (status === 304) {
           return { status: 304, etag, text: '' };
         }
-        const text = await res.text();
-        if (Buffer.byteLength(text, 'utf8') > MAX_PACK_BYTES) {
+        const contentLenRaw = res.headers && typeof res.headers.get === 'function' ? res.headers.get('content-length') : '';
+        const contentLen = contentLenRaw ? Number(contentLenRaw) : NaN;
+        if (!Number.isNaN(contentLen) && contentLen > MAX_PACK_BYTES) {
           throw new Error('Response exceeds max allowed size');
+        }
+        let text;
+        if (res.body && typeof res.body.getReader === 'function') {
+          const reader = res.body.getReader();
+          const chunks = [];
+          let totalBytes = 0;
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (value) {
+                totalBytes += value.byteLength || value.length || 0;
+                if (totalBytes > MAX_PACK_BYTES) {
+                  try { await reader.cancel(); } catch (_) {}
+                  throw new Error('Response exceeds max allowed size');
+                }
+                chunks.push(Buffer.from(value));
+              }
+            }
+          } finally {
+            if (typeof reader.releaseLock === 'function') {
+              try { reader.releaseLock(); } catch (_) {}
+            }
+          }
+          text = Buffer.concat(chunks).toString('utf8');
+        } else {
+          text = await res.text();
+          if (Buffer.byteLength(text, 'utf8') > MAX_PACK_BYTES) {
+            throw new Error('Response exceeds max allowed size');
+          }
         }
         return { status, etag, text };
       } finally {
@@ -703,6 +750,28 @@ function createOtaController(options = {}) {
     return () => autoMtChangeListeners.delete(fn);
   }
 
+  const mtCacheDebounceMs = typeof options.mtCacheDebounceMs === 'number'
+    ? Math.max(0, options.mtCacheDebounceMs)
+    : (electronMod && electronMod.app ? 800 : 0);
+  let mtSaveTimer = null;
+  let mtCacheDirty = false;
+  let beforeQuitBound = false;
+
+  function recordMtFailCooldown(norm) {
+    const now = Date.now();
+    if (mtFailCooldown.size >= MAX_MT_CACHE_ENTRIES) {
+      for (const [k, until] of mtFailCooldown.entries()) {
+        if (until <= now) mtFailCooldown.delete(k);
+      }
+      while (mtFailCooldown.size >= MAX_MT_CACHE_ENTRIES) {
+        const oldestKey = mtFailCooldown.keys().next().value;
+        if (oldestKey === undefined) break;
+        mtFailCooldown.delete(oldestKey);
+      }
+    }
+    mtFailCooldown.set(norm, now + MT_FAIL_COOLDOWN_MS);
+  }
+
   function loadMtCacheSync() {
     if (mtCacheLoaded) return;
     mtCacheLoaded = true;
@@ -740,9 +809,42 @@ function createOtaController(options = {}) {
       }
       atomicWriteFileSync(
         mtCachePath,
-        JSON.stringify({ schemaVersion: MT_CACHE_SCHEMA_VERSION, entries }, null, 2) + '\n'
+        JSON.stringify({ schemaVersion: MT_CACHE_SCHEMA_VERSION, entries })
       );
+      mtCacheDirty = false;
     } catch (_) {}
+  }
+
+  function flushMtCacheSync() {
+    if (mtSaveTimer) {
+      clearTimeout(mtSaveTimer);
+      mtSaveTimer = null;
+    }
+    if (mtCacheDirty) {
+      saveMtCacheSync();
+    }
+  }
+
+  function scheduleMtCacheSave() {
+    mtCacheDirty = true;
+    if (mtCacheDebounceMs <= 0) {
+      saveMtCacheSync();
+      return;
+    }
+    if (!beforeQuitBound && electronMod && electronMod.app && typeof electronMod.app.once === 'function') {
+      beforeQuitBound = true;
+      electronMod.app.once('before-quit', flushMtCacheSync);
+    }
+    if (mtSaveTimer) {
+      clearTimeout(mtSaveTimer);
+    }
+    mtSaveTimer = setTimeout(() => {
+      mtSaveTimer = null;
+      if (mtCacheDirty) saveMtCacheSync();
+    }, mtCacheDebounceMs);
+    if (mtSaveTimer && typeof mtSaveTimer.unref === 'function') {
+      mtSaveTimer.unref();
+    }
   }
 
   function getEffectivePreserveList() {
@@ -845,14 +947,14 @@ function createOtaController(options = {}) {
 
         const restored = restoreDynamicMtTerms(rawTranslated, placeholders);
         if (!restored || restored === norm) {
-          mtFailCooldown.set(norm, Date.now() + MT_FAIL_COOLDOWN_MS);
+          recordMtFailCooldown(norm);
           return { status: 'error', translated: '' };
         }
         mtCacheMap.set(norm, { zh: restored, ts: Date.now(), provider });
-        saveMtCacheSync();
+        scheduleMtCacheSave();
         return { status: 'ok', translated: restored, cached: false, provider };
       } catch (err) {
-        mtFailCooldown.set(norm, Date.now() + MT_FAIL_COOLDOWN_MS);
+        recordMtFailCooldown(norm);
         return {
           status: 'error',
           translated: '',
@@ -920,9 +1022,13 @@ function createOtaController(options = {}) {
     saveStateSync();
     try {
       if (electronMod && electronMod.Notification && electronMod.Notification.isSupported && electronMod.Notification.isSupported()) {
+        const minVer = manifest.minEngineVersion || targetVer;
         const n = new electronMod.Notification({
-          title: 'Antigravity 汉化引擎有新版本',
-          body: `最新云端词库需要汉化引擎 v${manifest.minEngineVersion} 及以上（当前 v${builtinMeta.engineVersion}），点击左上角“Antigravity → 检查汉化更新”或托盘菜单“检查汉化更新”可前往更新。`
+          title: t('Antigravity 汉化引擎有新版本', 'Antigravity i18n Engine Update Available'),
+          body: t(
+            `最新云端词库需要汉化引擎 v${minVer} 及以上（当前 v${builtinMeta.engineVersion}），点击左上角“Antigravity → 检查汉化更新”或托盘菜单“检查汉化更新”可前往更新。`,
+            `The latest Cloud OTA pack requires i18n engine v${minVer}+ (current: v${builtinMeta.engineVersion}). Use "Help → Check i18n Updates" or the tray menu to update.`
+          )
         });
         n.show();
       }
@@ -930,6 +1036,11 @@ function createOtaController(options = {}) {
   }
 
   async function showManualDialog(result) {
+    const dlgTitle = t('检查汉化更新', 'Check i18n Updates');
+    const okBtn = t('确定', 'OK');
+    if (options.onManualDialog) {
+      try { await options.onManualDialog(result, { title: dlgTitle, okBtn }); } catch (_) {}
+    }
     if (!electronMod || !electronMod.dialog || typeof electronMod.dialog.showMessageBox !== 'function') return;
     const focusedWin = electronMod.BrowserWindow && typeof electronMod.BrowserWindow.getFocusedWindow === 'function'
       ? electronMod.BrowserWindow.getFocusedWindow()
@@ -941,31 +1052,42 @@ function createOtaController(options = {}) {
       if (result.status === 'disabled') {
         await showBox({
           type: 'info',
-          title: '检查汉化更新',
-          message: '已禁用在线词库热更新',
-          detail: '检测到环境变量 ANTIGRAVITY_I18N_NO_OTA 已启用，当前仅使用本地内置汉化词库。',
-          buttons: ['确定']
+          title: dlgTitle,
+          message: t('已禁用在线词库热更新', 'Cloud OTA Updates Disabled'),
+          detail: t(
+            '检测到环境变量 ANTIGRAVITY_I18N_NO_OTA 已启用，当前仅使用本地内置汉化词库。',
+            'ANTIGRAVITY_I18N_NO_OTA is enabled; only the built-in local dictionary is active.'
+          ),
+          buttons: [okBtn]
         });
         return;
       }
       if (result.status === 'updated') {
-        const notesLine = result.manifest && result.manifest.notes ? `\n更新说明：${result.manifest.notes}` : '';
+        const notesLine = result.manifest && result.manifest.notes
+          ? t(`\n更新说明：${result.manifest.notes}`, `\nRelease notes: ${result.manifest.notes}`)
+          : '';
         await showBox({
           type: 'info',
-          title: '检查汉化更新',
-          message: '已同步最新汉化词库',
-          detail: `版本：v${result.packVersion}（主词条 ${result.dictCount} 条，属性词条 ${result.attrCount} 条）\n当前窗口界面已实时刷新，无需重启。${notesLine}`,
-          buttons: ['确定']
+          title: dlgTitle,
+          message: t('已同步最新汉化词库', 'Localization Pack Updated'),
+          detail: t(
+            `版本：v${result.packVersion}（主词条 ${result.dictCount} 条，属性词条 ${result.attrCount} 条）\n当前窗口界面已实时刷新，无需重启。${notesLine}`,
+            `Version: v${result.packVersion} (${result.dictCount} dict entries, ${result.attrCount} attr entries)\nApplied live without restarting.${notesLine}`
+          ),
+          buttons: [okBtn]
         });
         return;
       }
       if (result.status === 'up_to_date') {
         await showBox({
           type: 'info',
-          title: '检查汉化更新',
-          message: '当前已是最新汉化词库',
-          detail: `当前词库版本：v${result.packVersion}\n引擎版本：v${builtinMeta.engineVersion}`,
-          buttons: ['确定']
+          title: dlgTitle,
+          message: t('当前已是最新汉化词库', 'Localization Pack Is Up to Date'),
+          detail: t(
+            `当前词库版本：v${result.packVersion}\n引擎版本：v${builtinMeta.engineVersion}`,
+            `Pack version: v${result.packVersion}\nEngine version: v${builtinMeta.engineVersion}`
+          ),
+          buttons: [okBtn]
         });
         return;
       }
@@ -973,10 +1095,16 @@ function createOtaController(options = {}) {
         const target = result.manifest.minEngineVersion || result.manifest.engineVersion;
         const resp = await showBox({
           type: 'info',
-          title: '检查汉化更新',
-          message: `发现新版汉化引擎 (v${result.manifest.engineVersion || target})`,
-          detail: `最新云端词库需要汉化引擎 v${target} 及以上（当前本地版本为 v${builtinMeta.engineVersion}）。\n请下载最新汉化补丁并重新执行一键更新，在此之前本地现有汉化不受影响。`,
-          buttons: ['前往下载更新', '稍后再说'],
+          title: dlgTitle,
+          message: t(
+            `发现新版汉化引擎 (v${result.manifest.engineVersion || target})`,
+            `New i18n Engine Available (v${result.manifest.engineVersion || target})`
+          ),
+          detail: t(
+            `最新云端词库需要汉化引擎 v${target} 及以上（当前本地版本为 v${builtinMeta.engineVersion}）。\n请下载最新汉化补丁并重新执行一键更新，在此之前本地现有汉化不受影响。`,
+            `The latest Cloud OTA pack requires i18n engine v${target}+ (current: v${builtinMeta.engineVersion}).\nPlease download and apply the latest patch; your current localization remains active in the meantime.`
+          ),
+          buttons: [t('前往下载更新', 'Download Update'), t('稍后再说', 'Later')],
           defaultId: 0,
           cancelId: 1
         });
@@ -987,10 +1115,13 @@ function createOtaController(options = {}) {
       }
       await showBox({
         type: 'warning',
-        title: '检查汉化更新',
-        message: '检查汉化更新失败',
-        detail: `无法从云端拉取词库清单，请确认网络或代理连接正常后重试。\n\n错误详情：${result.error || '未知网络错误'}`,
-        buttons: ['确定']
+        title: dlgTitle,
+        message: t('检查汉化更新失败', 'Failed to Check for i18n Updates'),
+        detail: t(
+          `无法从云端拉取词库清单，请确认网络或代理连接正常后重试。\n\n错误详情：${result.error || '未知网络错误'}`,
+          `Unable to fetch the OTA manifest. Please check your network or proxy settings and try again.\n\nDetails: ${result.error || 'Unknown network error'}`
+        ),
+        buttons: [okBtn]
       });
     } catch (_) {}
   }
@@ -1165,6 +1296,7 @@ function createOtaController(options = {}) {
       clearInterval(pollTimer);
       pollTimer = null;
     }
+    flushMtCacheSync();
     backgroundStarted = false;
   }
 
@@ -1182,6 +1314,7 @@ function createOtaController(options = {}) {
     checkForUpdates,
     startBackgroundSync,
     stopBackgroundSync,
+    flushMtCacheSync,
     isI18nEnabled,
     setI18nEnabled,
     toggleI18nEnabled,

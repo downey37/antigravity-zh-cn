@@ -1,5 +1,6 @@
 process.noAsar = true;
 
+const fs = require('fs');
 const net = require('net');
 const { spawn, execFileSync } = require('child_process');
 const { resolveInstallPaths } = require('./runtime_paths');
@@ -27,7 +28,7 @@ function resolveProxyEndpoints(proxyStr) {
   if (!cleaned) return null;
   if (/^socks\d*:\/\//i.test(cleaned)) {
     return {
-      http: cleaned.replace(/^socks\d*:\/\//i, 'http://'),
+      http: cleaned,
       socks: cleaned
     };
   }
@@ -150,6 +151,11 @@ async function detectActiveProxy(explicitProxy, options = {}) {
     return resolveProxyEndpoints(rawEnvProxy);
   }
 
+  // 1.5 若命令行显式传入 --proxy-server=direct / none 等禁用值，直接走直连，跳过自动探测
+  if (explicitProxy && isProxyDisabledValue(explicitProxy)) {
+    return null;
+  }
+
   // 2. 若设置 ANTIGRAVITY_AUTO_PROXY=0，则仅响应命令行显式传入的 --proxy-server
   if (isAutoProxyDisabled(env)) {
     if (explicitProxy && !isProxyDisabledValue(explicitProxy)) {
@@ -217,7 +223,7 @@ function buildProxyLaunchConfig(activeEndpoints, baseArgs = [], baseEnv = proces
     env.all_proxy = activeEndpoints.socks;
     env.no_proxy = noProxyVal;
   } else {
-    for (const k of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']) {
+    for (const k of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'ANTIGRAVITY_PROXY']) {
       delete env[k];
     }
   }
@@ -228,6 +234,10 @@ function buildProxyLaunchConfig(activeEndpoints, baseArgs = [], baseEnv = proces
 if (require.main === module) {
   (async () => {
     const { exePath } = resolveInstallPaths();
+    if (!fs.existsSync(exePath)) {
+      console.error(`[Guard] 未找到 Antigravity 可执行文件: ${exePath}`);
+      process.exit(1);
+    }
 
     // 1. 若检测到刚被官方更新覆盖为英文原版，先极速自愈补丁
     if (!isAsarPatched()) {
@@ -243,15 +253,24 @@ if (require.main === module) {
     const activeEndpoints = await detectActiveProxy(explicitProxy);
     const { args, env: isolatedEnv } = buildProxyLaunchConfig(activeEndpoints, cleaned, process.env);
 
-    // 3. 启动 Antigravity 主进程
+    // 3. 启动 Antigravity 主进程，等待 spawn 确认成功后再退出
     const child = spawn(exePath, args, {
       detached: true,
       stdio: 'ignore',
       env: isolatedEnv
     });
-    child.unref();
-    process.exit(0);
-  })();
+    child.once('spawn', () => {
+      child.unref();
+      process.exit(0);
+    });
+    child.once('error', (err) => {
+      console.error(`[Guard] 启动 Antigravity 失败 (${exePath}):`, err && err.message ? err.message : err);
+      process.exit(1);
+    });
+  })().catch((err) => {
+    console.error('[Guard] 启动流程异常:', err && err.message ? err.message : err);
+    process.exit(1);
+  });
 }
 
 module.exports = {

@@ -18,7 +18,7 @@ if errorlevel 1 (
 )
 echo.
 echo 正在运行部署校验...
-powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\run_with_runtime.ps1" -Script "scripts\verify_engine.js"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\run_with_runtime.ps1" -Script "scripts\verify_engine.js" --smoke
 if errorlevel 1 (
     echo.
     echo [失败] 部署校验未通过，请检查上方输出！

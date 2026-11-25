@@ -79,6 +79,7 @@ function getDictionaryCounts(rootDir = DEFAULT_ROOT) {
 function verifyVersionConsistency(rootDir = DEFAULT_ROOT) {
   const errors = [];
   const pkgPath = path.join(rootDir, 'package.json');
+  const pkgLockPath = path.join(rootDir, 'package-lock.json');
   const baselinePath = path.join(rootDir, 'assets', 'baseline', 'version.json');
   const readmePath = path.join(rootDir, 'README.md');
   const readmeEnPath = path.join(rootDir, 'README.en.md');
@@ -95,6 +96,44 @@ function verifyVersionConsistency(rootDir = DEFAULT_ROOT) {
     if (!isStrictSemver(patchVersion)) {
       errors.push(`package.json 的 version ("${patchVersion}") 必须为三段式 MAJOR.MINOR.PATCH。`);
     }
+  }
+
+  if (fs.existsSync(pkgLockPath) && isStrictSemver(patchVersion)) {
+    try {
+      const pkgLock = readJson(pkgLockPath);
+      if (String(pkgLock.version || '').trim() !== patchVersion) {
+        errors.push(`package-lock.json 顶层 version ("${pkgLock.version}") 与 package.json ("${patchVersion}") 不一致。`);
+      }
+      const rootEntryVer = pkgLock.packages && pkgLock.packages[''] && pkgLock.packages[''].version;
+      if (String(rootEntryVer || '').trim() !== patchVersion) {
+        errors.push(`package-lock.json packages[""].version ("${rootEntryVer}") 与 package.json ("${patchVersion}") 不一致。`);
+      }
+    } catch (err) {
+      errors.push(`无法解析 package-lock.json: ${err && err.message ? err.message : err}`);
+    }
+  }
+
+  try {
+    const assetsDir = path.join(rootDir, 'assets');
+    const preserveList = readJson(path.join(assetsDir, 'preserve_list.json'));
+    const preserveSet = new Set(Array.isArray(preserveList) ? preserveList : []);
+    const rawDict = readJson(path.join(assetsDir, 'dictionary.json'));
+    const rawAttrDict = readJson(path.join(assetsDir, 'attr_dict.json'));
+    if (Object.prototype.hasOwnProperty.call(rawDict, 'within it.')) {
+      errors.push('assets/dictionary.json 不得包含危险全局碎片 "within it."（请保留在 split_node_rules.js 上下文规则中）。');
+    }
+    for (const [label, obj] of [['dictionary.json', rawDict], ['attr_dict.json', rawAttrDict]]) {
+      for (const [k, v] of Object.entries(obj)) {
+        if (preserveSet.has(k)) {
+          errors.push(`assets/${label} 中的词条 "${k}" 与 preserve_list.json 冲突。`);
+        }
+        if (typeof v !== 'string' || !v.trim()) {
+          errors.push(`assets/${label} 中的词条 "${k}" 译文为空。`);
+        }
+      }
+    }
+  } catch (err) {
+    errors.push(`词库健康校验失败: ${err && err.message ? err.message : err}`);
   }
 
   if (!fs.existsSync(baselinePath)) {
@@ -172,6 +211,7 @@ function syncVersionFiles({ patchVersion, clientVersion, rootDir = DEFAULT_ROOT,
   const cleanClient = normalizeStrictSemver(clientVersion, '客户端版本号');
 
   const pkgPath = path.join(rootDir, 'package.json');
+  const pkgLockPath = path.join(rootDir, 'package-lock.json');
   const readmePath = path.join(rootDir, 'README.md');
   const readmeEnPath = path.join(rootDir, 'README.en.md');
   const baselinePath = path.join(rootDir, 'assets', 'baseline', 'version.json');
@@ -182,6 +222,19 @@ function syncVersionFiles({ patchVersion, clientVersion, rootDir = DEFAULT_ROOT,
   const pkgEol = rawPkg.includes('\r\n') ? '\r\n' : '\n';
   const pkgTrailingNewline = rawPkg.endsWith('\n') ? pkgEol : '';
   const nextPkgText = JSON.stringify(pkg, null, 2).replace(/\n/g, pkgEol) + pkgTrailingNewline;
+
+  let nextPkgLockText = null;
+  if (fs.existsSync(pkgLockPath)) {
+    const rawLock = fs.readFileSync(pkgLockPath, 'utf8');
+    const pkgLock = JSON.parse(rawLock);
+    pkgLock.version = cleanPatch;
+    if (pkgLock.packages && pkgLock.packages['']) {
+      pkgLock.packages[''].version = cleanPatch;
+    }
+    const lockEol = rawLock.includes('\r\n') ? '\r\n' : '\n';
+    const lockTrailing = rawLock.endsWith('\n') ? lockEol : '';
+    nextPkgLockText = JSON.stringify(pkgLock, null, 2).replace(/\n/g, lockEol) + lockTrailing;
+  }
 
   const { dictCount, attrCount } = getDictionaryCounts(rootDir);
   const dictBucket = `${Math.floor(dictCount / 10) * 10}+`;
@@ -232,6 +285,9 @@ function syncVersionFiles({ patchVersion, clientVersion, rootDir = DEFAULT_ROOT,
 
   if (!dryRun) {
     fs.writeFileSync(pkgPath, nextPkgText, 'utf8');
+    if (nextPkgLockText !== null) {
+      fs.writeFileSync(pkgLockPath, nextPkgLockText, 'utf8');
+    }
     fs.writeFileSync(readmePath, nextReadme, 'utf8');
     if (nextReadmeEn !== null) {
       fs.writeFileSync(readmeEnPath, nextReadmeEn, 'utf8');

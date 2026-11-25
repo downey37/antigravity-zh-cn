@@ -1,25 +1,26 @@
+process.noAsar = true;
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
 const asar = require('@electron/asar');
+const { resolveInstallPaths } = require('./runtime_paths');
 const { createDynamicRules } = require('./engine/dynamic_rules');
 
 const projectRoot = path.resolve(__dirname, '..');
 const assetsDir = path.join(projectRoot, 'assets');
 const baselineDir = path.join(assetsDir, 'baseline');
 const buildDir = path.join(projectRoot, 'build');
-const defaultInstallDir = process.env.LOCALAPPDATA
-  ? path.join(process.env.LOCALAPPDATA, 'Programs', 'antigravity', 'resources')
-  : path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'antigravity', 'resources');
-const installDir = process.env.ANTIGRAVITY_RESOURCES || defaultInstallDir;
+const resolvedPaths = resolveInstallPaths();
+const installDir = resolvedPaths.installDir;
 
 const args = process.argv.slice(2);
 const forceRefresh = args.includes('--refresh');
 
 function getInstalledVersion() {
-  const bakAsar = path.join(installDir, 'app.asar.bak');
-  const activeAsar = path.join(installDir, 'app.asar');
+  const bakAsar = resolvedPaths.backupAsar;
+  const activeAsar = resolvedPaths.asarPath;
   const target = fs.existsSync(bakAsar) ? bakAsar : activeAsar;
   if (!fs.existsSync(target)) return { version: 'unknown', asarPath: null };
   try {
@@ -30,8 +31,21 @@ function getInstalledVersion() {
   }
 }
 
+function resolveCacheDataDir() {
+  if (process.env.ANTIGRAVITY_CACHE_DIR) return process.env.ANTIGRAVITY_CACHE_DIR;
+  if (process.platform === 'win32') {
+    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+    return path.join(appData, 'Antigravity', 'Cache', 'Cache_Data');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Application Support', 'Antigravity', 'Cache', 'Cache_Data');
+  }
+  const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+  return path.join(xdgConfig, 'Antigravity', 'Cache', 'Cache_Data');
+}
+
 function refreshBaselineFromCache(installedVersion) {
-  const cacheDir = path.join(process.env.APPDATA || '', 'Antigravity', 'Cache', 'Cache_Data');
+  const cacheDir = resolveCacheDataDir();
   if (!fs.existsSync(cacheDir)) {
     console.log('[Scan] 未找到 Chromium Cache_Data 目录，继续使用当前 assets/baseline/bundle_main.js');
     return false;
@@ -135,7 +149,7 @@ function isLikelyUiText(s) {
   if (/^[A-Z0-9_]{3,}$/.test(s)) return false; // ENUM_CONSTANTS
   if (/^[a-z0-9_]+\.[a-z0-9_.]+$/i.test(s)) return false; // dotted keys like jetski.onboarding...
   if (/(?:^|\s)(?:text-|bg-|border-|flex-|grid-|px-|py-|pl-|pr-|pt-|pb-|gap-|rounded-|items-|justify-|overflow-|w-\[|h-\[|max-h-|min-h-|max-w-|min-w-|h-\d|w-\d|aria-|group-|can-hover:|starting:|motion-reduce:|duration-|ease-|transition-|shadow-|focus-|hover:|active:|disabled:|dark:|block |inline-flex |relative |absolute |whitespace-|select-none|pointer-events-|shrink-0|truncate)/.test(s)) return false;
-  if (/(?:\)\s*return\b|===\s*|!==\s*|==\s*!=|[{}();]|=>)/.test(s)) return false;
+  if (/[{}]|===|!==|=>|\)\s*return\b|;\s*(?:const|let|var|return|if)\b/.test(s)) return false;
   if (/\\n|\\t/.test(s)) return false;
   // Require either space/punctuation or Title Case word
   return /\s/.test(s) || /^[A-Z][a-z]{2,}/.test(s);

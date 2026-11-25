@@ -55,6 +55,40 @@ function antigravityI18nBootstrap(
   const LEXICAL_SCHEDULED = typeof WeakSet === 'function' ? new WeakSet() : null;
   let syncingLexicalChips = false;
 
+  const AUTO_MT_MAX_CACHE = 500;
+  const CORE_CACHE_MAX = 2000;
+  const CORE_TRANS_CACHE = new Map();
+  let cachedTitleBarToggle = null;
+  let engineBooted = false;
+  let recentProtoInserted = typeof WeakSet === 'function' ? new WeakSet() : null;
+  let recentProtoResetScheduled = false;
+
+  function markProtoInserted(target) {
+    if (!recentProtoInserted || !target || typeof target !== 'object') return;
+    recentProtoInserted.add(target);
+    if (!recentProtoResetScheduled) {
+      recentProtoResetScheduled = true;
+      const reset = () => {
+        recentProtoResetScheduled = false;
+        recentProtoInserted = new WeakSet();
+      };
+      if (typeof queueMicrotask === 'function') {
+        queueMicrotask(reset);
+      } else if (typeof Promise === 'function') {
+        Promise.resolve().then(reset);
+      } else {
+        setTimeout(reset, 0);
+      }
+    }
+  }
+
+  function setBoundedMapEntry(map, key, val, maxSize) {
+    if (!map.has(key) && map.size >= maxSize) {
+      const oldest = map.keys().next().value;
+      if (oldest !== undefined) map.delete(oldest);
+    }
+    map.set(key, val);
+  }
   function normalizeKey(s) {
     return String(s)
       .replace(/[\u2018\u2019]/g, "'")
@@ -74,10 +108,12 @@ function antigravityI18nBootstrap(
   const NORM_ATTR = new Map();
   const NORM_ATTR_LOWER = new Map();
   let OTA_DYNAMIC_RULES = [];
+  let HAS_NON_ASCII_OTA_RULES = false;
 
   function compileOtaRules(rawRules) {
     const compiled = [];
-    if (!Array.isArray(rawRules)) return compiled;
+    let hasNonAscii = false;
+    if (!Array.isArray(rawRules)) return { compiled, hasNonAscii };
     const limit = Math.min(rawRules.length, 200);
     for (let i = 0; i < limit; i++) {
       const r = rawRules[i];
@@ -89,17 +125,20 @@ function antigravityI18nBootstrap(
       if (/\([^)]*[+*][^)]*\)[+*{]/.test(r.pattern)) continue;
       try {
         const re = new RegExp(r.pattern, flags);
+        const requireAscii = r.requireAscii !== false;
+        if (!requireAscii) hasNonAscii = true;
         compiled.push({
           re,
           replace: r.replace,
-          requireAscii: r.requireAscii !== false
+          requireAscii
         });
       } catch (_) {}
     }
-    return compiled;
+    return { compiled, hasNonAscii };
   }
 
   function rebuildDictIndexes(nextDict, nextAttrDict, nextPreserveList, nextRules) {
+    CORE_TRANS_CACHE.clear();
     PRESERVE_SET.clear();
     if (Array.isArray(nextPreserveList)) {
       for (let i = 0; i < nextPreserveList.length; i++) {
@@ -144,7 +183,9 @@ function antigravityI18nBootstrap(
       }
     }
 
-    OTA_DYNAMIC_RULES = compileOtaRules(nextRules);
+    const compiledOta = compileOtaRules(nextRules);
+    OTA_DYNAMIC_RULES = compiledOta.compiled;
+    HAS_NON_ASCII_OTA_RULES = compiledOta.hasNonAscii;
     dictGeneration += 1;
   }
 
@@ -167,9 +208,89 @@ function antigravityI18nBootstrap(
     translateClockTime,
     translateCompactRelativeTime,
     translateCompactDuration,
+    translateCompactExecutionDuration,
+    translateRuntimeStatusText,
     translateModelWithEffort,
     translateModelParenEffort
   } = DYNAMIC_RULES_FACTORY({ normalizeKey, lookupExact });
+
+  function buildDynamicRuleIndex(rules) {
+    const wordBuckets = new Map();
+    const digitRules = [];
+    const fallbackRules = [];
+    const addWord = (w, item) => {
+      const k = w.toLowerCase();
+      let arr = wordBuckets.get(k);
+      if (!arr) {
+        arr = [];
+        wordBuckets.set(k, arr);
+      }
+      arr.push(item);
+    };
+    for (let i = 0; i < rules.length; i++) {
+      const item = rules[i];
+      const src = item.re.source;
+      const wm = src.match(/^\^([A-Za-z][A-Za-z0-9_]*)(?:\\s| |:|\\b|\(|\/|\.|,|'|\\\.|\?|\$)/);
+      if (wm && src[1 + wm[1].length] !== '?') {
+        addWord(wm[1], item);
+        continue;
+      }
+      const bm = src.match(/^\^\((?:\?:)?([A-Za-z]+(?:\|[A-Za-z]+)+)\)(?:\\s| |:|\\b|\(|\/|\.|,|\\\.)/);
+      if (bm) {
+        const branches = bm[1].split('|');
+        for (let b = 0; b < branches.length; b++) {
+          addWord(branches[b], item);
+        }
+        continue;
+      }
+      if (/^\^\(\\d|^\^\\d|^\^\\\+\(\\d/.test(src)) {
+        digitRules.push(item);
+        continue;
+      }
+      fallbackRules.push(item);
+    }
+    return { wordBuckets, digitRules, fallbackRules };
+  }
+
+  function matchDynamicRuleIndex(index, text) {
+    let primary = null;
+    const ch = text.charCodeAt(0);
+    if ((ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122)) {
+      const m = text.match(/^[A-Za-z][A-Za-z0-9_]*/);
+      if (m) primary = index.wordBuckets.get(m[0].toLowerCase()) || null;
+    } else if ((ch >= 48 && ch <= 57) || (ch === 43 && text.charCodeAt(1) >= 48 && text.charCodeAt(1) <= 57)) {
+      primary = index.digitRules;
+    }
+    const fb = index.fallbackRules;
+    let i = 0;
+    let j = 0;
+    const pLen = primary ? primary.length : 0;
+    const fLen = fb.length;
+    while (i < pLen || j < fLen) {
+      const item = (i < pLen && (j >= fLen || primary[i].idx <= fb[j].idx))
+        ? primary[i++]
+        : fb[j++];
+      if (item.re.test(text)) {
+        const res = text.replace(item.re, item.rep);
+        if (res !== text) return res;
+      }
+    }
+    return null;
+  }
+
+  const parenRuleItems = [];
+  const nonParenRuleItems = [];
+  for (let i = 0; i < DYNAMIC_RULES.length; i++) {
+    const r = DYNAMIC_RULES[i];
+    const item = { idx: i, re: r[0], rep: r[1] };
+    if (r[0].source.indexOf('\\(') !== -1) {
+      parenRuleItems.push(item);
+    } else {
+      nonParenRuleItems.push(item);
+    }
+  }
+  const PAREN_RULE_INDEX = buildDynamicRuleIndex(parenRuleItems);
+  const NON_PAREN_RULE_INDEX = buildDynamicRuleIndex(nonParenRuleItems);
   const {
     isNewBadgeContext,
     isGroupByNoneContext,
@@ -181,6 +302,8 @@ function antigravityI18nBootstrap(
     isSwarmContext,
     isRelativeTimestampContext,
     isElapsedDurationContext,
+    isExecutionElapsedContext,
+    isRuntimeStatusContext,
     isModelEffortContext,
     isModelLabelContext,
     isAutomationScheduleContext,
@@ -208,6 +331,7 @@ function antigravityI18nBootstrap(
     'data-label',
     'data-description',
     'data-original-title',
+    'data-slot-out',
     'tooltip',
     'alt'
   ];
@@ -257,40 +381,46 @@ function antigravityI18nBootstrap(
       }
     }
 
-    // 自动化自定义定时编辑器上下文（重复单位、星期按钮、月日序数、时间格式与分隔词）
-    if (isAutomationScheduleContext(contextEl)) {
-      if (norm === 'M' || norm === 'T' || norm === 'W' || norm === 'F' || norm === 'S') {
-        const dayZh = getAutomationWeekdayShortLabel(contextEl);
-        if (dayZh) return leadWs + dayZh + trailWs;
-      }
-      if (normLower === 'hours') return leadWs + '小时' + trailWs;
-      if (normLower === 'week') return leadWs + '周' + trailWs;
-      if (normLower === 'month') return leadWs + '月' + trailWs;
-      if (normLower === 'on') {
-        return leadWs + (contextEl && contextEl.closest && contextEl.closest('[data-testid="schedule-custom"]') ? '星期' : '的') + trailWs;
-      }
-      if (normLower === 'on the') return leadWs + '的' + trailWs;
-      if (normLower === 'at') return leadWs + '时间' + trailWs;
-      const ordMatch = norm.match(/^(\d{1,2})(?:st|nd|rd|th)$/i);
-      if (ordMatch) {
-        const dayNum = Number(ordMatch[1]);
-        if (dayNum >= 1 && dayNum <= 31) {
-          return leadWs + `${dayNum} 日` + trailWs;
+    // 自动化自定义定时编辑器上下文（先按廉价字符串模式过滤，命中后再遍历 DOM）
+    if (
+      norm === 'M' || norm === 'T' || norm === 'W' || norm === 'F' || norm === 'S' ||
+      normLower === 'hours' || normLower === 'week' || normLower === 'month' ||
+      normLower === 'on' || normLower === 'on the' || normLower === 'at' ||
+      /^\d{1,2}(?:st|nd|rd|th)$/i.test(norm) ||
+      /^\d{1,2}:\d{2}\s*(?:AM|PM)$/i.test(norm)
+    ) {
+      if (isAutomationScheduleContext(contextEl)) {
+        if (norm === 'M' || norm === 'T' || norm === 'W' || norm === 'F' || norm === 'S') {
+          const dayZh = getAutomationWeekdayShortLabel(contextEl);
+          if (dayZh) return leadWs + dayZh + trailWs;
         }
-      }
-      if (/^\d{1,2}:\d{2}\s*(?:AM|PM)$/i.test(norm)) {
-        return leadWs + translateClockTime(norm) + trailWs;
+        if (normLower === 'hours') return leadWs + '小时' + trailWs;
+        if (normLower === 'week') return leadWs + '周' + trailWs;
+        if (normLower === 'month') return leadWs + '月' + trailWs;
+        if (normLower === 'on') {
+          return leadWs + (contextEl && contextEl.closest && contextEl.closest('[data-testid="schedule-custom"]') ? '星期' : '的') + trailWs;
+        }
+        if (normLower === 'on the') return leadWs + '的' + trailWs;
+        if (normLower === 'at') return leadWs + '时间' + trailWs;
+        const ordMatch = norm.match(/^(\d{1,2})(?:st|nd|rd|th)$/i);
+        if (ordMatch) {
+          const dayNum = Number(ordMatch[1]);
+          if (dayNum >= 1 && dayNum <= 31) {
+            return leadWs + `${dayNum} 日` + trailWs;
+          }
+        }
+        if (/^\d{1,2}:\d{2}\s*(?:AM|PM)$/i.test(norm)) {
+          return leadWs + translateClockTime(norm) + trailWs;
+        }
       }
     }
 
     // 自动化列表窄屏标签："Next" -> "下次"，"Last" -> "上次"
-    if (isAutomationListRowContext(contextEl)) {
+    if ((normLower === 'next' || norm === '下一步' || normLower === 'last') && isAutomationListRowContext(contextEl)) {
       if (normLower === 'next' || norm === '下一步') {
         return leadWs + '下次' + trailWs;
       }
-      if (normLower === 'last') {
-        return leadWs + '上次' + trailWs;
-      }
+      return leadWs + '上次' + trailWs;
     }
 
     // 自动化云端环境："Machine" -> "运行云端主机"
@@ -308,14 +438,105 @@ function antigravityI18nBootstrap(
       return leadWs + '可读取' + trailWs;
     }
 
-    // 自动化详情/列表中的任务删除无障碍标签："Delete <name>" -> "删除 <name>"
-    if (isAutomationDetailOrListContext(contextEl)) {
+    // 自动化详情/列表中的任务删除无障碍标签："Delete <name>" -> "删除 <name>"（静态词典已收录项优先走词典）
+    if (norm.startsWith('Delete ') && !lookupExact(norm, norm) && isAutomationDetailOrListContext(contextEl)) {
       const delMatch = norm.match(/^Delete\s+(.+)$/);
       if (delMatch) {
         return leadWs + `删除 ${delMatch[1]}` + trailWs;
       }
     }
 
+    return null;
+  }
+
+  const SHORTCUT_SUFFIX_RE =
+    /^(.+?)\s*\(((?:Enter|Esc|Escape|Tab|Space|Return|Backspace|Delete|Del|\u23ce|[\u2318\u2303\u2325\u21e7]+(?:\s*[^\s()]+)?|(?:Ctrl|Alt|Shift|Cmd|Meta|Win|Opt|Option|Super)(?:\s*[+\-]\s*[^\s()]+)+|F\d{1,2}))\)$/i;
+  const CONTEXT_PATTERN_RE =
+    /^(?:To|From|Editing|Reading|Listing|Searching|Running|Waiting on)\s+|\b(?:Extra\s+High|XHigh|Minimal|Low|Medium|High|Extra|Max)\b|\((?:unavailable|latest)\)|\u00b7/i;
+  const MODEL_EFFORT_HINT_RE = /\b(?:Extra\s+High|XHigh|Minimal|Low|Medium|High|Extra|Max)\b/i;
+
+  function translateCoreDynamic(norm, contextEl) {
+    // 1.5 显式带括号的动态规则优先匹配（分桶索引，包含可选/分支括号规则）
+    const parenHit = matchDynamicRuleIndex(PAREN_RULE_INDEX, norm);
+    if (parenHit !== null) return parenHit;
+
+    const hasParen = norm.indexOf('(') !== -1;
+    if (hasParen) {
+      // 1.8 键盘快捷键括号后缀优先拆分
+      const shortcutSuffixMatch = norm.match(SHORTCUT_SUFFIX_RE);
+      if (shortcutSuffixMatch) {
+        const baseRaw = shortcutSuffixMatch[1].trim();
+        const keyRaw = shortcutSuffixMatch[2].trim();
+        if (baseRaw && !PRESERVE_SET.has(baseRaw)) {
+          const baseZh = translateString(baseRaw, contextEl);
+          if (baseZh && baseZh !== baseRaw) {
+            return `${baseZh} (${keyRaw})`;
+          }
+        }
+      }
+    }
+
+    // 2. 动态模板正则匹配（非括号规则分桶索引 + 云端 OTA 声明式正则规则）
+    const dynHit = matchDynamicRuleIndex(NON_PAREN_RULE_INDEX, norm);
+    if (dynHit !== null) return dynHit;
+
+    const hasCjk = /[\u4e00-\u9fff]/.test(norm);
+    for (let i = 0; i < OTA_DYNAMIC_RULES.length; i++) {
+      const rule = OTA_DYNAMIC_RULES[i];
+      if (rule.requireAscii && hasCjk) continue;
+      if (rule.re.test(norm)) {
+        const res = norm.replace(rule.re, rule.replace);
+        if (res !== norm) return res;
+      }
+    }
+
+    // 2.5 通用括号后缀拆分匹配（要求括号前有空白、内部非中文，且避免对自带括号的译文二次叠加）
+    if (hasParen && !hasCjk && norm.endsWith(')')) {
+      const parenSuffixMatch = norm.match(/^(.+?)\s+\(([^()]+)\)$/);
+      if (parenSuffixMatch) {
+        const baseRaw = parenSuffixMatch[1].trim();
+        const innerRaw = parenSuffixMatch[2].trim();
+        if (baseRaw && !PRESERVE_SET.has(baseRaw) && !/[\u4e00-\u9fff]/.test(innerRaw)) {
+          let baseZh = lookupExact(baseRaw, baseRaw);
+          if (!baseZh && baseRaw.indexOf('(') !== -1) {
+            baseZh = matchDynamicRuleIndex(PAREN_RULE_INDEX, baseRaw);
+          }
+          if (!baseZh) {
+            baseZh = matchDynamicRuleIndex(NON_PAREN_RULE_INDEX, baseRaw);
+          }
+          if (baseZh && baseZh !== baseRaw && !/[()（）]/.test(baseZh)) {
+            const innerZh = lookupExact(innerRaw, innerRaw) || innerRaw;
+            return `${baseZh} (${innerZh})`;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function translatePunctuationStem(norm) {
+    if (norm.endsWith('...')) {
+      const stem = norm.slice(0, -3).trim();
+      const stemHit = stem ? lookupExact(stem, stem) : null;
+      if (stemHit) {
+        const hasEllipsis = stemHit.endsWith('...') || stemHit.endsWith('…');
+        return stemHit + (hasEllipsis ? '' : '...');
+      }
+    } else if (norm.endsWith('.')) {
+      const stem = norm.slice(0, -1).trim();
+      const stemHit = stem ? lookupExact(stem, stem) : null;
+      if (stemHit) {
+        const hasEnd = /[。！？.!?]$/.test(stemHit);
+        return stemHit + (hasEnd ? '' : '。');
+      }
+    } else if (norm.endsWith(':')) {
+      const stem = norm.slice(0, -1).trim();
+      const stemHit = stem ? lookupExact(stem, stem) : null;
+      if (stemHit) {
+        const hasColon = /[：:]$/.test(stemHit);
+        return stemHit + (hasColon ? '' : '：');
+      }
+    }
     return null;
   }
 
@@ -341,19 +562,31 @@ function antigravityI18nBootstrap(
       return ctxHit;
     }
 
-    // 侧栏会话列表、事件列表等紧凑相对时间戳（now / 47m / 3h / 3d / 2mo / 1y）
-    if (isRelativeTimestampContext(contextEl)) {
-      const relZh = translateCompactRelativeTime(norm);
-      if (relZh) {
-        return leadWs + relZh + trailWs;
-      }
+    // 无英文字母的文本（如已汉化中文、纯符号等）无需进入英文词典与 450+ 正则管线
+    if (!/[A-Za-z]/.test(norm) && !HAS_NON_ASCII_OTA_RULES) {
+      return str;
     }
 
-    // 运行中任务与扩展运行时间等紧凑耗时（12s / 5m / 1h 23m）
-    if (isElapsedDurationContext(contextEl)) {
-      const durZh = translateCompactDuration(norm);
-      if (durZh) {
-        return leadWs + durZh + trailWs;
+    // 紧凑耗时与相对时间仅在 "now" 或数字开头时触发上下文 DOM 检查
+    const firstCh = norm.charCodeAt(0);
+    if (norm === 'now' || (firstCh >= 48 && firstCh <= 57)) {
+      if (isExecutionElapsedContext(contextEl)) {
+        const execDurZh = translateCompactExecutionDuration(norm);
+        if (execDurZh) {
+          return leadWs + execDurZh + trailWs;
+        }
+      }
+      if (isRelativeTimestampContext(contextEl)) {
+        const relZh = translateCompactRelativeTime(norm);
+        if (relZh) {
+          return leadWs + relZh + trailWs;
+        }
+      }
+      if (isElapsedDurationContext(contextEl)) {
+        const durZh = translateCompactDuration(norm);
+        if (durZh) {
+          return leadWs + durZh + trailWs;
+        }
       }
     }
 
@@ -364,97 +597,42 @@ function antigravityI18nBootstrap(
       return leadWs + direct + effectiveTrailWs;
     }
 
+    const mayBeContextDependent = CONTEXT_PATTERN_RE.test(norm);
+    if (!mayBeContextDependent && CORE_TRANS_CACHE.has(norm)) {
+      const cached = CORE_TRANS_CACHE.get(norm);
+      return cached === null ? str : (leadWs + cached + trailWs);
+    }
+
     // 1.2 模型选择器中合并展示的“模型名 + 思考深度”组合文案（Orchestrator 行与底部模型选择触发器）
-    if (isModelEffortContext(contextEl)) {
+    if (MODEL_EFFORT_HINT_RE.test(norm) && isModelEffortContext(contextEl)) {
       const modelEffortZh = translateModelWithEffort(norm);
       if (modelEffortZh && modelEffortZh !== norm) {
         return leadWs + modelEffortZh + trailWs;
       }
     }
 
-    // 1.3 模型选择器中括号形式思考深度标签（如 "GPT-OSS 120B (Medium)" -> "GPT-OSS 120B (中)"）
-    if (isModelLabelContext(contextEl)) {
+    // 1.3 模型选择器中括号形式思考深度及环境后缀标签（如 "GPT-OSS 120B (Medium)" / "Gemini 4 Carbon · This computer"）
+    if (
+      (norm.indexOf('\u00b7') !== -1 ||
+        (norm.indexOf('(') !== -1 && (MODEL_EFFORT_HINT_RE.test(norm) || /\((?:unavailable|latest)\)/i.test(norm)))) &&
+      isModelLabelContext(contextEl)
+    ) {
       const modelParenZh = translateModelParenEffort(norm);
       if (modelParenZh && modelParenZh !== norm) {
         return leadWs + modelParenZh + trailWs;
       }
     }
 
-    // 1.5 显式带括号的动态规则优先匹配
-    for (let i = 0; i < DYNAMIC_RULES.length; i++) {
-      const rule = DYNAMIC_RULES[i];
-      if (rule[0].source.indexOf('\\(') !== -1 && rule[0].test(norm)) {
-        const res = norm.replace(rule[0], rule[1]);
-        if (res !== norm) {
-          return leadWs + res + trailWs;
-        }
+    const coreDynHit = translateCoreDynamic(norm, contextEl);
+    if (coreDynHit !== null) {
+      if (!mayBeContextDependent) {
+        setBoundedMapEntry(CORE_TRANS_CACHE, norm, coreDynHit, CORE_CACHE_MAX);
       }
-    }
-
-    // 1.8 键盘快捷键括号后缀优先拆分
-    const shortcutSuffixMatch = norm.match(
-      /^(.+?)\s*\(((?:Enter|Esc|Escape|Tab|Space|Return|Backspace|Delete|Del|\u23ce|[\u2318\u2303\u2325\u21e7]+(?:\s*[^\s()]+)?|(?:Ctrl|Alt|Shift|Cmd|Meta|Win|Opt|Option|Super)(?:\s*[+\-]\s*[^\s()]+)+|F\d{1,2}))\)$/i
-    );
-    if (shortcutSuffixMatch) {
-      const baseRaw = shortcutSuffixMatch[1].trim();
-      const keyRaw = shortcutSuffixMatch[2].trim();
-      if (baseRaw && !PRESERVE_SET.has(baseRaw)) {
-        const baseZh = translateString(baseRaw, contextEl);
-        if (baseZh && baseZh !== baseRaw) {
-          return `${leadWs}${baseZh} (${keyRaw})${trailWs}`;
-        }
-      }
-    }
-
-    // 2. 动态模板正则匹配（内置动态规则 + 云端 OTA 声明式正则规则）
-    for (let i = 0; i < DYNAMIC_RULES.length; i++) {
-      const rule = DYNAMIC_RULES[i];
-      if (rule[0].test(norm)) {
-        const res = norm.replace(rule[0], rule[1]);
-        if (res !== norm) {
-          return leadWs + res + trailWs;
-        }
-      }
-    }
-    const hasCjk = /[\u4e00-\u9fff]/.test(norm);
-    for (let i = 0; i < OTA_DYNAMIC_RULES.length; i++) {
-      const rule = OTA_DYNAMIC_RULES[i];
-      if (rule.requireAscii && hasCjk) continue;
-      if (rule.re.test(norm)) {
-        const res = norm.replace(rule.re, rule.replace);
-        if (res !== norm) {
-          return leadWs + res + trailWs;
-        }
-      }
-    }
-
-    // 2.5 通用括号后缀拆分匹配（要求括号前有空白、内部非中文，且避免对自带括号的译文二次叠加）
-    const parenSuffixMatch = !/[\u4e00-\u9fff]/.test(norm) ? norm.match(/^(.+?)\s+\(([^()]+)\)$/) : null;
-    if (parenSuffixMatch) {
-      const baseRaw = parenSuffixMatch[1].trim();
-      const innerRaw = parenSuffixMatch[2].trim();
-      if (baseRaw && !PRESERVE_SET.has(baseRaw) && !/[\u4e00-\u9fff]/.test(innerRaw)) {
-        let baseZh = lookupExact(baseRaw, baseRaw);
-        if (!baseZh) {
-          for (let i = 0; i < DYNAMIC_RULES.length; i++) {
-            if (DYNAMIC_RULES[i][0].test(baseRaw)) {
-              const candidate = baseRaw.replace(DYNAMIC_RULES[i][0], DYNAMIC_RULES[i][1]);
-              if (candidate !== baseRaw) {
-                baseZh = candidate;
-                break;
-              }
-            }
-          }
-        }
-        if (baseZh && baseZh !== baseRaw && !/[()（）]/.test(baseZh)) {
-          const innerZh = lookupExact(innerRaw, innerRaw) || innerRaw;
-          return `${leadWs}${baseZh} (${innerZh})${trailWs}`;
-        }
-      }
+      return leadWs + coreDynHit + trailWs;
     }
 
     // Swarm 面板专属上下文短语
-    if (isSwarmContext(contextEl)) {
+    if (/^(?:To|From)\s+/i.test(norm) && isSwarmContext(contextEl)) {
       if (/^To\s+(.+)$/i.test(norm)) {
         return leadWs + norm.replace(/^To\s+(.+)$/i, '发送给 $1') + trailWs;
       }
@@ -463,32 +641,29 @@ function antigravityI18nBootstrap(
       }
     }
 
-    // 3. 标点容错匹配
-    if (norm.endsWith('...')) {
-      const stem = norm.slice(0, -3).trim();
-      const stemHit = stem ? lookupExact(stem, stem) : null;
-      if (stemHit) {
-        const hasEllipsis = stemHit.endsWith('...') || stemHit.endsWith('…');
-        return leadWs + stemHit + (hasEllipsis ? '' : '...') + trailWs;
-      }
-    }
-    if (norm.endsWith('.')) {
-      const stem = norm.slice(0, -1).trim();
-      const stemHit = stem ? lookupExact(stem, stem) : null;
-      if (stemHit) {
-        const hasEnd = /[。！？.!?]$/.test(stemHit);
-        return leadWs + stemHit + (hasEnd ? '' : '。') + trailWs;
-      }
-    }
-    if (norm.endsWith(':')) {
-      const stem = norm.slice(0, -1).trim();
-      const stemHit = stem ? lookupExact(stem, stem) : null;
-      if (stemHit) {
-        const hasColon = /[：:]$/.test(stemHit);
-        return leadWs + stemHit + (hasColon ? '' : '：') + trailWs;
+    // 运行时状态栏专属动态动作短语（Editing/Reading/Listing/Searching/Running/Waiting on）
+    if (/^(?:Editing|Reading|Listing|Searching|Running|Waiting on)\s+/.test(norm) && isRuntimeStatusContext(contextEl)) {
+      const runtimeZh = translateRuntimeStatusText(norm);
+      if (runtimeZh && runtimeZh !== norm) {
+        return leadWs + runtimeZh + trailWs;
       }
     }
 
+    // 3. 标点容错匹配
+    const lastCh = norm.charCodeAt(norm.length - 1);
+    if (lastCh === 46 || lastCh === 58) {
+      const stemOut = translatePunctuationStem(norm);
+      if (stemOut !== null) {
+        if (!mayBeContextDependent) {
+          setBoundedMapEntry(CORE_TRANS_CACHE, norm, stemOut, CORE_CACHE_MAX);
+        }
+        return leadWs + stemOut + trailWs;
+      }
+    }
+
+    if (!mayBeContextDependent) {
+      setBoundedMapEntry(CORE_TRANS_CACHE, norm, null, CORE_CACHE_MAX);
+    }
     return str;
   }
 
@@ -563,7 +738,7 @@ function antigravityI18nBootstrap(
             if (res && res.status === 'ok' && typeof res.translated === 'string') {
               const zh = res.translated.trim();
               if (zh && zh !== norm) {
-                AUTO_MT_MEM_CACHE.set(norm, zh);
+                setBoundedMapEntry(AUTO_MT_MEM_CACHE, norm, zh, AUTO_MT_MAX_CACHE);
                 if (I18N_ENABLED && AUTO_MT_ENABLED) {
                   for (let i = 0; i < pendingWaiters.length; i++) {
                     const w = pendingWaiters[i];
@@ -576,16 +751,16 @@ function antigravityI18nBootstrap(
               }
             }
             if (!res || res.status !== 'disabled') {
-              AUTO_MT_FAILED_UNTIL.set(norm, Date.now() + 60000);
+              setBoundedMapEntry(AUTO_MT_FAILED_UNTIL, norm, Date.now() + 60000, AUTO_MT_MAX_CACHE);
             }
           })
           .catch(() => {
             AUTO_MT_PENDING.delete(norm);
-            AUTO_MT_FAILED_UNTIL.set(norm, Date.now() + 60000);
+            setBoundedMapEntry(AUTO_MT_FAILED_UNTIL, norm, Date.now() + 60000, AUTO_MT_MAX_CACHE);
           });
       } catch (_) {
         AUTO_MT_PENDING.delete(norm);
-        AUTO_MT_FAILED_UNTIL.set(norm, Date.now() + 60000);
+        setBoundedMapEntry(AUTO_MT_FAILED_UNTIL, norm, Date.now() + 60000, AUTO_MT_MAX_CACHE);
       }
     }
     return false;
@@ -909,8 +1084,12 @@ function antigravityI18nBootstrap(
     if (!node) return;
 
     if (!I18N_ENABLED) {
-      if (containsTitleMenuBar(node)) {
-        ensureTitleBarLangToggle(node);
+      if (!cachedTitleBarToggle || cachedTitleBarToggle.isConnected === false) {
+        if (containsTitleMenuBar(node)) {
+          ensureTitleBarLangToggle(node);
+          ensureTitleBarOtaMenuItem(node);
+        }
+      } else if (isTitleMenuRelated(node)) {
         ensureTitleBarOtaMenuItem(node);
       }
       return;
@@ -1210,8 +1389,10 @@ function antigravityI18nBootstrap(
     for (let i = 0; i < bars.length; i++) {
       const bar = bars[i];
       if (!bar) continue;
-      if (bar.querySelector && bar.querySelector('[data-antigravity-i18n-titlebar-toggle="true"]')) {
-        updateTitleBarToggleVisuals(bar.querySelector('[data-antigravity-i18n-titlebar-toggle="true"]'));
+      const existingToggle = bar.querySelector ? bar.querySelector('[data-antigravity-i18n-titlebar-toggle="true"]') : null;
+      if (existingToggle) {
+        cachedTitleBarToggle = existingToggle;
+        updateTitleBarToggleVisuals(existingToggle);
         continue;
       }
 
@@ -1361,6 +1542,7 @@ function antigravityI18nBootstrap(
 
       wrap.appendChild(btn);
       bar.appendChild(wrap);
+      cachedTitleBarToggle = btn;
     }
   }
 
@@ -1531,14 +1713,15 @@ function antigravityI18nBootstrap(
     }
     AUTO_MT_ENABLED = nextEnabled;
     const root = typeof document !== 'undefined' ? (document.documentElement || document.body) : null;
+    const coversAllPortals = Boolean(typeof document !== 'undefined' && root && root === document.documentElement);
     if (AUTO_MT_ENABLED) {
       if (I18N_ENABLED) {
         if (root) translateSubtree(root);
-        if (typeof document !== 'undefined') translatePortals();
+        if (typeof document !== 'undefined' && !coversAllPortals) translatePortals();
       }
     } else {
       if (root) restoreAutoMtSubtree(root);
-      if (typeof document !== 'undefined') {
+      if (typeof document !== 'undefined' && !coversAllPortals) {
         const queryRoot = (document.documentElement && typeof document.documentElement.querySelectorAll === 'function')
           ? document.documentElement
           : (typeof document.querySelectorAll === 'function' ? document : null);
@@ -1565,13 +1748,14 @@ function antigravityI18nBootstrap(
     }
     I18N_ENABLED = nextEnabled;
     const root = typeof document !== 'undefined' ? (document.documentElement || document.body) : null;
+    const coversAllPortals = Boolean(typeof document !== 'undefined' && root && root === document.documentElement);
     if (I18N_ENABLED) {
       if (root) translateSubtree(root);
-      if (typeof document !== 'undefined') translatePortals();
+      if (typeof document !== 'undefined' && !coversAllPortals) translatePortals();
       if (root) syncAllLexicalEditors(root);
     } else {
       if (root) restoreOriginalSubtree(root);
-      if (typeof document !== 'undefined') {
+      if (typeof document !== 'undefined' && !coversAllPortals) {
         const queryRoot = (document.documentElement && typeof document.documentElement.querySelectorAll === 'function')
           ? document.documentElement
           : (typeof document.querySelectorAll === 'function' ? document : null);
@@ -1615,7 +1799,7 @@ function antigravityI18nBootstrap(
     if (I18N_ENABLED) {
       try {
         window.__antigravityTranslateAll();
-        if (typeof document !== 'undefined' && document.querySelectorAll) {
+        if (typeof document !== 'undefined' && !document.documentElement && document.querySelectorAll) {
           translatePortals();
         }
       } catch (_) {}
@@ -1682,6 +1866,7 @@ function antigravityI18nBootstrap(
 
         try {
           if (!I18N_ENABLED) {
+            const needToggle = !cachedTitleBarToggle || cachedTitleBarToggle.isConnected === false;
             const disabledAdded = new Set();
             for (let i = 0; i < mutations.length; i++) {
               const m = mutations[i];
@@ -1695,8 +1880,12 @@ function antigravityI18nBootstrap(
             }
             disabledAdded.forEach((added) => {
               if (added.parentNode && disabledAdded.has(added.parentNode)) return;
-              if (containsTitleMenuBar(added)) {
-                ensureTitleBarLangToggle(added);
+              if (needToggle) {
+                if (containsTitleMenuBar(added)) {
+                  ensureTitleBarLangToggle(added);
+                  ensureTitleBarOtaMenuItem(added);
+                }
+              } else if (isTitleMenuRelated(added)) {
                 ensureTitleBarOtaMenuItem(added);
               }
             });
@@ -1716,6 +1905,7 @@ function antigravityI18nBootstrap(
               for (let j = 0; j < m.addedNodes.length; j++) {
                 const added = m.addedNodes[j];
                 if (!added || isInjectedI18nControl(added)) continue;
+                if (recentProtoInserted && recentProtoInserted.has(added)) continue;
                 addedSet.add(added);
               }
             } else if (m.type === 'characterData') {
@@ -1800,9 +1990,11 @@ function antigravityI18nBootstrap(
     if (Array.isArray(targets)) {
       for (let i = 0; i < targets.length; i++) {
         translateSubtree(targets[i]);
+        if (I18N_ENABLED) markProtoInserted(targets[i]);
       }
     } else {
       translateSubtree(targets);
+      if (I18N_ENABLED) markProtoInserted(targets);
     }
   }
 
@@ -1871,6 +2063,7 @@ function antigravityI18nBootstrap(
             for (let i = 0; i < targets.length; i++) {
               try {
                 translateSubtree(targets[i]);
+                if (I18N_ENABLED) markProtoInserted(targets[i]);
               } catch (e) {}
             }
           }
@@ -1932,7 +2125,14 @@ function antigravityI18nBootstrap(
   const HOVER_TRIGGER_SELECTOR = 'button, [role="button"], [role="menuitem"], [role="option"], [data-tooltip-id], [aria-describedby], [title], [data-hover-card-trigger], a, [tabindex], [aria-haspopup]';
   const HOVER_DELAY_STEPS = [80, 260, 500];
   let hoverDelayTimers = [];
-  let lastHoverTarget = null;
+  let lastHoverTargetRef = null;
+  function getLastHoverTarget() {
+    if (!lastHoverTargetRef) return null;
+    return typeof WeakRef === 'function' ? (lastHoverTargetRef.deref() || null) : lastHoverTargetRef;
+  }
+  function setLastHoverTarget(el) {
+    lastHoverTargetRef = el ? (typeof WeakRef === 'function' ? new WeakRef(el) : el) : null;
+  }
   function isShellContainer(el) {
     if (!el) return true;
     if (el === document.documentElement || el === document.body || el.id === 'root' || el.id === 'app') return true;
@@ -1995,12 +2195,15 @@ function antigravityI18nBootstrap(
     settledTimer = setTimeout(() => {
       settledTimer = 0;
       if (!I18N_ENABLED) return;
-      translatePortals();
+      if (typeof document === 'undefined' || !document.documentElement) {
+        translatePortals();
+      }
       window.__antigravityTranslateAll();
     }, delay);
   }
 
   function initEngine() {
+    engineBooted = true;
     if (document.documentElement) {
       observeRoot(document.documentElement);
       ensureTitleBarLangToggle(document.documentElement);
@@ -2021,8 +2224,8 @@ function antigravityI18nBootstrap(
       document.addEventListener(eventName, (e) => {
         if (!I18N_ENABLED) return;
         const target = e ? e.target : null;
-        if (isSmallHoverTarget(target) && target !== lastHoverTarget) {
-          lastHoverTarget = target;
+        if (isSmallHoverTarget(target) && target !== getLastHoverTarget()) {
+          setLastHoverTarget(target);
           translateSubtree(target);
         }
         if (eventName === 'focusin' || isInteractiveHoverTarget(target)) {
@@ -2067,7 +2270,11 @@ function antigravityI18nBootstrap(
     }
 
     if (window.addEventListener) {
-      ['focus', 'popstate', 'hashchange'].forEach((eventName) => {
+      window.addEventListener('focus', () => {
+        schedulePortalTranslate();
+      });
+
+      ['popstate', 'hashchange'].forEach((eventName) => {
         window.addEventListener(eventName, () => {
           schedulePortalTranslate();
           scheduleFullTranslate();
@@ -2075,7 +2282,11 @@ function antigravityI18nBootstrap(
       });
 
       window.addEventListener('load', () => {
-        setTimeout(initEngine, 20);
+        if (engineBooted) {
+          scheduleSettledTranslate(120);
+        } else {
+          setTimeout(initEngine, 20);
+        }
       });
     }
   }

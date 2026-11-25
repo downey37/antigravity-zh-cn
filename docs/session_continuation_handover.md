@@ -23,8 +23,8 @@
 
 | 用途 | 路径 | 说明 |
 | :--- | :--- | :--- |
-| **主静态词库** | `assets/dictionary.json` | 4060+ 条确定性译文 |
-| **属性译文表** | `assets/attr_dict.json` | 390+ 条 HTML 属性 / Tooltip 译文 |
+| **主静态词库** | `assets/dictionary.json` | 4740+ 条确定性译文 |
+| **属性译文表** | `assets/attr_dict.json` | 450+ 条 HTML 属性 / Tooltip 译文 |
 | **保留白名单** | `assets/preserve_list.json` | 不翻译的专有名词列表 |
 | **OTA 规则** | `assets/ota_rules.json` | 云端可热更声明式正则模板 |
 | **新版前端基线** | `assets/baseline/bundle_main.js` | 本地运行 `npm run scan` 后从客户端缓存提取的前端基线（不纳入 Git） |

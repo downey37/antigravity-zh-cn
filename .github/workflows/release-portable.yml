@@ -51,9 +51,12 @@ jobs:
               TAG="v$(node -e 'console.log(JSON.parse(require("fs").readFileSync("package.json","utf8")).version)')"
             fi
           fi
+          PKG_VER="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("package.json","utf8")).version)')"
           CLIENT_VER="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("assets/baseline/version.json","utf8")).version)')"
-          ZIP_FILE="$(ls build/antigravity-zh-cn-*-portable.zip | head -n 1)"
+          ZIP_FILE="build/antigravity-zh-cn-v${PKG_VER}-portable.zip"
           SHA_FILE="${ZIP_FILE}.sha256"
+          test -f "${ZIP_FILE}"
+          test -f "${SHA_FILE}"
           if gh release view "${TAG}" >/dev/null 2>&1; then
             gh release upload "${TAG}" "${ZIP_FILE}" "${SHA_FILE}" --clobber
           else
