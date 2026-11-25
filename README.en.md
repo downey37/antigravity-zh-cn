@@ -9,6 +9,7 @@
 
 [![Release](https://img.shields.io/github/v/release/downey37/antigravity-zh-cn?style=flat-square&label=Release&color=0ea5e9)](https://github.com/downey37/antigravity-zh-cn/releases)
 [![Antigravity](https://img.shields.io/badge/Targets-Antigravity%20v2.35.1-blue?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases)
+[![Downloads](https://img.shields.io/github/downloads/downey37/antigravity-zh-cn/total?style=flat-square&label=Downloads&color=14b8a6)](https://github.com/downey37/antigravity-zh-cn/releases)
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS-0284c7?style=flat-square)](#quick-start)
 [![Portable](https://img.shields.io/badge/Zero--Node%20Portable-No%20Node.js-10b981?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases/latest)
 [![No-TUN](https://img.shields.io/badge/No--TUN%20Networking-No%20Global%20TUN-06b6d4?style=flat-square)](#2-no-tun-launch-windows)
@@ -18,7 +19,7 @@
 
 <p><b>A high-coverage, lossless, reversible Simplified Chinese localization suite for the Google Antigravity desktop client — featuring No-TUN networking and Cloud OTA hot-updates.</b></p>
 
-Current version: **`v0.5.1`** (supports Antigravity client `v2.35.1`)
+Current version: **`v0.6.0`** (supports Antigravity client `v2.35.1`)
 
 [Previews](#ui-previews) · [Features](#key-features) · [Quick Start](#quick-start) · [ZH/EN Toggle](#advanced-features) · [No-TUN Launch](#2-no-tun-launch-windows) · [Architecture](#how-it-works) · [FAQ](#faq) · [Contributing](#contributing)
 
@@ -28,17 +29,48 @@ Current version: **`v0.5.1`** (supports Antigravity client `v2.35.1`)
 
 ## UI Previews
 
-| Home View (Simplified Chinese · Title Bar `[ 中 \| EN ]`) | One-Click Official English View (Zero-Restart Lossless Switch) |
-| :---: | :---: |
-| ![Home View in Simplified Chinese](docs/images/preview-home.png) | ![Home View Switched to Official English](docs/images/preview-home-en.png) |
+<p align="center">
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-home.png" title="Click to open full-resolution image">
+    <img src="docs/images/preview-home.png" alt="Home View in Simplified Chinese" width="100%" />
+  </a>
+  <br />
+  <sub><b>Home View (Simplified Chinese)</b> · Features a theme-synced, clickable &amp; draggable <code>[ 中 | EN ]</code> title-bar toggle (click any screenshot to view the full-resolution PNG directly)</sub>
+</p>
 
-| General Settings (Permission Policy & Voice Mode) | Models & Usage (Orchestrator & Multi-Dimensional Quotas) |
-| :---: | :---: |
-| ![General Settings Localization](docs/images/preview-settings-general.png) | ![Models and Usage Localization](docs/images/preview-settings-models.png) |
+<details>
+<summary><b>Compare: One-Click Switch to 100% Official English (Zero-Restart Lossless Restore)</b></summary>
+<p align="center">
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-home-en.png" title="Click to open full-resolution image">
+    <img src="docs/images/preview-home-en.png" alt="Home View Switched to Official English" width="100%" />
+  </a>
+  <br />
+  <sub><b>Official English View</b> · Native menus, tray items, and UI restore instantly without restarting</sub>
+</p>
+</details>
 
-| Model Selector & Reasoning Effort Menu (Context-Aware Disambiguation) | Title-Bar `[ 中 \| EN ]` Toggle & OTA Update Menu |
-| :---: | :---: |
-| ![Model Selector Localization](docs/images/preview-model-selector.png) | ![Title-Bar Toggle and OTA Check Menu](docs/images/preview-titlebar-menu.png) |
+<p align="center">
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-settings-general.png" title="Click to open full-resolution image">
+    <img src="docs/images/preview-settings-general.png" alt="General Settings Localization" width="49%" />
+  </a>
+  &nbsp;
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-settings-models.png" title="Click to open full-resolution image">
+    <img src="docs/images/preview-settings-models.png" alt="Models and Usage Localization" width="49%" />
+  </a>
+  <br />
+  <sub><b>Left</b>: General Settings (Permission Policy &amp; Voice Mode) &nbsp;|&nbsp; <b>Right</b>: Models &amp; Usage (Orchestrator &amp; Multi-Dimensional Quotas)</sub>
+</p>
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-model-selector.png" title="Click to open full-resolution image">
+    <img src="docs/images/preview-model-selector.png" alt="Model Selector Localization" width="62%" />
+  </a>
+  &nbsp;
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-titlebar-menu.png" title="Click to open full-resolution image">
+    <img src="docs/images/preview-titlebar-menu.png" alt="Title-Bar Toggle and OTA Check Menu" width="35%" />
+  </a>
+  <br />
+  <sub><b>Left</b>: Model Selector &amp; Reasoning Effort Menu (Context-Aware Disambiguation) &nbsp;|&nbsp; <b>Right</b>: Title-Bar <code>[ 中 | EN ]</code> Toggle &amp; OTA Update Menu</sub>
+</p>
 
 ---
 
@@ -48,8 +80,8 @@ Current version: **`v0.5.1`** (supports Antigravity client `v2.35.1`)
 | :--- | :--- |
 | **Full-UI Coverage & Context Disambiguation** | Includes **4250+ static entries + 440+ attribute translations**, dynamic variable templates, and split-node fragment reassembly rules. Uses DOM context to disambiguate homonyms (e.g., `New` badge as `新` vs `新建`, `None` grouping as `不分组` vs reasoning effort as `关闭思考`), skips code blocks, terminals, and user inputs, and preserves brand names (`Antigravity`, `Google Drive`, `Gemini`, `Claude`, `GPT-OSS`). |
 | **Zero-Node Portable & Cross-Platform** | Releases ship a self-contained `-portable.zip` with bundled production dependencies that reuses Antigravity's built-in Electron runtime (`ELECTRON_RUN_AS_NODE=1`) — no Node.js required. Supports **Windows 10 / 11** and **macOS** (with automatic deep local `codesign` re-signing after patching). |
-| **Instant Title-Bar ZH / EN Toggle** | A persistent **`[ 中 | EN ]`** pill button in the title bar (also accessible via the Help menu and system tray) uses a `WeakMap` to track original strings alongside main-process `_i18nT` dynamic bilingual state, switching instantly without restart and **persisting your preference** across restarts. |
-| **Cloud OTA Dictionary Hot-Updates** | Fetches read-only JSON dictionaries and declarative templates from the `ota-dist` branch on startup (SHA-256 verified, zero remote JS execution, zero telemetry) and applies updates **without restarting**. Also supports manual update checks from the menu or disabling via `ANTIGRAVITY_I18N_NO_OTA=1`. |
+| **Instant Title-Bar ZH / EN Toggle** | A persistent **`[ 中 | EN ]`** pill button in the title bar (auto-synced to dark/light themes, clickable or draggable with spring animation, and also accessible via Help menu & system tray) uses a `WeakMap` to track original strings alongside main-process `_i18nT` dynamic bilingual state, switching instantly without restart and **persisting your preference** across restarts. |
+| **Cloud OTA & Dynamic Notice Auto-MT** | Fetches read-only JSON dictionaries and declarative templates from the `ota-dist` branch on startup (SHA-256 verified, zero remote JS execution, zero telemetry) and applies updates **without restarting**; includes allowlisted dynamic notice auto-MT fallback (keyless `google-gtx` by default, optional OpenAI/Ollama, toggleable via Help → Auto-Translate Announcements) and supports disabling via `ANTIGRAVITY_I18N_NO_OTA=1`. |
 | **No-TUN Networking & Auto Self-Healing** | **No global TUN virtual adapter needed** (no admin rights required; avoids conflicts with corporate VPNs, WSL/Docker, or games). The companion launcher reads the **Windows system proxy** or probes common local proxy ports (`7897` / `10808` / `7890`) and injects proxy settings into both Electron and the Go backend; falls back cleanly to direct/TUN when no local proxy is found, and auto-repatches after official client updates. |
 | **Lossless Backup & One-Click Restore** | Automatically backs up the original core bundle as `app.asar.bak` before first injection, with **one-click restore to official English** and automated Node VM sandbox verification. |
 
@@ -107,7 +139,7 @@ Before first deployment, the patcher backs up the untouched official bundle as `
 
 Just like a browser page translator's original/translated toggle, you can switch instantaneously between **Simplified Chinese** and **100% pure official English** without restarting the app — and your choice is **automatically remembered** across restarts:
 
-- Persistent title-bar pill button: **`[ 中 | EN ]`** (one click to toggle)
+- Persistent title-bar pill button: **`[ 中 | EN ]`** (auto-synced with dark/light themes; click or drag horizontally to toggle)
 - Native menu bar: **Help → 切换为英文原文 (关闭汉化) / 切换为简体中文 (开启汉化)**
 - System tray context menu: **切换为英文原文 (关闭汉化) / 切换为简体中文 (开启汉化)**
 

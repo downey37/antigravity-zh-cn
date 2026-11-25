@@ -42,9 +42,10 @@
 ## 4. 构建产物、CI 与文档
 
 - `build/`（构建时自动生成，不纳入 Git）：`i18n.js`、`app.asar`、`ota/*`、`antigravity-zh-cn-*-portable.zip(.sha256)`、`untranslated_scan_report.json`
-- `.github/workflows/`：`publish-ota.yml`（自动发布 `ota-dist` 词库包）、`release-portable.yml`（发版打 Tag 自动构建并上传便携包）
-- `.github/ISSUE_TEMPLATE/`：漏翻/错译反馈与 Bug 反馈表单模板
-- `docs/`：`i18n_architecture_and_history.md`、`i18n_files_manifest.md`、`session_continuation_handover.md`、`images/*`
+- `.github/workflows/`：`ci.yml`（PR 与主分支自动校验）、`publish-ota.yml`（自动发布 `ota-dist` 词库包）、`release-portable.yml`（发版打 Tag 自动构建并上传便携包）
+- `.github/ISSUE_TEMPLATE/` 与 `PULL_REQUEST_TEMPLATE.md`：漏翻/错译反馈、Bug 反馈表单及 PR 提交模板
+- `CONTRIBUTING.md` 与 `CHANGELOG.md`：社区词条贡献指南与版本变更日志
+- `docs/`：`i18n_architecture_and_history.md`、`i18n_files_manifest.md`、`session_continuation_handover.md`、`images/*`（含 1280×640 `social-preview.png`）
 
 ## 5. 官方安装目录（生产目标）
 

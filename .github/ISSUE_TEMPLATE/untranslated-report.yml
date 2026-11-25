@@ -7,15 +7,15 @@ body:
     id: client-version
     attributes:
       label: Antigravity 客户端版本
-      description: 可在左上角 Antigravity 菜单查看（例如 v2.34.0）
-      placeholder: v2.34.0
+      description: 可在左上角 Antigravity 菜单查看（例如 v2.35.1）
+      placeholder: v2.35.1
     validations:
       required: true
   - type: input
     id: patch-version
     attributes:
       label: 汉化补丁版本 / 安装方式
-      placeholder: v0.4.0（便携包 / 源码部署）
+      placeholder: v0.6.0（便携包 / 源码部署）
     validations:
       required: true
   - type: textarea

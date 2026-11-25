@@ -9,6 +9,7 @@
 
 [![Release](https://img.shields.io/github/v/release/downey37/antigravity-zh-cn?style=flat-square&label=当前版本&color=0ea5e9)](https://github.com/downey37/antigravity-zh-cn/releases)
 [![Antigravity](https://img.shields.io/badge/适配客户端-Antigravity%20v2.35.1-blue?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases)
+[![Downloads](https://img.shields.io/github/downloads/downey37/antigravity-zh-cn/total?style=flat-square&label=下载量&color=14b8a6)](https://github.com/downey37/antigravity-zh-cn/releases)
 [![Platforms](https://img.shields.io/badge/支持平台-Windows%20%7C%20macOS-0284c7?style=flat-square)](#快速安装使用)
 [![Portable](https://img.shields.io/badge/零依赖便携包-免%20Node.js-10b981?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases/latest)
 [![No-TUN](https://img.shields.io/badge/免%20TUN%20联网-无需开启全局%20TUN-06b6d4?style=flat-square)](#2-免-tun-联网启动windows)
@@ -18,7 +19,7 @@
 
 <p><b>专为 Google Antigravity 桌面客户端打造的高覆盖、无损可逆、支持免 TUN 联网与 OTA 热更的简体中文本地化套件。</b></p>
 
-当前版本：**`v0.5.1`**（适配 Antigravity 客户端 `v2.35.1`）
+当前版本：**`v0.6.0`**（适配 Antigravity 客户端 `v2.35.1`）
 
 [界面预览](#界面效果预览) · [核心特性](#核心特性一览) · [快速安装](#快速安装使用) · [中英切换](#实用进阶功能) · [免 TUN 联网](#2-免-tun-联网启动windows) · [架构原理](#工作原理) · [常见问题](#常见问题-faq) · [参与贡献](#参与贡献与维护)
 
@@ -28,17 +29,48 @@
 
 ## 界面效果预览
 
-| 主界面（简体中文 · 标题栏 `[ 中 \| EN ]`） | 一键切换官方英文原文（零重启无损还原） |
-| :---: | :---: |
-| ![主界面简体中文效果](docs/images/preview-home.png) | ![一键切换英文原文效果](docs/images/preview-home-en.png) |
+<p align="center">
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-home.png" title="点击查看高清原图">
+    <img src="docs/images/preview-home.png" alt="主界面简体中文效果" width="100%" />
+  </a>
+  <br />
+  <sub><b>主界面简体中文效果</b> · 顶部标题栏配备主题自动联动、支持点击或拖拽滑动的 <code>[ 中 | EN ]</code> 开关（点击任意图片可直接打开高清原图）</sub>
+</p>
 
-| 常规设置（权限策略与语音模式） | 模型与用量（Orchestrator 设置与多维度配额） |
-| :---: | :---: |
-| ![常规设置汉化效果](docs/images/preview-settings-general.png) | ![模型与用量汉化效果](docs/images/preview-settings-models.png) |
+<details>
+<summary><b>对比查看：一键切换为 100% 官方英文原文（零重启无损还原）</b></summary>
+<p align="center">
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-home-en.png" title="点击查看高清原图">
+    <img src="docs/images/preview-home-en.png" alt="一键切换英文原文效果" width="100%" />
+  </a>
+  <br />
+  <sub><b>一键切换官方英文原文</b> · 无需重启客户端，原生菜单、托盘与界面瞬间还原官方英文</sub>
+</p>
+</details>
 
-| 模型选择器与多级思考深度菜单（含「新」徽章精准消歧） | 标题栏 `[ 中 \| EN ]` 开关与 OTA 汉化更新入口 |
-| :---: | :---: |
-| ![模型选择器汉化效果](docs/images/preview-model-selector.png) | ![标题栏切换开关与检查汉化更新](docs/images/preview-titlebar-menu.png) |
+<p align="center">
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-settings-general.png" title="点击查看高清原图">
+    <img src="docs/images/preview-settings-general.png" alt="常规设置汉化效果" width="49%" />
+  </a>
+  &nbsp;
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-settings-models.png" title="点击查看高清原图">
+    <img src="docs/images/preview-settings-models.png" alt="模型与用量汉化效果" width="49%" />
+  </a>
+  <br />
+  <sub><b>左</b>：常规设置（权限策略与语音模式） &nbsp;|&nbsp; <b>右</b>：模型与用量（Orchestrator 与多维度配额）</sub>
+</p>
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-model-selector.png" title="点击查看高清原图">
+    <img src="docs/images/preview-model-selector.png" alt="模型选择器汉化效果" width="62%" />
+  </a>
+  &nbsp;
+  <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-titlebar-menu.png" title="点击查看高清原图">
+    <img src="docs/images/preview-titlebar-menu.png" alt="标题栏切换开关与检查汉化更新" width="35%" />
+  </a>
+  <br />
+  <sub><b>左</b>：模型选择器与思考深度菜单（含「新」徽章精准消歧） &nbsp;|&nbsp; <b>右</b>：标题栏 <code>[ 中 | EN ]</code> 开关与 OTA 更新入口</sub>
+</p>
 
 ---
 
@@ -48,8 +80,8 @@
 | :--- | :--- |
 | **全界面高覆盖与精准消歧** | 收录 **4250+ 条静态词库 + 440+ 条属性译文**、动态变量模板与跨节点碎片重组规则；按 DOM 上下文精确区分同词多义（如 `New` 徽章 vs `新建`、`None` 分组为 `不分组` vs 思考深度为 `关闭思考`），并自动避开代码块、终端与用户输入区域，保留 `Antigravity`、`Google Drive`、`Gemini`、`Claude`、`GPT-OSS` 等原名。 |
 | **零依赖便携包与跨平台支持** | Releases 提供内置生产依赖的免 Node.js 便携包（`-portable.zip`），直接复用客户端自带 Electron 运行时执行注入；支持 **Windows 10 / 11** 与 **macOS**（修改后自动执行本地 `codesign` 深度签名）。 |
-| **顶部标题栏一键原文 / 译文切换** | 在顶部标题栏常驻 **`[ 中 | EN ]`** 胶囊开关（也可从菜单/托盘触发），基于 `WeakMap` 精确追踪原文并联动主进程 `_i18nT` 动态双语，无需重启即可在简体中文与 100% 纯净官方英文原文间无损切换，并**自动记住切换状态**跨重启保留。 |
-| **云端词库热更新（OTA）** | 启动后自动从 `ota-dist` 通道单向只读拉取纯 JSON 词库与声明式模板（SHA-256 校验、零远端 JS 执行、零遥测），**免重启实时生效**；亦支持菜单手动检查或 `ANTIGRAVITY_I18N_NO_OTA=1` 禁用。 |
+| **顶部标题栏一键原文 / 译文切换** | 在顶部标题栏常驻 **`[ 中 | EN ]`** 胶囊开关（自动适配客户端深色 / 浅色主题，支持点击或拖拽滑动切换及果冻弹性动效，也可从菜单/托盘触发），基于 `WeakMap` 精确追踪原文并联动主进程 `_i18nT` 动态双语，无需重启即可在简体中文与 100% 纯净官方英文原文间无损切换，并**自动记住切换状态**跨重启保留。 |
+| **云端词库热更新与动态公告兜底** | 启动后自动从 `ota-dist` 通道单向只读拉取纯 JSON 词库与声明式模板（SHA-256 校验、零远端 JS 执行、零遥测），**免重启实时生效**；内置白名单动态公告异步机翻兜底（默认免 Key `google-gtx`，可选 OpenAI/Ollama，可在「帮助 → 自动翻译动态公告」随时开关），亦支持菜单手动检查或 `ANTIGRAVITY_I18N_NO_OTA=1` 禁用。 |
 | **免 TUN 联网与更新自愈** | **无需开启全局 TUN 虚拟网卡**（免管理员权限，不干扰公司内网、VPN、WSL / Docker 与游戏）；配套一键启动脚本自动读取 **Windows 系统代理** 或探测常见本地代理端口（`7897` / `10808` / `7890`），同步为 Electron 前端与后台 Go 核心注入代理参数，普通系统代理即可全链路稳定联网；未检测到本地代理时干净走直连 / TUN，同时在官方客户端更新后自动唤醒自愈重打补丁。 |
 | **无损备份与一键还原** | 首次注入前自动备份原版核心为 `app.asar.bak`，支持 **一键还原官方英文原版** 与自动化 Node VM 沙箱回归校验。 |
 
@@ -107,7 +139,7 @@ npm run deploy
 
 如同浏览器翻译插件的「原文 / 译文」切换一样，无需重启客户端即可随时在 **简体中文** 与 **100% 纯净官方英文原文** 间瞬时切换，且**偏好会自动记住**，下次启动仍保持你的选择：
 
-- 顶部标题栏常驻胶囊开关：**`[ 中 | EN ]`**（单手直达，点击即切）
+- 顶部标题栏常驻胶囊开关：**`[ 中 | EN ]`**（自动同步深浅色主题，支持点击或横向拖拽滑块切换）
 - 顶部原生菜单栏：**「帮助 → 切换为英文原文 (关闭汉化) / 切换为简体中文 (开启汉化)」**
 - 系统托盘右键菜单：**「切换为英文原文 (关闭汉化) / 切换为简体中文 (开启汉化)」**
 
