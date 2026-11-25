@@ -62,14 +62,17 @@
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-model-selector.png" title="点击查看高清原图">
-    <img src="docs/images/preview-model-selector.png" alt="模型选择器汉化效果" width="62%" />
+    <picture>
+      <source media="(prefers-color-scheme: light)" srcset="docs/images/preview-model-selector-light.png" />
+      <img src="docs/images/preview-model-selector.png" alt="模型选择器汉化效果" width="66%" />
+    </picture>
   </a>
   &nbsp;
   <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-titlebar-menu.png" title="点击查看高清原图">
-    <img src="docs/images/preview-titlebar-menu.png" alt="标题栏切换开关与检查汉化更新" width="35%" />
+    <img src="docs/images/preview-titlebar-menu.png" alt="深浅双主题标题栏切换开关与检查汉化更新" width="31%" />
   </a>
   <br />
-  <sub><b>左</b>：模型选择器与思考深度菜单（含「新」徽章精准消歧） &nbsp;|&nbsp; <b>右</b>：标题栏 <code>[ 中 | EN ]</code> 开关与 OTA 更新入口</sub>
+  <sub><b>左</b>：模型选择器与思考深度菜单（自动适配 GitHub 深/浅色展示） &nbsp;|&nbsp; <b>右</b>：深/浅双主题联动 <code>[ 中 | EN ]</code> 开关与 OTA 更新入口</sub>
 </p>
 
 ---

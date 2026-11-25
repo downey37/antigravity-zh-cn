@@ -62,14 +62,17 @@ Current version: **`v0.6.0`** (supports Antigravity client `v2.35.1`)
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-model-selector.png" title="Click to open full-resolution image">
-    <img src="docs/images/preview-model-selector.png" alt="Model Selector Localization" width="62%" />
+    <picture>
+      <source media="(prefers-color-scheme: light)" srcset="docs/images/preview-model-selector-light.png" />
+      <img src="docs/images/preview-model-selector.png" alt="Model Selector Localization" width="66%" />
+    </picture>
   </a>
   &nbsp;
   <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-titlebar-menu.png" title="Click to open full-resolution image">
-    <img src="docs/images/preview-titlebar-menu.png" alt="Title-Bar Toggle and OTA Check Menu" width="35%" />
+    <img src="docs/images/preview-titlebar-menu.png" alt="Dark and Light Theme-Synced Title-Bar Toggle and OTA Check Menu" width="31%" />
   </a>
   <br />
-  <sub><b>Left</b>: Model Selector &amp; Reasoning Effort Menu (Context-Aware Disambiguation) &nbsp;|&nbsp; <b>Right</b>: Title-Bar <code>[ 中 | EN ]</code> Toggle &amp; OTA Update Menu</sub>
+  <sub><b>Left</b>: Model Selector &amp; Reasoning Effort Menu (auto-adapts to GitHub Dark/Light theme) &nbsp;|&nbsp; <b>Right</b>: Dark &amp; Light Theme-Synced <code>[ 中 | EN ]</code> Toggle &amp; OTA Menu</sub>
 </p>
 
 ---
