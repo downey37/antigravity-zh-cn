@@ -951,6 +951,9 @@ function runVerification() {
   assert.strictEqual(api.translateString('Discard All Changes'), '放弃所有更改');
   assert.strictEqual(api.translateString('Review Changes'), '查看更改');
   assert.strictEqual(api.translateString('Discard comment draft'), '放弃批注草稿');
+  assert.strictEqual(api.translateString('Add Comment'), '添加批注');
+  assert.strictEqual(api.translateString('Edit Comment'), '编辑批注');
+  assert.strictEqual(api.translateString('Selected element preview'), '选中区域预览');
   assert.strictEqual(api.translateString('Conversation details unavailable'), '会话详情不可用');
   assert.strictEqual(api.translateString('Conversation Width'), '会话宽度');
   assert.strictEqual(api.translateString('Switch to Dark Mode'), '切换到深色模式');
