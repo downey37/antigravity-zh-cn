@@ -1134,6 +1134,9 @@ function runVerification() {
   // 8. Full DOM lifecycle hooks & hot-path guards (running unmodified i18nCode without early return)
   runDomLifecycleVerification(i18nCode);
 
+  // 8.5 Live-firing MutationObserver convergence & storm protection verification
+  runMutationConvergenceVerification(i18nCode);
+
   // 9. Version & README/baseline metadata consistency
   const verCheck = verifyVersionConsistency(projectRoot);
   assert.strictEqual(
@@ -1189,15 +1192,56 @@ function createMockDomEnv() {
   });
   DomNode.prototype.hasAttribute = function (k) { return Object.prototype.hasOwnProperty.call(this._attrs, k); };
   DomNode.prototype.getAttribute = function (k) { return Object.prototype.hasOwnProperty.call(this._attrs, k) ? this._attrs[k] : null; };
-  DomNode.prototype.setAttribute = function (k, v) { this._attrs[k] = String(v); };
+  DomNode.prototype.setAttribute = function (k, v) {
+    const valStr = String(v);
+    this._attrs[k] = valStr;
+    if (k === 'class') this.className = valStr;
+    if (k === 'id') this.id = valStr;
+  };
+  DomNode.prototype.removeAttribute = function (k) {
+    delete this._attrs[k];
+    if (k === 'class') this.className = '';
+    if (k === 'id') this.id = '';
+  };
   DomNode.prototype.matches = function (sel) {
+    if (this.nodeType !== 1 || !sel) return false;
+    const classes = (this.className || (this._attrs && this._attrs.class) || '').split(/\s+/).filter(Boolean);
     return sel.split(',').some((raw) => {
-      const s = raw.trim();
+      let s = raw.trim();
       if (!s) return false;
-      if (s === this.nodeName.toLowerCase()) return true;
-      const exact = s.match(/^\[([a-zA-Z0-9_-]+)="([^"]+)"\]$/);
-      if (exact) return this._attrs[exact[1]] === exact[2];
-      return false;
+      const tagM = s.match(/^([a-zA-Z0-9_-]+)/);
+      if (tagM) {
+        if (this.nodeName.toLowerCase() !== tagM[1].toLowerCase()) return false;
+        s = s.slice(tagM[0].length);
+      }
+      while (s.length > 0) {
+        if (s[0] === '.') {
+          const clsM = s.match(/^\.([a-zA-Z0-9_-]+)/);
+          if (!clsM || !classes.includes(clsM[1])) return false;
+          s = s.slice(clsM[0].length);
+        } else if (s[0] === '#') {
+          const idM = s.match(/^#([a-zA-Z0-9_-]+)/);
+          const nodeId = this.id || this._attrs.id || '';
+          if (!idM || nodeId !== idM[1]) return false;
+          s = s.slice(idM[0].length);
+        } else if (s[0] === '[') {
+          const attrM = s.match(/^\[([a-zA-Z0-9_-]+)(?:(\*)?="([^"]*)")?\]/);
+          if (!attrM) return false;
+          const attrName = attrM[1];
+          const op = attrM[2];
+          const expected = attrM[3];
+          const has = Object.prototype.hasOwnProperty.call(this._attrs, attrName);
+          if (!has) return false;
+          if (expected !== undefined) {
+            const actual = String(this._attrs[attrName]);
+            if (op === '*' ? !actual.includes(expected) : actual !== expected) return false;
+          }
+          s = s.slice(attrM[0].length);
+        } else {
+          return false;
+        }
+      }
+      return true;
     });
   };
   DomNode.prototype.closest = function (sel) {
@@ -1686,6 +1730,512 @@ function runDomLifecycleVerification(i18nCode) {
   enBarToggles[0]._listeners.click[0]({ stopPropagation() {} });
   assert.strictEqual(sandboxEn.window.__antigravityIsI18nEnabled(), true);
   assert.strictEqual(labelTextEn.nodeValue, '设置', 'Clicking [中 | EN] from English startup must translate UI immediately');
+}
+
+function runMutationConvergenceVerification(i18nCode) {
+  const { DomNode, DomElement, makeText } = createMockDomEnv();
+  const activeObservers = [];
+
+  function isSubtreeOf(node, root) {
+    let cur = node;
+    while (cur) {
+      if (cur === root) return true;
+      cur = cur.parentNode;
+    }
+    return false;
+  }
+
+  function enqueueMutation(record) {
+    for (const obs of activeObservers) {
+      if (!obs.root || !isSubtreeOf(record.target, obs.root)) continue;
+      if (record.type === 'attributes' && obs.opts && Array.isArray(obs.opts.attributeFilter)) {
+        if (!obs.opts.attributeFilter.includes(record.attributeName)) continue;
+      }
+      obs.queue.push(record);
+    }
+  }
+
+  function flushMutations(maxTicks = 25) {
+    let ticks = 0;
+    while (ticks < maxTicks) {
+      const batch = [];
+      for (const obs of activeObservers) {
+        if (obs.queue.length > 0) {
+          batch.push({ obs, records: obs.queue.splice(0, obs.queue.length) });
+        }
+      }
+      if (batch.length === 0) return ticks;
+      ticks += 1;
+      for (const item of batch) {
+        item.obs.cb(item.records, item.obs.instance);
+      }
+    }
+    throw new Error(`MutationObserver failed to converge within ${maxTicks} ticks (infinite loop detected)`);
+  }
+
+  function createLiveText(val) {
+    const tn = makeText(val);
+    let internalVal = String(val);
+    Object.defineProperty(tn, 'nodeValue', {
+      configurable: true,
+      enumerable: true,
+      get() { return internalVal; },
+      set(next) {
+        const nextStr = next === null || next === undefined ? '' : String(next);
+        if (nextStr === internalVal) return;
+        const oldVal = internalVal;
+        internalVal = nextStr;
+        if (this.isConnected) {
+          enqueueMutation({ type: 'characterData', target: this, oldValue: oldVal });
+        }
+      }
+    });
+    return tn;
+  }
+
+  const origAppendChild = DomNode.prototype.appendChild;
+  DomNode.prototype.appendChild = function (child) {
+    const inserted = child.nodeType === 11 ? [...child.childNodes] : [child];
+    const res = origAppendChild.call(this, child);
+    if (this.isConnected && inserted.length > 0) {
+      enqueueMutation({ type: 'childList', target: this, addedNodes: inserted, removedNodes: [] });
+    }
+    return res;
+  };
+  const origInsertBefore = DomNode.prototype.insertBefore;
+  DomNode.prototype.insertBefore = function (newNode, refNode) {
+    const inserted = newNode.nodeType === 11 ? [...newNode.childNodes] : [newNode];
+    const res = origInsertBefore.call(this, newNode, refNode);
+    if (this.isConnected && inserted.length > 0) {
+      enqueueMutation({ type: 'childList', target: this, addedNodes: inserted, removedNodes: [] });
+    }
+    return res;
+  };
+  const origSetAttribute = DomNode.prototype.setAttribute;
+  DomNode.prototype.setAttribute = function (k, v) {
+    const oldVal = this.getAttribute(k);
+    origSetAttribute.call(this, k, v);
+    if (this.isConnected && this.nodeType === 1) {
+      enqueueMutation({ type: 'attributes', target: this, attributeName: k, oldValue: oldVal });
+    }
+  };
+  const origRemoveAttribute = DomNode.prototype.removeAttribute;
+  DomNode.prototype.removeAttribute = function (k) {
+    const had = this.hasAttribute(k);
+    const oldVal = this.getAttribute(k);
+    origRemoveAttribute.call(this, k);
+    if (this.isConnected && this.nodeType === 1 && had) {
+      enqueueMutation({ type: 'attributes', target: this, attributeName: k, oldValue: oldVal });
+    }
+  };
+
+  class LiveMutationObserver {
+    constructor(cb) {
+      this._rec = { cb, root: null, opts: null, queue: [], instance: this };
+      activeObservers.push(this._rec);
+    }
+    observe(target, opts) {
+      this._rec.root = target;
+      this._rec.opts = opts || {};
+    }
+    takeRecords() {
+      return this._rec.queue.splice(0, this._rec.queue.length);
+    }
+    disconnect() {
+      this._rec.root = null;
+      this._rec.queue.length = 0;
+    }
+  }
+
+  const html = new DomElement('HTML');
+  html.isConnected = true;
+  const body = new DomElement('BODY');
+  html.appendChild(body);
+  const rootDiv = new DomElement('DIV');
+  rootDiv.id = 'root';
+  body.appendChild(rootDiv);
+
+  const findById = (node, id) => {
+    if (!node || !id) return null;
+    if (node.nodeType === 1 && (node.id === id || (node._attrs && node._attrs.id === id))) return node;
+    for (const c of node.childNodes) {
+      const hit = findById(c, id);
+      if (hit) return hit;
+    }
+    return null;
+  };
+
+  const docListeners = {};
+  const sandbox = {
+    console, setTimeout, clearTimeout,
+    Node: DomNode,
+    Element: DomElement,
+    KeyboardEvent: function (type, init) { this.type = type; Object.assign(this, init || {}); },
+    NodeFilter: { SHOW_TEXT: 4, SHOW_ELEMENT: 1 },
+    MutationObserver: LiveMutationObserver,
+    requestAnimationFrame: (cb) => { cb(); return 1; },
+    window: {
+      location: { protocol: 'app:' },
+      history: {},
+      addEventListener() {},
+      antigravityI18nOta: {
+        checkForUpdates: () => Promise.resolve({ status: 'up_to_date' }),
+        toggleLanguage: () => {
+          const next = sandbox.window.__antigravitySetI18nEnabled(!sandbox.window.__antigravityIsI18nEnabled());
+          return Promise.resolve({ enabled: next });
+        }
+      }
+    },
+    location: { protocol: 'app:' },
+    document: {
+      readyState: 'complete',
+      title: 'Antigravity',
+      documentElement: html,
+      body,
+      createElement: (tag) => new DomElement(String(tag).toUpperCase()),
+      createTextNode: (val) => createLiveText(val),
+      dispatchEvent: () => {},
+      getElementById: (id) => findById(html, id),
+      querySelectorAll: (sel) => html.querySelectorAll(sel),
+      addEventListener: (ev, fn) => {
+        docListeners[ev] = docListeners[ev] || [];
+        docListeners[ev].push(fn);
+      }
+    }
+  };
+  sandbox.window.document = sandbox.document;
+  vm.runInNewContext(i18nCode, sandbox);
+  flushMutations();
+
+  const assertNoOscillationAfterSyntheticMutations = (nodes) => {
+    for (const n of nodes) {
+      if (n.nodeType === 3) {
+        enqueueMutation({ type: 'characterData', target: n, oldValue: n.nodeValue });
+      } else if (n.nodeType === 1) {
+        for (const attr of ['title', 'aria-label']) {
+          if (n.hasAttribute(attr)) {
+            enqueueMutation({ type: 'attributes', target: n, attributeName: attr, oldValue: n.getAttribute(attr) });
+          }
+        }
+      }
+    }
+    const extraTicks = flushMutations();
+    assert(extraTicks <= 2, `Expected synthetic re-check to converge in <= 2 ticks, took ${extraTicks}`);
+  };
+
+  // 1. Settings -> General permission preset (DWb / yWb lowercase labels + case variants + attributes)
+  const portalWrap = new DomElement('DIV');
+  portalWrap.setAttribute('data-base-ui-portal', 'true');
+  const backdrop = new DomElement('DIV');
+  backdrop.className = 'settings-modal-backdrop';
+  const modalContainer = new DomElement('DIV');
+  modalContainer.className = 'settings-modal-container';
+  portalWrap.appendChild(backdrop);
+  backdrop.appendChild(modalContainer);
+
+  const pcLabel = new DomElement('SPAN');
+  pcLabel.id = 'pc-label';
+  const pcLabelText = createLiveText('This computer');
+  pcLabel.appendChild(pcLabelText);
+
+  const pcDesc = new DomElement('SPAN');
+  pcDesc.id = 'pc-desc';
+  const pcDescText = createLiveText('Controls the actions the agent can take');
+  pcDesc.appendChild(pcDescText);
+
+  const triggerBtn = new DomElement('BUTTON');
+  triggerBtn.className = 'agy-select-trigger';
+  triggerBtn.setAttribute('aria-labelledby', 'pc-label');
+  triggerBtn.setAttribute('aria-describedby', 'pc-desc');
+  triggerBtn.setAttribute('title', 'Require Review');
+  const triggerText = createLiveText('Request Review');
+  triggerBtn.appendChild(triggerText);
+
+  modalContainer.appendChild(pcLabel);
+  modalContainer.appendChild(pcDesc);
+  modalContainer.appendChild(triggerBtn);
+
+  const presetVariants = [
+    ['Request Review', 'Every command requires approval', '请求审核 (Request Review)'],
+    ['Request review', 'Every command requires approval', '请求审核 (Request Review)'],
+    ['Require Review', 'Every command requires approval', '请求审核 (Request Review)'],
+    ['Auto', 'Automatically decide if commands run', '自动 (Auto)'],
+    ['auto', 'Automatically decide if commands run', '自动 (Auto)'],
+    ['Turbo', 'Run all commands without restrictions', '全自动 (Turbo)'],
+    ['turbo', 'Run all commands without restrictions', '全自动 (Turbo)']
+  ];
+  const presetTextNodes = [triggerText];
+  const presetBtns = [triggerBtn];
+  const expectedPresetNodes = [[triggerText, '请求审核 (Request Review)']];
+
+  for (const [label, desc, expected] of presetVariants) {
+    const opt = new DomElement('DIV');
+    opt.className = 'agy-overlay-item';
+    opt.setAttribute('role', 'option');
+    opt.setAttribute('aria-label', label);
+    const titleSpan = new DomElement('SPAN');
+    const titleText = createLiveText(label);
+    titleSpan.appendChild(titleText);
+    const descSpan = new DomElement('SPAN');
+    descSpan.appendChild(createLiveText(desc));
+    opt.appendChild(titleSpan);
+    opt.appendChild(descSpan);
+    modalContainer.appendChild(opt);
+    presetTextNodes.push(titleText);
+    presetBtns.push(opt);
+    expectedPresetNodes.push([titleText, expected], [opt, expected]);
+  }
+
+  body.appendChild(portalWrap);
+  assert(flushMutations() <= 2);
+  assert.strictEqual(pcLabelText.nodeValue, '此电脑');
+  assert.strictEqual(triggerBtn.getAttribute('title'), '请求审核 (Request Review)');
+  for (const [target, expected] of expectedPresetNodes) {
+    if (target.nodeType === 3) {
+      assert.strictEqual(target.nodeValue, expected, `Permission preset text must stabilize at ${expected}`);
+    } else {
+      assert.strictEqual(target.getAttribute('aria-label'), expected, `Permission preset attr must stabilize at ${expected}`);
+    }
+  }
+  assertNoOscillationAfterSyntheticMutations([...presetTextNodes, ...presetBtns]);
+  for (const [target, expected] of expectedPresetNodes) {
+    if (target.nodeType === 3) assert.strictEqual(target.nodeValue, expected);
+    else assert.strictEqual(target.getAttribute('aria-label'), expected);
+  }
+
+  // 2. Delayed permission preset context upgrade (mount button first -> 请求审核, then mount label -> 请求审核 (Request Review))
+  const delayedWrap = new DomElement('DIV');
+  const delayedBtn = new DomElement('BUTTON');
+  delayedBtn.className = 'agy-select-trigger';
+  delayedBtn.setAttribute('aria-labelledby', 'delayed-pp-label');
+  delayedBtn.setAttribute('title', 'Request Review');
+  const delayedSpan = new DomElement('SPAN');
+  const delayedText = createLiveText('Request Review');
+  delayedSpan.appendChild(delayedText);
+  delayedBtn.appendChild(delayedSpan);
+  delayedWrap.appendChild(delayedBtn);
+  body.appendChild(delayedWrap);
+  flushMutations();
+  assert.strictEqual(delayedText.nodeValue, '请求审核');
+  assert.strictEqual(delayedBtn.getAttribute('title'), '请求审核');
+
+  const delayedLabel = new DomElement('SPAN');
+  delayedLabel.id = 'delayed-pp-label';
+  delayedLabel.appendChild(createLiveText('Permission preset'));
+  delayedWrap.appendChild(delayedLabel);
+  assertNoOscillationAfterSyntheticMutations([delayedText, delayedBtn]);
+  assert.strictEqual(delayedText.nodeValue, '请求审核 (Request Review)');
+  assert.strictEqual(delayedBtn.getAttribute('title'), '请求审核 (Request Review)');
+  assertNoOscillationAfterSyntheticMutations([delayedText, delayedBtn]);
+  assert.strictEqual(delayedText.nodeValue, '请求审核 (Request Review)');
+
+  // 3. New badge context ("NEW", "New", "new", "Create New") + attr
+  const modelPanel = new DomElement('DIV');
+  modelPanel.setAttribute('data-testid', 'model-selector-panel');
+  const newUpperText = createLiveText('NEW');
+  const newLowerText = createLiveText('new');
+  const createNewText = createLiveText('Create New');
+  const badgeEl = new DomElement('SPAN');
+  badgeEl.setAttribute('title', 'NEW');
+  badgeEl.appendChild(newUpperText);
+  badgeEl.appendChild(newLowerText);
+  badgeEl.appendChild(createNewText);
+  modelPanel.appendChild(badgeEl);
+  body.appendChild(modelPanel);
+  flushMutations();
+  assert.strictEqual(newUpperText.nodeValue, '新');
+  assert.strictEqual(newLowerText.nodeValue, '新');
+  assert.strictEqual(badgeEl.getAttribute('title'), '新');
+  // Create New first hits EXACT_DICT -> '新建', then upgrades on subsequent check -> '新' without looping
+  assertNoOscillationAfterSyntheticMutations([newUpperText, newLowerText, createNewText, badgeEl]);
+  assert.strictEqual(createNewText.nodeValue, '新');
+  assertNoOscillationAfterSyntheticMutations([createNewText]);
+  assert.strictEqual(createNewText.nodeValue, '新');
+
+  // 4. Group-by "NONE" and Thinking "NONE" context sensitivity
+  const groupNoneEl = new DomElement('DIV');
+  groupNoneEl.setAttribute('data-testid', 'group-by-option-none');
+  groupNoneEl.setAttribute('aria-label', 'NONE');
+  const groupNoneText = createLiveText('NONE');
+  groupNoneEl.appendChild(groupNoneText);
+  const thinkingEl = new DomElement('DIV');
+  thinkingEl.setAttribute('data-testid', 'thinking-level-select');
+  thinkingEl.setAttribute('title', 'NONE');
+  const thinkingNoneText = createLiveText('NONE');
+  thinkingEl.appendChild(thinkingNoneText);
+  body.appendChild(groupNoneEl);
+  body.appendChild(thinkingEl);
+  flushMutations();
+  assert.strictEqual(groupNoneText.nodeValue, '不分组');
+  assert.strictEqual(groupNoneEl.getAttribute('aria-label'), '不分组');
+  assert.strictEqual(thinkingNoneText.nodeValue, '关闭思考');
+  assert.strictEqual(thinkingEl.getAttribute('title'), '关闭思考');
+  assertNoOscillationAfterSyntheticMutations([groupNoneText, groupNoneEl, thinkingNoneText, thinkingEl]);
+  assert.strictEqual(groupNoneText.nodeValue, '不分组');
+  assert.strictEqual(thinkingNoneText.nodeValue, '关闭思考');
+
+  // 5. Split-node rules under live characterData MO ("Type ", " (still loading…)", "No ... yet")
+  const typeWrap = new DomElement('SPAN');
+  const typeText = createLiveText('Type ');
+  const slashCode = new DomElement('CODE');
+  slashCode.appendChild(createLiveText('/'));
+  const typeTail = createLiveText(' and select plan');
+  typeWrap.appendChild(typeText);
+  typeWrap.appendChild(slashCode);
+  typeWrap.appendChild(typeTail);
+
+  const devExtWrap = new DomElement('SPAN');
+  const devExtName = new DomElement('SPAN');
+  devExtName.appendChild(createLiveText('ext-host'));
+  const devLoadingWrap = new DomElement('SPAN');
+  const devLoadingText = createLiveText(' (still loading\u2026)');
+  devLoadingWrap.appendChild(devLoadingText);
+  devExtWrap.appendChild(devExtName);
+  devExtWrap.appendChild(devLoadingWrap);
+
+  const customEmptyWrap = new DomElement('SPAN');
+  const noPrefixText = createLiveText('No ');
+  const midSkillsSpan = new DomElement('SPAN');
+  midSkillsSpan.appendChild(createLiveText('skills'));
+  const yetSuffixText = createLiveText(' yet');
+  customEmptyWrap.appendChild(noPrefixText);
+  customEmptyWrap.appendChild(midSkillsSpan);
+  customEmptyWrap.appendChild(yetSuffixText);
+
+  modalContainer.appendChild(typeWrap);
+  modalContainer.appendChild(devExtWrap);
+  modalContainer.appendChild(customEmptyWrap);
+  flushMutations();
+  assert.strictEqual(typeText.nodeValue, '输入 ');
+  assert.strictEqual(devLoadingText.nodeValue, '（仍在加载...）');
+  assert.strictEqual(noPrefixText.nodeValue, '暂无 ');
+  assert.strictEqual(yetSuffixText.nodeValue, '');
+  assertNoOscillationAfterSyntheticMutations([typeText, devLoadingText, noPrefixText, yetSuffixText]);
+  sandbox.window.__antigravityTranslateAll();
+  assert.strictEqual(typeText.nodeValue, '输入 ', 'Split Type node must stay 输入 , not loop to 类型 ');
+  assert.strictEqual(devLoadingText.nodeValue, '（仍在加载...）', 'Developer split loading text must stay intact');
+  assert.strictEqual(noPrefixText.nodeValue, '暂无 ', 'Customizations split No prefix must stay 暂无 , not 否 ');
+
+  // 6. Nested Settings modal portal dedup (3 nested portal selectors -> visited once per schedulePortalTranslate)
+  const appText = createLiveText('Appearance');
+  const appHeading = new DomElement('H3');
+  appHeading.appendChild(appText);
+  modalContainer.appendChild(appHeading);
+  flushMutations();
+  assert.strictEqual(appText.nodeValue, '外观');
+
+  let containerVisitCount = 0;
+  const origModalHasAttr = modalContainer.hasAttribute;
+  modalContainer.hasAttribute = function (k) {
+    if (k === 'title') containerVisitCount += 1;
+    return origModalHasAttr.call(this, k);
+  };
+  if (docListeners.focusin && docListeners.focusin[0]) {
+    docListeners.focusin[0]({ target: triggerBtn });
+  }
+  flushMutations();
+  assert.strictEqual(containerVisitCount, 1, 'Nested Settings portals must be visited once per translatePortals pass, not 3x');
+
+  // 7. Zero redundant titlebar toggle setAttribute spam on repeated scans
+  const titleBar = new DomElement('DIV');
+  titleBar.setAttribute('data-testid', 'title-menu-bar');
+  const titleMenuChild = new DomElement('DIV');
+  const titleSpan = new DomElement('SPAN');
+  titleSpan.appendChild(createLiveText('Help'));
+  titleMenuChild.appendChild(titleSpan);
+  titleBar.appendChild(titleMenuChild);
+  rootDiv.appendChild(titleBar);
+  flushMutations();
+
+  const toggleBtn = titleBar.querySelector('[data-antigravity-i18n-titlebar-toggle="true"]');
+  const zhPill = toggleBtn.querySelector('[data-antigravity-i18n-pill-zh="true"]');
+  const enPill = toggleBtn.querySelector('[data-antigravity-i18n-pill-en="true"]');
+  let titlebarAttrWrites = 0;
+  for (const el of [toggleBtn, zhPill, enPill]) {
+    const origSet = el.setAttribute;
+    el.setAttribute = function (k, v) {
+      titlebarAttrWrites += 1;
+      return origSet.call(this, k, v);
+    };
+  }
+  sandbox.window.__antigravityTranslateAll();
+  assert.strictEqual(titlebarAttrWrites, 0, 'Repeated full scan must emit 0 setAttribute writes on already up-to-date titlebar toggle');
+
+  // 8. Shell container (#root > div without >30 children) & Base UI data-open removal guards
+  const appShell = new DomElement('DIV');
+  appShell.id = 'app-shell';
+  const shellProbe = new DomElement('SPAN');
+  let shellProbeChecks = 0;
+  const origShellHasAttr = shellProbe.hasAttribute;
+  shellProbe.hasAttribute = function (k) {
+    if (k === 'title') shellProbeChecks += 1;
+    return origShellHasAttr.call(this, k);
+  };
+  shellProbe.appendChild(createLiveText('General'));
+  appShell.appendChild(shellProbe);
+  rootDiv.appendChild(appShell);
+  appShell.setAttribute('aria-hidden', 'true');
+  flushMutations();
+  shellProbeChecks = 0;
+  appShell.removeAttribute('aria-hidden');
+  flushMutations();
+  assert.strictEqual(shellProbeChecks, 0, 'Removing aria-hidden from #root direct non-portal shell child must not re-walk app shell');
+
+  const closePopup = new DomElement('DIV');
+  closePopup.className = 'agy-dialog';
+  closePopup.setAttribute('data-open', 'true');
+  const popupProbe = new DomElement('SPAN');
+  let popupProbeChecks = 0;
+  const origPopupHasAttr = popupProbe.hasAttribute;
+  popupProbe.hasAttribute = function (k) {
+    if (k === 'title') popupProbeChecks += 1;
+    return origPopupHasAttr.call(this, k);
+  };
+  popupProbe.appendChild(createLiveText('Cancel'));
+  closePopup.appendChild(popupProbe);
+  body.appendChild(closePopup);
+  flushMutations();
+  popupProbeChecks = 0;
+  closePopup.removeAttribute('data-open');
+  flushMutations();
+  assert.strictEqual(popupProbeChecks, 0, 'Removing data-open on dialog close must treat element as hidden and not re-walk subtree');
+
+  // 9. Live MO + OTA hot-reload + [中 | EN] toggle preserves split nodes & converges
+  const otaSettingsSpan = new DomElement('SPAN');
+  const otaSettingsText = createLiveText('Settings');
+  otaSettingsSpan.appendChild(otaSettingsText);
+  rootDiv.appendChild(otaSettingsSpan);
+  flushMutations();
+  assert.strictEqual(otaSettingsText.nodeValue, '设置');
+
+  assert.strictEqual(
+    sandbox.window.__antigravityApplyOtaPack({
+      schemaVersion: 1,
+      packVersion: '2099.02.01.000001',
+      builtAt: '2099-02-01T00:00:00.000Z',
+      dictionary: {
+        'Settings': '系统设置（热更测试）',
+        'Type': '类型'
+      },
+      attrDict: {},
+      preserveList: ['Antigravity'],
+      rules: []
+    }),
+    true
+  );
+  assert(flushMutations() <= 2);
+  assert.strictEqual(otaSettingsText.nodeValue, '系统设置（热更测试）');
+  assert.strictEqual(typeText.nodeValue, '输入 ', 'Split node must remain protected across OTA hot-reload');
+
+  toggleBtn._listeners.click[0]({ stopPropagation() {} });
+  flushMutations();
+  assert.strictEqual(otaSettingsText.nodeValue, 'Settings');
+  assert.strictEqual(typeText.nodeValue, 'Type ');
+
+  toggleBtn._listeners.click[0]({ stopPropagation() {} });
+  flushMutations();
+  assert.strictEqual(otaSettingsText.nodeValue, '系统设置（热更测试）');
+  assert.strictEqual(typeText.nodeValue, '输入 ');
 }
 
 async function runOtaControllerVerification() {

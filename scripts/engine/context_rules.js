@@ -74,10 +74,10 @@ function createContextRules() {
     /Every command requires approval|每条命令执行前都需要批准|Run all commands without restrictions|无限制直接运行所有命令|无限制地直接运行所有命令|Ask before sensitive operations|执行敏感操作前先询问|Automatically decide if commands run|由智能体自动判断命令是否可执行/;
 
   const PERMISSION_PRESET_LABEL_RE =
-    /^(?:This Computer|此电脑|Remote|远程|Permission Preset|权限预设)$/;
+    /^(?:This Computer|此电脑|Remote|远程|Permission Preset|权限预设)$/i;
 
   const PERMISSION_PRESET_ARIA_DESC_RE =
-    /Controls what the agent is allowed to do|控制智能体允许执行的操作范围|Controls permissions for remote conversations|控制远程会话的运行权限/;
+    /Controls what the agent is allowed to do|控制智能体允许执行的操作范围|Controls the actions the agent can take|控制智能体可执行的操作|Controls permissions for remote conversations|控制远程会话的运行权限/i;
 
   function isPermissionPresetContext(contextEl) {
     if (!contextEl || !contextEl.closest) return false;

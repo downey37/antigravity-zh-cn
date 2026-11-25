@@ -25,6 +25,8 @@ function antigravityI18nBootstrap(
   window.__ANTIGRAVITY_I18N_INITIALIZED__ = true;
 
   let I18N_ENABLED = typeof window !== 'undefined' ? window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ !== false : true;
+  let dictGeneration = 0;
+  const CONTEXT_UPGRADE_ZH_SET = new Set(['新建', '无', '关闭思考', '请求审核', '全自动', '自动']);
   const ORIG_TEXT = typeof WeakMap === 'function' ? new WeakMap() : null;
   const ORIG_ATTRS = typeof WeakMap === 'function' ? new WeakMap() : null;
 
@@ -118,6 +120,7 @@ function antigravityI18nBootstrap(
     }
 
     OTA_DYNAMIC_RULES = compileOtaRules(nextRules);
+    dictGeneration += 1;
   }
 
   rebuildDictIndexes(EXACT_DICT, ATTR_DICT, PRESERVE_LIST, INITIAL_OTA_RULES);
@@ -175,32 +178,17 @@ function antigravityI18nBootstrap(
     'alt'
   ];
 
-  function translateString(str, contextEl) {
-    if (!str || typeof str !== 'string') return str;
-    const wsMatch = str.match(/^(\s*)([\s\S]*?)(\s*)$/);
-    const leadWs = wsMatch ? wsMatch[1] : '';
-    const trimmed = wsMatch ? wsMatch[2] : str.trim();
-    const trailWs = wsMatch ? wsMatch[3] : '';
-    if (!trimmed) return str;
-
-    const norm = normalizeKey(trimmed);
-    if (!norm || /^[\d\s.,:%+\-*/()[\]{}<>=!@#$%^&*_~`|\\/?]+$/.test(norm)) {
-      return str;
-    }
-
-    if (PRESERVE_SET.has(trimmed) || PRESERVE_SET.has(norm)) {
-      return str;
-    }
+  function translateContextSensitiveToken(norm, leadWs, trailWs, contextEl) {
+    const normLower = norm.toLowerCase();
 
     // 模型选择器 / 新功能徽章中的 "New" 指“新”（区别于创建按钮“新建”）
-    if ((norm === 'New' || norm === 'new' || norm === '新建') && isNewBadgeContext(contextEl)) {
+    if ((normLower === 'new' || norm === '新建') && isNewBadgeContext(contextEl)) {
       return leadWs + '新' + trailWs;
     }
 
     // "None" 根据所在菜单上下文区分：“分组方式”为“不分组”，思考深度选择器为“关闭思考”，其余默认为“无”
     if (
-      norm === 'None' ||
-      norm === 'none' ||
+      normLower === 'none' ||
       norm === '关闭思考' ||
       (norm === '无' && (isGroupByNoneContext(contextEl) || isThinkingNoneContext(contextEl)))
     ) {
@@ -218,21 +206,46 @@ function antigravityI18nBootstrap(
     // 权限预设选择器中为模式标题附带括号英文原词（“默认”保持纯中文），其余位置保持纯中文
     if (
       (
-        norm === 'Request Review' || norm === 'Request review' || norm === '请求审核' ||
-        norm === 'Turbo' || norm === '全自动' ||
-        norm === 'Auto' || norm === '自动'
+        normLower === 'request review' || normLower === 'require review' || norm === '请求审核' ||
+        normLower === 'turbo' || norm === '全自动' ||
+        normLower === 'auto' || norm === '自动'
       ) &&
       isPermissionPresetContext(contextEl)
     ) {
-      if (norm === 'Request Review' || norm === 'Request review' || norm === '请求审核') {
+      if (normLower === 'request review' || normLower === 'require review' || norm === '请求审核') {
         return leadWs + '请求审核 (Request Review)' + trailWs;
       }
-      if (norm === 'Turbo' || norm === '全自动') {
+      if (normLower === 'turbo' || norm === '全自动') {
         return leadWs + '全自动 (Turbo)' + trailWs;
       }
-      if (norm === 'Auto' || norm === '自动') {
+      if (normLower === 'auto' || norm === '自动') {
         return leadWs + '自动 (Auto)' + trailWs;
       }
+    }
+
+    return null;
+  }
+
+  function translateString(str, contextEl) {
+    if (!str || typeof str !== 'string') return str;
+    const wsMatch = str.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    const leadWs = wsMatch ? wsMatch[1] : '';
+    const trimmed = wsMatch ? wsMatch[2] : str.trim();
+    const trailWs = wsMatch ? wsMatch[3] : '';
+    if (!trimmed) return str;
+
+    const norm = normalizeKey(trimmed);
+    if (!norm || /^[\d\s.,:%+\-*/()[\]{}<>=!@#$%^&*_~`|\\/?]+$/.test(norm)) {
+      return str;
+    }
+
+    if (PRESERVE_SET.has(trimmed) || PRESERVE_SET.has(norm)) {
+      return str;
+    }
+
+    const ctxHit = translateContextSensitiveToken(norm, leadWs, trailWs, contextEl);
+    if (ctxHit !== null) {
+      return ctxHit;
     }
 
     // 侧栏会话列表、事件列表等紧凑相对时间戳（now / 47m / 3h / 3d / 2mo / 1y）
@@ -386,12 +399,12 @@ function antigravityI18nBootstrap(
     return str;
   }
 
-  function applyTextTranslation(node, currentVal, nextVal) {
+  function applyTextTranslation(node, currentVal, nextVal, fromSplit) {
     if (nextVal === currentVal) return;
     if (ORIG_TEXT) {
       const prev = ORIG_TEXT.get(node);
       const trueOrig = prev && currentVal === prev.translated ? prev.orig : currentVal;
-      ORIG_TEXT.set(node, { orig: trueOrig, translated: nextVal });
+      ORIG_TEXT.set(node, { orig: trueOrig, translated: nextVal, gen: dictGeneration, fromSplit: Boolean(fromSplit) });
     }
     node.nodeValue = nextVal;
   }
@@ -406,14 +419,21 @@ function antigravityI18nBootstrap(
       }
       const prev = attrMap.get(attr);
       const trueOrig = prev && currentVal === prev.translated ? prev.orig : currentVal;
-      attrMap.set(attr, { orig: trueOrig, translated: nextVal });
+      attrMap.set(attr, { orig: trueOrig, translated: nextVal, gen: dictGeneration });
     }
     node.setAttribute(attr, nextVal);
   }
 
   function translateAttrValue(node, val) {
+    const trimmed = val.trim();
     const nk = normalizeKey(val);
-    if (PRESERVE_SET.has(val.trim()) || (nk && PRESERVE_SET.has(nk))) return val;
+    if (PRESERVE_SET.has(trimmed) || (nk && PRESERVE_SET.has(nk))) return val;
+    if (nk) {
+      const leadWs = val.match(/^\s*/)[0];
+      const trailWs = val.match(/\s*$/)[0];
+      const ctxHit = translateContextSensitiveToken(nk, leadWs, trailWs, node);
+      if (ctxHit !== null) return ctxHit;
+    }
     const attrHit =
       (ATTR_MAP.has(val) ? ATTR_MAP.get(val) : null) ||
       (nk ? NORM_ATTR.get(nk) || NORM_ATTR_LOWER.get(nk.toLowerCase()) : null);
@@ -422,23 +442,32 @@ function antigravityI18nBootstrap(
   }
 
   function translateElementAttrs(node) {
-    if (!I18N_ENABLED || !node || node.nodeType !== 1 || shouldIgnoreAttrElement(node)) return;
+    if (!I18N_ENABLED || !node || node.nodeType !== 1 || isInjectedI18nControl(node) || shouldIgnoreAttrElement(node)) return;
     const prevMap = ORIG_ATTRS ? ORIG_ATTRS.get(node) : null;
     for (let i = 0; i < TARGET_ATTRS.length; i++) {
       const attr = TARGET_ATTRS[i];
       if (!node.hasAttribute || !node.hasAttribute(attr)) continue;
       const val = node.getAttribute(attr);
       if (!val) continue;
-      let nextVal = translateAttrValue(node, val);
-      if (nextVal === val && prevMap) {
-        const prev = prevMap.get(attr);
-        if (prev && val === prev.translated && prev.orig !== val) {
-          const retrans = translateAttrValue(node, prev.orig);
-          if (retrans !== prev.orig) {
-            nextVal = retrans;
+      const prev = prevMap ? prevMap.get(attr) : null;
+      if (prev && val === prev.translated) {
+        if (prev.gen === dictGeneration) {
+          if (!CONTEXT_UPGRADE_ZH_SET.has(val.trim())) continue;
+          const ctxNext = translateAttrValue(node, val);
+          if (ctxNext !== val) {
+            applyAttrTranslation(node, attr, val, ctxNext);
           }
+          continue;
         }
+        const retrans = translateAttrValue(node, prev.orig);
+        if (retrans !== prev.orig && retrans !== val) {
+          applyAttrTranslation(node, attr, val, retrans);
+        } else {
+          prev.gen = dictGeneration;
+        }
+        continue;
       }
+      const nextVal = translateAttrValue(node, val);
       if (nextVal !== val) {
         applyAttrTranslation(node, attr, val, nextVal);
       }
@@ -476,12 +505,16 @@ function antigravityI18nBootstrap(
     return Boolean(node.querySelector && node.querySelector('[data-testid="title-menu-bar"]'));
   }
 
+  const INJECTED_I18N_SELECTOR =
+    '[data-antigravity-i18n-titlebar-toggle-wrap="true"], [data-antigravity-i18n-titlebar-toggle="true"], [data-antigravity-i18n-ota-item="true"], [data-antigravity-i18n-toggle-item="true"]';
+
   function isInjectedI18nControl(node) {
+    if (!node) return false;
+    const el = node.nodeType === 1 ? node : (node.parentElement || null);
+    if (!el || el.nodeType !== 1) return false;
     return Boolean(
-      node &&
-      node.nodeType === 1 &&
-      node.matches &&
-      node.matches('[data-antigravity-i18n-titlebar-toggle-wrap="true"], [data-antigravity-i18n-titlebar-toggle="true"], [data-antigravity-i18n-ota-item="true"], [data-antigravity-i18n-toggle-item="true"]')
+      (el.matches && el.matches(INJECTED_I18N_SELECTOR)) ||
+      (el.closest && el.closest(INJECTED_I18N_SELECTOR))
     );
   }
 
@@ -498,36 +531,56 @@ function antigravityI18nBootstrap(
 
     if (node.nodeType === 3) {
       const parent = node.parentElement || node.parentNode;
-      if (shouldIgnoreTextParent(parent)) return;
+      if (isInjectedI18nControl(parent) || shouldIgnoreTextParent(parent)) return;
       const val = node.nodeValue;
-      if (val) {
-        const splitTrans = SPLIT_TEXT_TRANSLATOR(node, val, parent);
-        if (splitTrans !== null) {
-          if (splitTrans !== val) applyTextTranslation(node, val, splitTrans);
+      if (!val) return;
+      const prev = ORIG_TEXT ? ORIG_TEXT.get(node) : null;
+      if (prev && val === prev.translated) {
+        if (prev.gen === dictGeneration) {
+          if (prev.fromSplit || !CONTEXT_UPGRADE_ZH_SET.has(val.trim())) return;
+          const ctxNext = translateString(val, parent);
+          if (ctxNext !== val) {
+            applyTextTranslation(node, val, ctxNext, false);
+          }
+          return;
+        }
+        const splitRetrans = SPLIT_TEXT_TRANSLATOR(node, prev.orig, parent);
+        if (splitRetrans !== null) {
+          if (splitRetrans !== val) {
+            applyTextTranslation(node, val, splitRetrans, true);
+          } else {
+            prev.gen = dictGeneration;
+            prev.fromSplit = true;
+          }
           return;
         }
         const subtitleContainer = getSettingsPageSubtitleContainer(parent);
         const isTrailingSub = Boolean(subtitleContainer && isTrailingNodeInContainer(node, subtitleContainer));
-        let trans = translateString(val, parent);
+        let retrans = translateString(prev.orig, parent);
         if (isTrailingSub) {
-          trans = trans.replace(/。(\s*)$/, '$1');
+          retrans = retrans.replace(/。(\s*)$/, '$1');
         }
-        if (trans !== val) {
-          applyTextTranslation(node, val, trans);
-          return;
+        if (retrans !== prev.orig && retrans !== val) {
+          applyTextTranslation(node, val, retrans, false);
+        } else {
+          prev.gen = dictGeneration;
         }
-        if (ORIG_TEXT) {
-          const prev = ORIG_TEXT.get(node);
-          if (prev && val === prev.translated && prev.orig !== val) {
-            let retrans = translateString(prev.orig, parent);
-            if (isTrailingSub) {
-              retrans = retrans.replace(/。(\s*)$/, '$1');
-            }
-            if (retrans !== prev.orig && retrans !== val) {
-              applyTextTranslation(node, val, retrans);
-            }
-          }
-        }
+        return;
+      }
+
+      const splitTrans = SPLIT_TEXT_TRANSLATOR(node, val, parent);
+      if (splitTrans !== null) {
+        if (splitTrans !== val) applyTextTranslation(node, val, splitTrans, true);
+        return;
+      }
+      const subtitleContainer = getSettingsPageSubtitleContainer(parent);
+      const isTrailingSub = Boolean(subtitleContainer && isTrailingNodeInContainer(node, subtitleContainer));
+      let trans = translateString(val, parent);
+      if (isTrailingSub) {
+        trans = trans.replace(/。(\s*)$/, '$1');
+      }
+      if (trans !== val) {
+        applyTextTranslation(node, val, trans, false);
       }
       return;
     }
@@ -562,9 +615,12 @@ function antigravityI18nBootstrap(
         translateNode(child);
       }
 
-      if (isTitleMenuRelated(node)) {
-        ensureTitleBarLangToggle(node);
-        ensureTitleBarOtaMenuItem(node);
+      if (node.matches) {
+        if (node.matches('[data-testid="title-menu-bar"]')) {
+          ensureTitleBarLangToggle(node);
+        } else if (node.matches('[data-testid="title-menu-bar-option"], [data-browser-occluder="true"]')) {
+          ensureTitleBarOtaMenuItem(node);
+        }
       }
     } else if (node.nodeType === 11) {
       for (let child = node.firstChild; child; child = child.nextSibling) {
@@ -602,12 +658,20 @@ function antigravityI18nBootstrap(
     return wrapper;
   }
 
+  function setAttrIfChanged(el, attr, val) {
+    if (!el || typeof el.setAttribute !== 'function') return;
+    if (typeof el.getAttribute === 'function' && el.getAttribute(attr) === val) return;
+    el.setAttribute(attr, val);
+  }
+
   function setBtnLabelText(btn, label) {
     if (!btn) return;
     const span = btn.firstChild;
     if (!span) return;
     if (span.firstChild && span.firstChild.nodeType === 3) {
-      span.firstChild.nodeValue = label;
+      if (span.firstChild.nodeValue !== label) {
+        span.firstChild.nodeValue = label;
+      }
     } else if (typeof document !== 'undefined' && typeof document.createTextNode === 'function') {
       while (span.firstChild) span.removeChild(span.firstChild);
       span.appendChild(document.createTextNode(label));
@@ -622,18 +686,16 @@ function antigravityI18nBootstrap(
     const tip = I18N_ENABLED
       ? '当前：简体中文（点击切换为英文原文）'
       : 'Current: English (Click to switch to 简体中文)';
-    if (typeof btn.setAttribute === 'function') {
-      btn.setAttribute('title', tip);
-      btn.setAttribute('aria-label', tip);
-    }
+    setAttrIfChanged(btn, 'title', tip);
+    setAttrIfChanged(btn, 'aria-label', tip);
     if (typeof btn.querySelector === 'function') {
       const zhSpan = btn.querySelector('[data-antigravity-i18n-pill-zh="true"]');
       const enSpan = btn.querySelector('[data-antigravity-i18n-pill-en="true"]');
-      if (zhSpan && typeof zhSpan.setAttribute === 'function') {
-        zhSpan.setAttribute('style', I18N_ENABLED ? PILL_ACTIVE_STYLE : PILL_INACTIVE_STYLE);
+      if (zhSpan) {
+        setAttrIfChanged(zhSpan, 'style', I18N_ENABLED ? PILL_ACTIVE_STYLE : PILL_INACTIVE_STYLE);
       }
-      if (enSpan && typeof enSpan.setAttribute === 'function') {
-        enSpan.setAttribute('style', I18N_ENABLED ? PILL_INACTIVE_STYLE : PILL_ACTIVE_STYLE);
+      if (enSpan) {
+        setAttrIfChanged(enSpan, 'style', I18N_ENABLED ? PILL_INACTIVE_STYLE : PILL_ACTIVE_STYLE);
       }
     }
   }
@@ -904,7 +966,12 @@ function antigravityI18nBootstrap(
         if (queryRoot) {
           const portals = queryRoot.querySelectorAll(PORTAL_SELECTOR);
           for (let i = 0; i < portals.length; i++) {
-            restoreOriginalSubtree(portals[i]);
+            const p = portals[i];
+            if (!p) continue;
+            if (p.parentElement && p.parentElement.closest && p.parentElement.closest(PORTAL_SELECTOR)) {
+              continue;
+            }
+            restoreOriginalSubtree(p);
           }
         }
       }
@@ -954,7 +1021,7 @@ function antigravityI18nBootstrap(
     if (attrName === 'hidden' && val !== null) return true;
     if (attrName === 'open' && val === null && el.nodeName === 'DETAILS') return true;
     if (attrName === 'data-state' && val === 'closed') return true;
-    if (attrName === 'data-open' && val === 'false') return true;
+    if (attrName === 'data-open' && (val === 'false' || val === null)) return true;
     if (attrName === 'style') {
       if (el.style && el.style.display === 'none') return true;
       if (val && /(?:^|;)\s*display\s*:\s*none\b/i.test(val)) return true;
@@ -967,43 +1034,132 @@ function antigravityI18nBootstrap(
     observedRoots.add(root);
 
     try {
+      let burstWindowStart = 0;
+      let burstCount = 0;
+      let cooldownUntil = 0;
+      let cooldownTimer = 0;
+
       const observer = new MutationObserver((mutations) => {
-        for (let i = 0; i < mutations.length; i++) {
-          const m = mutations[i];
+        const now = Date.now();
+        if (now < cooldownUntil) {
+          if (typeof observer.takeRecords === 'function') observer.takeRecords();
+          return;
+        }
+        if (!burstWindowStart || now - burstWindowStart > 500) {
+          burstWindowStart = now;
+          burstCount = 1;
+        } else {
+          burstCount += 1;
+          if (burstCount > 60) {
+            cooldownUntil = now + 120;
+            burstCount = 0;
+            if (typeof observer.takeRecords === 'function') observer.takeRecords();
+            if (!cooldownTimer) {
+              cooldownTimer = setTimeout(() => {
+                cooldownTimer = 0;
+                if (I18N_ENABLED) {
+                  translatePortals();
+                  scheduleFullTranslate();
+                }
+              }, 130);
+            }
+            return;
+          }
+        }
+
+        try {
           if (!I18N_ENABLED) {
+            const disabledAdded = new Set();
+            for (let i = 0; i < mutations.length; i++) {
+              const m = mutations[i];
+              if (m && m.type === 'childList') {
+                for (let j = 0; j < m.addedNodes.length; j++) {
+                  const added = m.addedNodes[j];
+                  if (!added || isInjectedI18nControl(added)) continue;
+                  disabledAdded.add(added);
+                }
+              }
+            }
+            disabledAdded.forEach((added) => {
+              if (added.parentNode && disabledAdded.has(added.parentNode)) return;
+              if (containsTitleMenuBar(added)) {
+                ensureTitleBarLangToggle(added);
+                ensureTitleBarOtaMenuItem(added);
+              }
+            });
+            return;
+          }
+
+          const addedSet = new Set();
+          const charSet = new Set();
+          const attrSet = new Set();
+          const visList = [];
+          const visSeen = new Set();
+
+          for (let i = 0; i < mutations.length; i++) {
+            const m = mutations[i];
+            if (!m) continue;
             if (m.type === 'childList') {
               for (let j = 0; j < m.addedNodes.length; j++) {
                 const added = m.addedNodes[j];
-                if (containsTitleMenuBar(added)) {
-                  ensureTitleBarLangToggle(added);
-                  ensureTitleBarOtaMenuItem(added);
+                if (!added || isInjectedI18nControl(added)) continue;
+                addedSet.add(added);
+              }
+            } else if (m.type === 'characterData') {
+              if (m.target && !isInjectedI18nControl(m.target)) {
+                charSet.add(m.target);
+              }
+            } else if (m.type === 'attributes' && m.target) {
+              if (isInjectedI18nControl(m.target)) continue;
+              if (TARGET_ATTRS.includes(m.attributeName)) {
+                attrSet.add(m.target);
+              } else if (VISIBILITY_ATTRS.includes(m.attributeName) && !isElementHiddenForAttr(m.target, m.attributeName)) {
+                if (m.attributeName === 'style') {
+                  if (m.target.matches && m.target.matches(PORTAL_SELECTOR)) {
+                    if (!visSeen.has(m.target)) {
+                      visSeen.add(m.target);
+                      visList.push(m.target);
+                    }
+                  }
+                } else if (
+                  m.attributeName === 'aria-hidden' &&
+                  (isShellContainer(m.target) || (typeof m.target.childElementCount === 'number' && m.target.childElementCount > 30 && !(m.target.matches && m.target.matches(PORTAL_SELECTOR))))
+                ) {
+                  // 弹窗关闭移除根容器 aria-hidden 时不再整树重扫
+                } else if (!visSeen.has(m.target)) {
+                  visSeen.add(m.target);
+                  visList.push(m.target);
                 }
               }
             }
-            continue;
           }
-          if (m.type === 'childList') {
-            for (let j = 0; j < m.addedNodes.length; j++) {
-              translateSubtree(m.addedNodes[j]);
+
+          addedSet.forEach((added) => {
+            if (added.parentNode && addedSet.has(added.parentNode)) return;
+            translateSubtree(added);
+          });
+          charSet.forEach((target) => {
+            if (!addedSet.has(target)) {
+              translateNode(target);
             }
-          } else if (m.type === 'characterData') {
-            translateNode(m.target);
-          } else if (m.type === 'attributes' && m.target) {
-            if (TARGET_ATTRS.includes(m.attributeName)) {
-              translateElementAttrs(m.target);
-            } else if (VISIBILITY_ATTRS.includes(m.attributeName) && !isElementHiddenForAttr(m.target, m.attributeName)) {
-              if (m.attributeName === 'style') {
-                if (m.target.matches && m.target.matches(PORTAL_SELECTOR)) {
-                  translateSubtree(m.target);
-                  schedulePortalTranslate();
-                }
-              } else if (m.attributeName === 'aria-hidden' && (isShellContainer(m.target) || (typeof m.target.childElementCount === 'number' && m.target.childElementCount > 30 && !(m.target.matches && m.target.matches(PORTAL_SELECTOR))))) {
-                // 弹窗关闭移除根容器 aria-hidden 时不再整树重扫
-              } else {
-                translateSubtree(m.target);
-                schedulePortalTranslate();
+          });
+          attrSet.forEach((target) => {
+            if (!addedSet.has(target)) {
+              translateElementAttrs(target);
+            }
+          });
+          if (visList.length > 0) {
+            for (let i = 0; i < visList.length; i++) {
+              const target = visList[i];
+              if (!addedSet.has(target)) {
+                translateSubtree(target);
               }
             }
+            schedulePortalTranslate();
+          }
+        } finally {
+          if (typeof observer.takeRecords === 'function') {
+            observer.takeRecords();
           }
         }
       });
@@ -1141,7 +1297,12 @@ function antigravityI18nBootstrap(
       : document;
     const portals = queryRoot.querySelectorAll(PORTAL_SELECTOR);
     for (let i = 0; i < portals.length; i++) {
-      translateSubtree(portals[i]);
+      const p = portals[i];
+      if (!p) continue;
+      if (p.parentElement && p.parentElement.closest && p.parentElement.closest(PORTAL_SELECTOR)) {
+        continue;
+      }
+      translateSubtree(p);
     }
   }
 
@@ -1160,14 +1321,17 @@ function antigravityI18nBootstrap(
   let hoverDelayTimers = [];
   let lastHoverTarget = null;
   function isShellContainer(el) {
-    return Boolean(
-      !el ||
-      el === document.documentElement ||
-      el === document.body ||
-      el.id === 'root' ||
-      el.id === 'app' ||
-      (typeof document !== 'undefined' && document.body && el.parentElement === document.body && !(el.matches && el.matches(PORTAL_SELECTOR)))
-    );
+    if (!el) return true;
+    if (el === document.documentElement || el === document.body || el.id === 'root' || el.id === 'app') return true;
+    const p = el.parentElement;
+    if (
+      p &&
+      ((typeof document !== 'undefined' && p === document.body) || p.id === 'root' || p.id === 'app') &&
+      !(el.matches && el.matches(PORTAL_SELECTOR))
+    ) {
+      return true;
+    }
+    return false;
   }
   function isSmallHoverTarget(el) {
     if (!el || el.nodeType !== 1 || isShellContainer(el)) return false;
