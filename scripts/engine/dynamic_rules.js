@@ -106,17 +106,32 @@ function createDynamicRules(helpers) {
   function translateModelParenEffort(str) {
     const s = String(str || '').trim();
     if (!s) return null;
-    const m = s.match(/^(.+?)\s*\((Extra\s+High|XHigh|Minimal|Low|Medium|High|Extra|Max)(?:\s+Thinking)?\)(?:\s*\u00b7\s*(.+))?$/i);
-    if (!m) return null;
-    const base = m[1].trim();
-    const effZh = translateEffortLevel(m[2]);
-    if (!base || !effZh) return null;
-    if (m[3]) {
-      const ctxRaw = m[3].trim();
-      const ctxZh = lookupExact(ctxRaw, normalizeKey(ctxRaw)) || ctxRaw;
-      return `${base} (${effZh}) \u00b7 ${ctxZh}`;
+    const dotMatch = s.match(/^(.+?)\s*\u00b7\s*(.+)$/);
+    const head = dotMatch ? dotMatch[1].trim() : s;
+    const tailRaw = dotMatch ? dotMatch[2].trim() : '';
+    const tailZh = tailRaw ? (lookupExact(tailRaw, normalizeKey(tailRaw)) || tailRaw) : '';
+
+    const statusMatch = head.match(/^(.+?)\s*\((unavailable|latest)\)$/i);
+    const core = statusMatch ? statusMatch[1].trim() : head;
+    const statusZh = statusMatch
+      ? (statusMatch[2].toLowerCase() === 'unavailable' ? '不可用' : '最新')
+      : '';
+
+    let coreZh = core;
+    const m = core.match(/^(.+?)\s*\((Extra\s+High|XHigh|Minimal|Low|Medium|High|Extra|Max)(?:\s+Thinking)?\)$/i);
+    if (m) {
+      const base = m[1].trim();
+      const effZh = translateEffortLevel(m[2]);
+      if (base && effZh) {
+        coreZh = `${base} (${effZh})`;
+      }
     }
-    return `${base} (${effZh})`;
+
+    let out = statusZh ? `${coreZh} (${statusZh})` : coreZh;
+    if (tailRaw) {
+      out = `${out} \u00b7 ${tailZh}`;
+    }
+    return out !== s ? out : null;
   }
 
   function translateLimitKind(kind) {
@@ -164,6 +179,158 @@ function createDynamicRules(helpers) {
     const md = clean.match(/^(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?$/i);
     if (md) return `${monthMap[md[1].slice(0, 3).toLowerCase()] || md[1]}${md[2]}日`;
     return clean;
+  }
+
+  function translateClockTime(raw) {
+    const s = String(raw || '').trim();
+    const hm = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (hm) {
+      const hour = Number(hm[1]);
+      const min = hm[2];
+      const isAm = hm[3].toUpperCase() === 'AM';
+      if (hour === 12) {
+        if (isAm) return `凌晨 00:${min}`;
+        return min === '00' ? '中午 12:00' : `下午 12:${min}`;
+      }
+      if (isAm) {
+        return `${hour <= 5 ? '凌晨' : '上午'} ${hm[1]}:${min}`;
+      }
+      return `${hour >= 6 && hour <= 11 ? '晚上' : '下午'} ${hm[1]}:${min}`;
+    }
+    const h = s.match(/^(\d{1,2})\s*(AM|PM)$/i);
+    if (h) {
+      const hour = Number(h[1]);
+      const isAm = h[2].toUpperCase() === 'AM';
+      if (hour === 12) {
+        return isAm ? '凌晨 0 点' : '中午 12 点';
+      }
+      if (isAm) {
+        return `${hour <= 5 ? '凌晨' : '上午'} ${h[1]} 点`;
+      }
+      return `${hour >= 6 && hour <= 11 ? '晚上' : '下午'} ${h[1]} 点`;
+    }
+    return s;
+  }
+
+  function translateClockTimeList(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return s;
+    const tzMatch = s.match(/^(.+?)(?:\s+(GMT[+-]\d+(?::\d+)?|UTC|(?!AM$|PM$)[A-Z]{2,5}))$/);
+    const timePart = tzMatch ? tzMatch[1].trim() : s;
+    const tzPart = tzMatch ? tzMatch[2].trim() : '';
+    const items = timePart
+      .split(/\s*(?:,\s*|\band\b)\s*/i)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map(translateClockTime);
+    const joined = items.join('、');
+    return tzPart ? `${joined} ${tzPart}` : joined;
+  }
+
+  const SCHEDULE_SHORT_DAY_MAP = {
+    sunday: '周日', sundays: '周日', sun: '周日',
+    monday: '周一', mondays: '周一', mon: '周一',
+    tuesday: '周二', tuesdays: '周二', tue: '周二', tues: '周二',
+    wednesday: '周三', wednesdays: '周三', wed: '周三',
+    thursday: '周四', thursdays: '周四', thu: '周四', thur: '周四', thurs: '周四',
+    friday: '周五', fridays: '周五', fri: '周五',
+    saturday: '周六', saturdays: '周六', sat: '周六'
+  };
+
+  function translateScheduleDaysPhrase(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    const low = s.toLowerCase();
+    if (low === 'weekdays') return '每工作日';
+    if (low === 'weekends') return '每周末';
+    const singlePlural = low.match(/^(sundays|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays)$/);
+    if (singlePlural) {
+      return `每${SCHEDULE_SHORT_DAY_MAP[singlePlural[1]]}`;
+    }
+    const parts = s
+      .replace(/,\s*and\s+/gi, ', ')
+      .split(/\s*(?:,\s*|\band\b)\s*/i)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return null;
+    const mapped = [];
+    for (const part of parts) {
+      const zh = SCHEDULE_SHORT_DAY_MAP[part.toLowerCase()];
+      if (!zh) return null;
+      mapped.push(zh);
+    }
+    return `每${mapped.join('、')}`;
+  }
+
+  function translateScheduleSummary(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    if (/^Custom schedule$/i.test(s)) return '自定义计划';
+
+    let m = s.match(/^Daily at\s+(.+)$/i);
+    if (m) return `每天 ${translateClockTimeList(m[1])}`;
+
+    m = s.match(/^Weekly on\s+(.+?)\s+at\s+(.+)$/i);
+    if (m) return `每周${translateScheduleDay(m[1]).replace(/^星期/, '')} ${translateClockTimeList(m[2])}`;
+
+    m = s.match(/^Monthly on the\s+(.+?)\s+at\s+(.+)$/i);
+    if (m) return `每月 ${translateScheduleDay(m[1])} ${translateClockTimeList(m[2])}`;
+
+    m = s.match(/^Every\s+(\d+)\s+minutes?(?:\s+on\s+(.+))?$/i);
+    if (m) {
+      const daysZh = m[2] ? translateScheduleDaysPhrase(m[2]) : '';
+      if (m[2] && !daysZh) return null;
+      return `${daysZh}每 ${m[1]} 分钟`;
+    }
+
+    m = s.match(/^Every\s+(\d+)\s+hours?(?:\s+on\s+(.+))?$/i);
+    if (m) {
+      const daysZh = m[2] ? translateScheduleDaysPhrase(m[2]) : '';
+      if (m[2] && !daysZh) return null;
+      return `${daysZh}每 ${m[1]} 小时`;
+    }
+
+    m = s.match(/^Every hour,\s*(\d{1,2}\s*(?:AM|PM))\s+to\s+(\d{1,2}\s*(?:AM|PM))(?:,\s*on\s+(.+))?$/i);
+    if (m) {
+      const daysZh = m[3] ? translateScheduleDaysPhrase(m[3]) : '';
+      if (m[3] && !daysZh) return null;
+      return `${daysZh}每小时（${translateClockTime(m[1])}至${translateClockTime(m[2])}）`;
+    }
+
+    m = s.match(/^Every hour(?:\s+at\s+:(\d{2}))?(?:\s+on\s+(.+))?$/i);
+    if (m) {
+      const daysZh = m[2] ? translateScheduleDaysPhrase(m[2]) : '';
+      if (m[2] && !daysZh) return null;
+      const base = m[1] ? `每小时第 ${m[1]} 分` : '每小时';
+      return `${daysZh}${base}`;
+    }
+
+    m = s.match(/^(.+?)\s+at\s+(.+)$/i);
+    if (m) {
+      const daysZh = translateScheduleDaysPhrase(m[1]);
+      if (daysZh) {
+        return `${daysZh} ${translateClockTimeList(m[2])}`;
+      }
+    }
+
+    return null;
+  }
+
+  function translateRequiredBlockerItem(raw) {
+    const trimmed = String(raw || '').trim();
+    const map = {
+      title: '标题',
+      name: '名称',
+      'unique title': '不重复的标题',
+      'unique name': '不重复的名称',
+      instructions: '指令说明',
+      trigger: '触发器',
+      project: '项目',
+      'available run location': '可用的运行位置',
+      'account connection': '账号连接'
+    };
+    const low = trimmed.toLowerCase();
+    return map[low] || lookupExact(trimmed, normalizeKey(trimmed)) || trimmed;
   }
 
   function translateEntityNoun(word) {
@@ -643,6 +810,10 @@ function createDynamicRules(helpers) {
     if (KNOWN_MODEL_PREFIX_RE.test(s) && (/\b(?:and|or)\b/i.test(s) || s.includes(',') || /\bmodels$/i.test(s))) {
       return translateModelList(s);
     }
+    if (KNOWN_MODEL_PREFIX_RE.test(s)) {
+      const parenZh = translateModelParenEffort(s);
+      if (parenZh) return parenZh;
+    }
     return s;
   }
 
@@ -1109,6 +1280,16 @@ function createDynamicRules(helpers) {
       if (m[3] && !reasonZh) return null;
       const tail = reasonZh ? `${reasonZh}。` : '。';
       return joinZhSegment(lead, target, tail);
+    }
+
+    // 25. 自动化模型不可用时的回退 / 失败提示
+    m = s.match(/^Runs\s+use\s+(.+?)\s+instead\.?$/i);
+    if (m) {
+      const fallbackModel = translateModelParenEffort(m[1]) || m[1].trim();
+      return joinZhSegment('运行时将改用', fallbackModel, '。');
+    }
+    if (/^Runs\s+will\s+fail\s+until\s+you\s+pick\s+another\s+model\.?$/i.test(s)) {
+      return '在你选择其他模型前，任务运行将会失败。';
     }
 
     return null;
@@ -1597,14 +1778,30 @@ function createDynamicRules(helpers) {
     [/^Open URL in system browser:\s*(.+)$/i, '在系统浏览器中打开 URL：$1'],
     [/^Opens external link:\s*(.+)$/i, '打开外部链接：$1'],
     [/^Open\s+([^\s]+)\s+link\?$/i, '打开 $1 链接？'],
-    [/^Daily at\s+(.+)$/i, '每天 $1'],
-    [/^Weekly on\s+(.+?)\s+at\s+(.+)$/i, (_, day, time) => `每周${translateScheduleDay(day).replace(/^星期/, '')} ${time}`],
-    [/^Monthly on the\s+(.+?)\s+at\s+(.+)$/i, (_, day, time) => `每月 ${translateScheduleDay(day)} ${time}`],
-    [/^Every\s+(\d+)\s+minutes?$/i, '每 $1 分钟'],
-    [/^Every\s+(\d+)\s+hours?$/i, '每 $1 小时'],
-    [/^Next run\s+today\s+around\s+(.+)$/i, '下次运行：今天约 $1'],
-    [/^Next run\s+tomorrow\s+around\s+(.+)$/i, '下次运行：明天约 $1'],
-    [/^Next run\s+on\s+(.+?)\s+around\s+(.+)$/i, (_, day, time) => `下次运行：${translateScheduleDay(day)} 约 ${time}`],
+    [/^Keep:\s*(.+)$/i, (_, sched) => {
+      const trimmed = sched.trim();
+      return `保留当前：${translateScheduleSummary(trimmed) || lookupExact(trimmed, normalizeKey(trimmed)) || trimmed}`;
+    }],
+    [/^(?:Daily at|Weekly on|Monthly on the|Every\s+(?:\d+\s+(?:minutes?|hours?)|hour\b)|(?:Weekdays|Weekends|(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)(?:day)?s?(?:\s*(?:,\s*|\s+and\s+)(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)(?:day)?s?)*)\s+at\b).+$/i, (m) => translateScheduleSummary(m) || m],
+    [/^Next run\s+today\s+around\s+(.+)$/i, (_, time) => `下次运行：今天约 ${translateClockTimeList(time)}`],
+    [/^Next run\s+tomorrow\s+around\s+(.+)$/i, (_, time) => `下次运行：明天约 ${translateClockTimeList(time)}`],
+    [/^Next run\s+on\s+(.+?)\s+around\s+(.+)$/i, (_, day, time) => `下次运行：${translateScheduleDay(day)} 约 ${translateClockTimeList(time)}`],
+    [/^(Today|Tomorrow|Yesterday)\s+(\d{1,2}:\d{2}\s*(?:AM|PM))$/i, (_, rel, time) => {
+      const relMap = { today: '今天', tomorrow: '明天', yesterday: '昨天' };
+      return `${relMap[rel.toLowerCase()] || rel} ${translateClockTime(time)}`;
+    }],
+    [/^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(\d{1,2}:\d{2}\s*(?:AM|PM))$/i, (_, day, time) => `${translateScheduleDay(day)} ${translateClockTime(time)}`],
+    [/^([A-Za-z]{3,9}\s+\d{1,2}(?:,\s*\d{4})?),\s*(\d{1,2}:\d{2}\s*(?:AM|PM))$/i, (_, date, time) => `${formatEnDateToZh(date)} ${translateClockTime(time)}`],
+    [/^Required to (create|save|continue):\s*(.+)$/i, (_, act, list) => {
+      const actMap = { create: '创建', save: '保存', continue: '继续' };
+      const items = list.split(',').map(translateRequiredBlockerItem).filter(Boolean);
+      return `${actMap[act.toLowerCase()] || act}前需填写：${items.join('、')}`;
+    }],
+    [/^Step\s+(\d+)\s+of\s+(\d+)$/i, '第 $1 / $2 步'],
+    [/^Failed:\s*(.+)$/i, (_, err) => `失败：${lookupExact(err.trim(), normalizeKey(err.trim())) || err.trim()}`],
+    [/^Triggered\s+([^.!?]{1,100})$/i, '已触发 $1'],
+    [/^Connect an account for\s+(.+?)\s+so the agent can run automations\.?$/i, '为 $1 连接账号以便智能体运行自动化任务。'],
+    [/^Credentials expire in\s+(.+?)\.\s*Refresh credentials to keep this automation running\.?$/i, (_, d) => `凭据将在 ${translateDuration(d)} 后过期。请刷新凭据以保持此自动化任务正常运行`],
 
     // PDF、媒体与表单校验
     [/^Zoom\s+(\d+)%,\s*reset to fit$/i, '缩放 $1%，点击适应页面'],
@@ -1878,6 +2075,7 @@ function createDynamicRules(helpers) {
   return {
     DYNAMIC_RULES,
     translateDuration,
+    translateClockTime,
     translateCompactRelativeTime,
     translateCompactDuration,
     translateEffortLevel,

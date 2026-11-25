@@ -386,6 +386,9 @@ function runVerification() {
     ['Allow Next Non-Corp Prompt', '允许下次非企业密码输入'],
     ['Runs on this computer', '在本机上运行'],
     ['Creates a local automation that runs on this computer', '创建在本机上运行的本地自动化任务'],
+    ['Guide me through creating an automated task', '引导我创建一个自动化任务'],
+    ['Create a plugin that ...', '创建一个插件，功能是...'],
+    ['migrate my existing workflows to skills', '将我现有的工作流迁移为技能'],
     ['Allow running this command?', '是否允许运行此命令？'],
     ['Remove not supported on this list', 'Remove not supported on this list'],
     ['Allow Non-Flow Ports To Switch Sides', 'Allow Non-Flow Ports To Switch Sides'],
@@ -420,7 +423,7 @@ function runVerification() {
     ['MCP Server', 'MCP 服务'],
     ['Install IDE', '安装 IDE'],
     ['Disconnect GitHub', '断开与 GitHub 的连接'],
-    ['Weekly on Monday at 9:00 AM', '每周一 9:00 AM'],
+    ['Weekly on Monday at 9:00 AM', '每周一 上午 9:00'],
     ['The MCP server "demo" from plugin "ext" failed to start.', '插件“ext”中的 MCP 服务“demo”启动失败。'],
     ['Manage project resources, agent settings, and permissions.', '管理项目资源、智能体设置及权限'],
     ['You have used some of your weekly limit, it will fully refresh in 5 days, 21 hours.', '你已使用部分每周配额，将在 5 天 21 小时后完全重置。'],
@@ -941,10 +944,199 @@ function runVerification() {
   const orchPickerRow = makeEl({ testid: 'orchestrator-picker-row' });
   assert.strictEqual(api.translateString('GPT-OSS 120B (Medium)', orchPickerRow), 'GPT-OSS 120B (中)');
 
+  // 3e-3a. Automation / sidecar / orchestrator model selectors (Ryd / Tyd / Syd / RVb)
+  const newSidecarTrigger = makeEl({ tag: 'DIV', testid: 'new-sidecar-model', attrs: { 'data-model': 'neon-high' } });
+  const newSidecarLabel = makeEl({ tag: 'SPAN', parent: newSidecarTrigger });
+  assert.strictEqual(api.translateString('Gemini 4 Neon (High)', newSidecarLabel), 'Gemini 4 Neon (高)');
+  assert.strictEqual(api.translateString('Gemini 4 Neon (XHigh)', newSidecarLabel), 'Gemini 4 Neon (超高)');
+  assert.strictEqual(api.translateString('Gemini 4 Carbon (Medium)', newSidecarLabel), 'Gemini 4 Carbon (中)');
+  assert.strictEqual(api.translateString('Gemini 4 Argon (Low)', newSidecarLabel), 'Gemini 4 Argon (低)');
+
+  const sidecarOption = makeEl({ tag: 'DIV', testid: 'sidecar-model-option', attrs: { 'data-model': 'neon-high' } });
+  assert.strictEqual(api.translateString('Gemini 4 Neon (High)', sidecarOption), 'Gemini 4 Neon (高)');
+  assert.strictEqual(api.translateString('Gemini 4 Neon (High) (unavailable)', sidecarOption), 'Gemini 4 Neon (高) (不可用)');
+  assert.strictEqual(api.translateString('Gemini 4 Carbon (unavailable)', sidecarOption), 'Gemini 4 Carbon (不可用)');
+  assert.strictEqual(api.translateString('Flash (latest)', sidecarOption), 'Flash (最新)');
+
+  const scheduleModelEl = makeEl({ tag: 'DIV', testid: 'schedule-editor-model' });
+  const sidecarSelectEl = makeEl({ tag: 'DIV', testid: 'sidecar-model-select' });
+  const cloudModelEl = makeEl({ tag: 'DIV', testid: 'cloud-trigger-editor-model' });
+  const genericDataModelEl = makeEl({ tag: 'DIV', attrs: { 'data-model': 'carbon-high' } });
+  const orchSettingModelEl = makeEl({ tag: 'DIV', testid: 'orchestrator-model' });
+  const orchExecModelEl = makeEl({ tag: 'DIV', testid: 'orchestrator-executor-model' });
+  assert.strictEqual(api.translateString('Gemini 4 Carbon (High)', scheduleModelEl), 'Gemini 4 Carbon (高)');
+  assert.strictEqual(api.translateString('Gemini 4 Neon (XHigh)', sidecarSelectEl), 'Gemini 4 Neon (超高)');
+  assert.strictEqual(api.translateString('Gemini 4 Argon (Medium)', cloudModelEl), 'Gemini 4 Argon (中)');
+  assert.strictEqual(api.translateString('Gemini 4 Carbon (High)', genericDataModelEl), 'Gemini 4 Carbon (高)');
+  assert.strictEqual(api.translateString('Gemini 4 Neon (High)', orchSettingModelEl), 'Gemini 4 Neon (高)');
+  assert.strictEqual(api.translateString('Gemini 4 Argon (Medium)', orchExecModelEl), 'Gemini 4 Argon (中)');
+
+  const autoModelValEl = makeEl({ tag: 'SPAN', testid: 'automation-model-value' });
+  assert.strictEqual(api.translateString('Gemini 4 Neon (High) · This computer', autoModelValEl), 'Gemini 4 Neon (高) · 此电脑');
+  assert.strictEqual(api.translateString('Gemini 4 Carbon · This computer', autoModelValEl), 'Gemini 4 Carbon · 此电脑');
+
+  assert.strictEqual(
+    api.translateString('Gemini 4 Argon (High) is no longer available. Runs use Gemini 4 Neon (High) instead.'),
+    'Gemini 4 Argon (高)已不再可用。运行时将改用 Gemini 4 Neon (高)。'
+  );
+  assert.strictEqual(
+    api.translateString('Gemini 4 Argon (High) is no longer available. Runs will fail until you pick another model.'),
+    'Gemini 4 Argon (高)已不再可用。在你选择其他模型前，任务运行将会失败。'
+  );
+
+  // 3e-3b. Automation schedule editor, summaries, timestamps, blockers, credentials, and context disambiguations
+  const schedCustom = makeEl({ tag: 'DIV', testid: 'schedule-custom' });
+  const schedUnit = makeEl({ tag: 'BUTTON', testid: 'schedule-custom-unit', parent: schedCustom });
+  const schedUnitOpt = makeEl({ tag: 'DIV', testid: 'schedule-custom-unit-option', parent: schedCustom });
+  const schedTime = makeEl({ tag: 'BUTTON', testid: 'schedule-time', parent: schedCustom });
+  const schedDom = makeEl({ tag: 'BUTTON', testid: 'schedule-day-of-month', parent: schedCustom });
+  assert.strictEqual(api.translateString('hours', schedUnit), '小时');
+  assert.strictEqual(api.translateString('week', schedUnit), '周');
+  assert.strictEqual(api.translateString('month', schedUnitOpt), '月');
+  const schedEditor = makeEl({ tag: 'DIV', testid: 'automation-schedule-editor' });
+  assert.strictEqual(api.translateString('on', schedCustom), '星期');
+  assert.strictEqual(api.translateString('on', schedEditor), '的');
+  assert.strictEqual(api.translateString('on the', schedCustom), '的');
+  assert.strictEqual(api.translateString('at', schedCustom), '时间');
+  assert.strictEqual(api.translateString('1st', schedDom), '1 日');
+  assert.strictEqual(api.translateString('2nd', schedDom), '2 日');
+  assert.strictEqual(api.translateString('3rd', schedDom), '3 日');
+  assert.strictEqual(api.translateString('28th', schedDom), '28 日');
+  assert.strictEqual(api.translateString('9:00 AM', schedTime), '上午 9:00');
+  assert.strictEqual(api.translateString('2:30 PM', schedTime), '下午 2:30');
+  assert.strictEqual(api.translateString('12:00 AM', schedTime), '凌晨 00:00');
+  assert.strictEqual(api.translateString('12:30 AM', schedTime), '凌晨 00:30');
+  assert.strictEqual(api.translateString('1:00 AM', schedTime), '凌晨 1:00');
+  assert.strictEqual(api.translateString('05:30 AM', schedTime), '凌晨 05:30');
+  assert.strictEqual(api.translateString('5:30 AM', schedTime), '凌晨 5:30');
+  assert.strictEqual(api.translateString('6:00 AM', schedTime), '上午 6:00');
+  assert.strictEqual(api.translateString('12:00 PM', schedTime), '中午 12:00');
+  assert.strictEqual(api.translateString('12:30 PM', schedTime), '下午 12:30');
+  assert.strictEqual(api.translateString('5:30 PM', schedTime), '下午 5:30');
+  assert.strictEqual(api.translateString('6:00 PM', schedTime), '晚上 6:00');
+  assert.strictEqual(api.translateString('06:00 PM', schedTime), '晚上 06:00');
+  assert.strictEqual(api.translateString('11:30 PM', schedTime), '晚上 11:30');
+  const schedTimeOpt = makeEl({ tag: 'DIV', testid: 'schedule-time-option', parent: schedCustom });
+  assert.strictEqual(api.translateString('12:00 AM', schedTimeOpt), '凌晨 00:00');
+  assert.strictEqual(api.translateString('12:30 AM', schedTimeOpt), '凌晨 00:30');
+  assert.strictEqual(api.translateString('05:30 AM', schedTimeOpt), '凌晨 05:30');
+  assert.strictEqual(api.translateString('6:00 AM', schedTimeOpt), '上午 6:00');
+  assert.strictEqual(api.translateString('12:00 PM', schedTimeOpt), '中午 12:00');
+  assert.strictEqual(api.translateString('12:30 PM', schedTimeOpt), '下午 12:30');
+  assert.strictEqual(api.translateString('5:30 PM', schedTimeOpt), '下午 5:30');
+  assert.strictEqual(api.translateString('06:00 PM', schedTimeOpt), '晚上 06:00');
+  assert.strictEqual(api.translateString('11:30 PM', schedTimeOpt), '晚上 11:30');
+
+  const weekdayPairs = [
+    ['M', 'Monday', '一'],
+    ['T', 'Tuesday', '二'],
+    ['W', 'Wednesday', '三'],
+    ['T', 'Thursday', '四'],
+    ['F', 'Friday', '五'],
+    ['S', 'Saturday', '六'],
+    ['S', 'Sunday', '日']
+  ];
+  for (const [shortEn, fullEn, shortZh] of weekdayPairs) {
+    const btnEn = makeEl({ tag: 'BUTTON', attrs: { 'aria-label': fullEn }, parent: schedCustom });
+    const spanEn = makeEl({ tag: 'SPAN', parent: btnEn });
+    assert.strictEqual(api.translateString(shortEn, spanEn), shortZh);
+    const btnZh = makeEl({ tag: 'BUTTON', attrs: { 'aria-label': `星期${shortZh === '日' ? '日' : shortZh}` }, parent: schedCustom });
+    assert.strictEqual(api.translateString(shortEn, btnZh), shortZh);
+  }
+  assert.strictEqual(api.translateString('Keep: Daily at 9:00 AM', schedCustom), '保留当前：每天 上午 9:00');
+  assert.strictEqual(api.translateString('Keep: Daily at 12:00 PM', schedCustom), '保留当前：每天 中午 12:00');
+  assert.strictEqual(api.translateString('Keep: Daily at 12:30 PM', schedCustom), '保留当前：每天 下午 12:30');
+
+  // Negative guards outside schedule context
+  assert.strictEqual(api.translateString('hours'), 'hours');
+  assert.strictEqual(api.translateString('week'), 'week');
+  assert.strictEqual(api.translateString('month'), 'month');
+  assert.strictEqual(api.translateString('on'), 'on');
+  assert.strictEqual(api.translateString('on the'), 'on the');
+  assert.strictEqual(api.translateString('at'), 'at');
+  assert.strictEqual(api.translateString('1st'), '1st');
+  assert.strictEqual(api.translateString('M'), 'M');
+  assert.strictEqual(api.translateString('T'), 'T');
+  assert.strictEqual(api.translateString('9:00 AM'), '9:00 AM');
+
+  // Schedule summaries (D6)
+  assert.strictEqual(api.translateString('Every weekday'), '每工作日');
+  assert.strictEqual(api.translateString('Weekdays at 9:00 AM'), '每工作日 上午 9:00');
+  assert.strictEqual(api.translateString('weekdays at 9:00 AM'), '每工作日 上午 9:00');
+  assert.strictEqual(api.translateString('Weekends at 10:00 AM'), '每周末 上午 10:00');
+  assert.strictEqual(api.translateString('Every 15 minutes on weekdays'), '每工作日每 15 分钟');
+  assert.strictEqual(api.translateString('Every hour at :30 on weekends'), '每周末每小时第 30 分');
+  assert.strictEqual(api.translateString('Every 2 hours on Mondays'), '每周一每 2 小时');
+  assert.strictEqual(api.translateString('Every hour, 9 AM to 5 PM, on weekdays'), '每工作日每小时（上午 9 点至下午 5 点）');
+  assert.strictEqual(api.translateString('Mon, Wed and Fri at 9:00 AM'), '每周一、周三、周五 上午 9:00');
+  assert.strictEqual(api.translateString('Monthly on the 15th at 2:30 PM'), '每月 15 日 下午 2:30');
+  assert.strictEqual(api.translateString('Daily at 9:00 AM'), '每天 上午 9:00');
+  assert.strictEqual(api.translateString('Daily at 12:00 AM'), '每天 凌晨 00:00');
+  assert.strictEqual(api.translateString('Weekdays at 12:30 AM'), '每工作日 凌晨 00:30');
+  assert.strictEqual(api.translateString('Monthly on the 1st at 12:00 PM'), '每月 1 日 中午 12:00');
+  assert.strictEqual(api.translateString('Every hour, 12 AM to 12 PM'), '每小时（凌晨 0 点至中午 12 点）');
+  assert.strictEqual(api.translateString('Every hour, 5 AM to 6 PM'), '每小时（凌晨 5 点至晚上 6 点）');
+  assert.strictEqual(api.translateString('Every hour, 6 AM to 11 PM'), '每小时（上午 6 点至晚上 11 点）');
+
+  // Next run (myd) & run history timestamps (lyd)
+  assert.strictEqual(api.translateString('Next run today around 9:00 AM GMT+8'), '下次运行：今天约 上午 9:00 GMT+8');
+  assert.strictEqual(api.translateString('Next run today around 12:00 AM GMT+8'), '下次运行：今天约 凌晨 00:00 GMT+8');
+  assert.strictEqual(api.translateString('Next run tomorrow around 2:30 PM GMT+8'), '下次运行：明天约 下午 2:30 GMT+8');
+  assert.strictEqual(api.translateString('Next run tomorrow around 12:00 PM GMT+8'), '下次运行：明天约 中午 12:00 GMT+8');
+  assert.strictEqual(api.translateString('Next run on Monday around 9:00 AM GMT+8'), '下次运行：星期一 约 上午 9:00 GMT+8');
+  assert.strictEqual(api.translateString('Next run on December 1 around 9:00 AM GMT+8'), '下次运行：12月1日 约 上午 9:00 GMT+8');
+  assert.strictEqual(api.translateString('Today 9:00 AM'), '今天 上午 9:00');
+  assert.strictEqual(api.translateString('Today 12:00 AM'), '今天 凌晨 00:00');
+  assert.strictEqual(api.translateString('Yesterday 2:30 PM'), '昨天 下午 2:30');
+  assert.strictEqual(api.translateString('Yesterday 12:30 AM'), '昨天 凌晨 00:30');
+  assert.strictEqual(api.translateString('Mon 9:00 AM'), '周一 上午 9:00');
+  assert.strictEqual(api.translateString('Mon 12:00 PM'), '周一 中午 12:00');
+  assert.strictEqual(api.translateString('Nov 25, 9:00 AM'), '11月25日 上午 9:00');
+  assert.strictEqual(api.translateString('Nov 25, 12:30 PM'), '11月25日 下午 12:30');
+  assert.strictEqual(api.translateString('Nov 25, 2025, 2:30 PM'), '2025年11月25日 下午 2:30');
+
+  // Blockers, wizard steps, failures, triggers, credentials, list states
+  assert.strictEqual(api.translateString('Required to create: title, instructions'), '创建前需填写：标题、指令说明');
+  assert.strictEqual(api.translateString('Required to save: instructions'), '保存前需填写：指令说明');
+  assert.strictEqual(api.translateString('Step 1 of 3'), '第 1 / 3 步');
+  assert.strictEqual(api.translateString('Failed: timeout'), '失败：timeout');
+  assert.strictEqual(api.translateString('Triggered Daily summary'), '已触发 Daily summary');
+  assert.strictEqual(api.translateString('Connect an account so the agent can run automations.'), '连接账号以便智能体运行自动化任务。');
+  assert.strictEqual(api.translateString('Connect an account for GitHub so the agent can run automations.'), '为 GitHub 连接账号以便智能体运行自动化任务。');
+  assert.strictEqual(api.translateString('Credentials expire in 2 hours. Refresh credentials to keep this automation running'), '凭据将在 2 小时 后过期。请刷新凭据以保持此自动化任务正常运行');
+  assert.strictEqual(api.translateString('Always on'), '常驻运行');
+  assert.strictEqual(api.translateString('Paused'), '已暂停');
+  assert.strictEqual(api.translateString('Scheduled'), '定时计划');
+
+  // Context disambiguations in Automations vs default global meanings
+  const autoModalEl = makeEl({ tag: 'DIV', testid: 'new-sidecar-modal' });
+  const autoProjEl = makeEl({ tag: 'DIV', testid: 'new-sidecar-project', parent: autoModalEl });
+  const autoRowEl = makeEl({ tag: 'DIV', testid: 'sidecar-row' });
+  const autoSettingsEl = makeEl({ tag: 'DIV', testid: 'automation-settings' });
+  const autoListEl = makeEl({ tag: 'DIV', testid: 'sidecar-list' });
+  assert.strictEqual(api.translateString('Machine', autoModalEl), '运行云端主机');
+  assert.strictEqual(api.translateString('全机', autoModalEl), '运行云端主机');
+  assert.strictEqual(api.translateString('Machine'), '全机');
+  assert.strictEqual(api.translateString('Standalone', autoProjEl), '独立运行');
+  assert.strictEqual(api.translateString('独立窗口', autoProjEl), '独立运行');
+  assert.strictEqual(api.translateString('Standalone'), '独立窗口');
+  assert.strictEqual(api.translateString('Next', autoRowEl), '下次');
+  assert.strictEqual(api.translateString('下一步', autoRowEl), '下次');
+  assert.strictEqual(api.translateString('Last', autoRowEl), '上次');
+  assert.strictEqual(api.translateString('Next'), '下一步');
+  assert.strictEqual(api.translateString('Reads', autoSettingsEl), '可读取');
+  assert.strictEqual(api.translateString('读取操作', autoSettingsEl), '可读取');
+  assert.strictEqual(api.translateString('Reads'), '读取操作');
+  assert.strictEqual(api.translateString('Delete Daily summary', autoListEl), '删除 Daily summary');
+  assert.strictEqual(api.translateString('Delete Daily summary'), 'Delete Daily summary');
+
   const customModelItem = makeEl({ testid: 'model-selector-custom-item', parent: modelPanel });
   assert.strictEqual(api.translateString('My Custom Model (Medium)', customModelItem), 'My Custom Model (Medium)');
 
   assert.strictEqual(api.translateString('GPT-OSS 120B (Medium)'), 'GPT-OSS 120B (Medium)');
+  assert.strictEqual(api.translateString('Gemini 4 Neon (High)'), 'Gemini 4 Neon (High)');
+  assert.strictEqual(api.translateString('Gemini 4 Carbon (unavailable)'), 'Gemini 4 Carbon (unavailable)');
+  assert.strictEqual(api.translateString('Flash (latest)'), 'Flash (latest)');
   assert.strictEqual(api.translateString('Priority (Medium)'), 'Priority (Medium)');
   assert.strictEqual(
     api.translateString('Select model, current: GPT-OSS 120B (Medium)'),
@@ -1252,6 +1444,59 @@ function runVerification() {
   assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(faqDot, '. ', pFaq), '。');
   faqReason.nodeValue = '此账号无法使用 Antigravity。';
   assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(faqDot, '. ', pFaq), ' ');
+
+  // Automation detail sentence, reads prefix, duplicate name/ID, and empty search split nodes
+  const autoRuns1 = makeTextNode('Runs');
+  const autoSp1 = makeTextNode(' ');
+  const autoSchedLink = makeEl({ tag: 'BUTTON', text: 'daily at 上午 9:00' });
+  const autoSp2 = makeTextNode(' ');
+  const autoIn = makeTextNode('in');
+  const autoSp3 = makeTextNode(' ');
+  const autoProjLink = makeEl({ tag: 'BUTTON', text: 'MyProj' });
+  const autoSp4 = makeTextNode(' ');
+  const autoWith = makeTextNode('with');
+  const autoSp5 = makeTextNode(' ');
+  const autoModelLink = makeEl({ tag: 'BUTTON', text: 'Gemini 4 Neon (高)' });
+  const autoSp6 = makeTextNode(' ');
+  const autoLocal = makeTextNode('on this computer.');
+  const autoSentenceP = makeEl({
+    tag: 'P',
+    children: [autoRuns1, autoSp1, autoSchedLink, autoSp2, autoIn, autoSp3, autoProjLink, autoSp4, autoWith, autoSp5, autoModelLink, autoSp6, autoLocal]
+  });
+  makeEl({ tag: 'DIV', testid: 'automation-settings', children: [autoSentenceP] });
+  api.translateNode(autoSentenceP);
+  assert.strictEqual(autoSentenceP.textContent, '运行计划：daily at 上午 9:00，位于 MyProj，使用 Gemini 4 Neon (高)（本机运行）。');
+
+  const readsLead = makeTextNode('Reads ');
+  const readsP = makeEl({ tag: 'P', testid: 'automation-instructions-reads', children: [readsLead, makeTextNode('notes.md')] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(readsLead, 'Reads ', readsP), '可读取：');
+
+  const dupName1 = makeTextNode('An ');
+  const dupName2 = makeTextNode('automation');
+  const dupName3 = makeTextNode(' with this name already exists on this computer. Run it remotely, or go back and rename it.');
+  const dupNameSpan = makeEl({ tag: 'SPAN', children: [dupName1, dupName2, dupName3] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(dupName1, 'An ', dupNameSpan), '此电脑上已存在同名的');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(dupName3, dupName3.nodeValue, dupNameSpan), '。可改为远程运行，或返回修改名称。');
+
+  const dupId1 = makeTextNode('An ');
+  const dupId2 = makeTextNode('automation');
+  const dupId3 = makeTextNode(' with the ID \u201c');
+  const dupId4 = makeTextNode('daily-bug');
+  const dupId5 = makeTextNode('\u201d already exists.');
+  const dupIdSpan = makeEl({ tag: 'SPAN', children: [dupId1, dupId2, dupId3, dupId4, dupId5] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(dupId1, 'An ', dupIdSpan), '');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(dupId3, ' with the ID \u201c', dupIdSpan), '（ID 为“');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(dupId5, '\u201d already exists.', dupIdSpan), '”）已存在。');
+
+  const noMatch1 = makeTextNode('No ');
+  const noMatch2 = makeTextNode('automations');
+  const noMatch3 = makeTextNode(' match \u201c');
+  const noMatch4 = makeTextNode('foo');
+  const noMatch5 = makeTextNode('\u201d.');
+  const noMatchP = makeEl({ tag: 'P', children: [noMatch1, noMatch2, noMatch3, noMatch4, noMatch5] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(noMatch1, 'No ', noMatchP), '没有');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(noMatch3, ' match \u201c', noMatchP), '匹配“');
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(noMatch5, '\u201d.', noMatchP), '”。');
 
   // 5. DOM translateNode + ATTR_DICT + context ignore guards
   const inputEl = makeEl({ tag: 'INPUT', attrs: { placeholder: 'Search conversations...', 'aria-label': 'Antigravity' } });
@@ -1727,6 +1972,85 @@ function runDomLifecycleVerification(i18nCode) {
   orchModelText.nodeValue = 'Claude Opus 5.5 High';
   observerCb([{ type: 'characterData', target: orchModelText }]);
   assert.strictEqual(orchModelText.nodeValue, 'Claude Opus 5.5 高');
+
+  // 8b. Automation model selector trigger & dropdown options translate on mount and live selection change
+  const autoTrigger = new DomElement('DIV');
+  autoTrigger.setAttribute('data-testid', 'new-sidecar-model');
+  autoTrigger.setAttribute('data-model', 'neon-high');
+  const autoTriggerSpan = new DomElement('SPAN');
+  const autoTriggerText = makeText('Gemini 4 Neon (High)');
+  autoTriggerSpan.appendChild(autoTriggerText);
+  autoTrigger.appendChild(autoTriggerSpan);
+  rootDiv.appendChild(autoTrigger);
+  assert.strictEqual(autoTriggerText.nodeValue, 'Gemini 4 Neon (高)');
+
+  const autoOpt1 = new DomElement('DIV');
+  autoOpt1.setAttribute('data-testid', 'sidecar-model-option');
+  autoOpt1.setAttribute('data-model', 'neon-xhigh');
+  const autoOpt1Text = makeText('Gemini 4 Neon (XHigh)');
+  autoOpt1.appendChild(autoOpt1Text);
+  const autoOpt2 = new DomElement('DIV');
+  autoOpt2.setAttribute('data-testid', 'sidecar-model-option');
+  autoOpt2.setAttribute('data-model', 'carbon-medium');
+  const autoOpt2Text = makeText('Gemini 4 Carbon (Medium)');
+  autoOpt2.appendChild(autoOpt2Text);
+  body.appendChild(autoOpt1);
+  body.appendChild(autoOpt2);
+  assert.strictEqual(autoOpt1Text.nodeValue, 'Gemini 4 Neon (超高)');
+  assert.strictEqual(autoOpt2Text.nodeValue, 'Gemini 4 Carbon (中)');
+
+  autoTriggerText.nodeValue = 'Gemini 4 Argon (Medium)';
+  observerCb([{ type: 'characterData', target: autoTriggerText }]);
+  assert.strictEqual(autoTriggerText.nodeValue, 'Gemini 4 Argon (中)');
+
+  // 8c. Automation custom schedule editor live mount & EN/ZH round-trip
+  const liveSchedCustom = new DomElement('DIV');
+  liveSchedCustom.setAttribute('data-testid', 'schedule-custom');
+  const liveOnText = makeText('on');
+  const liveUnitBtn = new DomElement('BUTTON');
+  liveUnitBtn.setAttribute('data-testid', 'schedule-custom-unit');
+  const liveUnitText = makeText('week');
+  liveUnitBtn.appendChild(liveUnitText);
+  const liveAtText = makeText('at');
+  const liveTimeBtn = new DomElement('BUTTON');
+  liveTimeBtn.setAttribute('data-testid', 'schedule-time');
+  const liveTimeText = makeText('9:00 AM');
+  liveTimeBtn.appendChild(liveTimeText);
+  const liveTueBtn = new DomElement('BUTTON');
+  liveTueBtn.setAttribute('aria-label', 'Tuesday');
+  const liveTueText = makeText('T');
+  liveTueBtn.appendChild(liveTueText);
+  const liveThuBtn = new DomElement('BUTTON');
+  liveThuBtn.setAttribute('aria-label', 'Thursday');
+  const liveThuText = makeText('T');
+  liveThuBtn.appendChild(liveThuText);
+  liveSchedCustom.appendChild(liveOnText);
+  liveSchedCustom.appendChild(liveUnitBtn);
+  liveSchedCustom.appendChild(liveAtText);
+  liveSchedCustom.appendChild(liveTimeBtn);
+  liveSchedCustom.appendChild(liveTueBtn);
+  liveSchedCustom.appendChild(liveThuBtn);
+  rootDiv.appendChild(liveSchedCustom);
+  assert.strictEqual(liveOnText.nodeValue, '星期');
+  assert.strictEqual(liveUnitText.nodeValue, '周');
+  assert.strictEqual(liveAtText.nodeValue, '时间');
+  assert.strictEqual(liveTimeText.nodeValue, '上午 9:00');
+  assert.strictEqual(liveTueBtn.getAttribute('aria-label'), '星期二');
+  assert.strictEqual(liveTueText.nodeValue, '二');
+  assert.strictEqual(liveThuBtn.getAttribute('aria-label'), '星期四');
+  assert.strictEqual(liveThuText.nodeValue, '四');
+  sandbox.window.__antigravitySetI18nEnabled(false);
+  assert.strictEqual(liveOnText.nodeValue, 'on');
+  assert.strictEqual(liveUnitText.nodeValue, 'week');
+  assert.strictEqual(liveTimeText.nodeValue, '9:00 AM');
+  assert.strictEqual(liveTueText.nodeValue, 'T');
+  assert.strictEqual(liveThuText.nodeValue, 'T');
+  sandbox.window.__antigravitySetI18nEnabled(true);
+  assert.strictEqual(liveOnText.nodeValue, '星期');
+  assert.strictEqual(liveUnitText.nodeValue, '周');
+  assert.strictEqual(liveTimeText.nodeValue, '上午 9:00');
+  assert.strictEqual(liveTueText.nodeValue, '二');
+  assert.strictEqual(liveThuText.nodeValue, '四');
 
   // 9. Model selector compact-tooltip portal mount & live tooltip switch translate seamlessly
   const tipBox = new DomElement('DIV');
@@ -3364,11 +3688,313 @@ async function runAutoMtVerification() {
   }
 }
 
+function createMockLexicalController(initialMention, initialText, initialOptions = {}) {
+  let stateText = initialText;
+  let mentionCommand = initialMention.command;
+  let mentionExportValue = initialMention.exportValue !== undefined ? initialMention.exportValue : initialMention.command;
+  let mentionRawText = initialMention.rawText !== undefined
+    ? initialMention.rawText
+    : `[/${mentionCommand}](slashCommand;${mentionCommand})`;
+  const textKey = 'text-1';
+  const selection = {
+    anchor: { key: textKey, offset: initialText.length, type: 'text' },
+    focus: { key: textKey, offset: initialText.length, type: 'text' }
+  };
+  const listeners = new Set();
+  const updateLog = [];
+  let inReadOrUpdate = false;
+
+  const makeNodes = () => {
+    const mentionNode = {
+      getType: () => 'contextScopeItemMention',
+      getTextContent: () => {
+        if (!inReadOrUpdate) throw new Error('Must be called inside read/update');
+        return mentionRawText;
+      },
+      exportJSON: () => ({ trigger: '/', value: mentionExportValue, type: 'contextScopeItemMention', version: 1 })
+    };
+    const textNode = {
+      __key: textKey,
+      getKey: () => textKey,
+      getType: () => 'text',
+      getTextContent: () => {
+        if (!inReadOrUpdate) throw new Error('Must be called inside read/update');
+        return stateText;
+      },
+      setTextContent: (next) => {
+        stateText = next;
+        return textNode;
+      },
+      select: (anchorOffset, focusOffset) => {
+        selection.anchor = { key: textKey, offset: anchorOffset, type: 'text' };
+        selection.focus = { key: textKey, offset: focusOffset, type: 'text' };
+        return selection;
+      }
+    };
+    const paraNode = {
+      getType: () => 'paragraph',
+      getChildren: () => [mentionNode, textNode]
+    };
+    const rootNode = {
+      getType: () => 'root',
+      getChildren: () => [paraNode]
+    };
+    return {
+      _nodeMap: new Map([['root', rootNode]]),
+      _selection: selection,
+      read: (fn) => {
+        const prev = inReadOrUpdate;
+        inReadOrUpdate = true;
+        try { return fn(); } finally { inReadOrUpdate = prev; }
+      }
+    };
+  };
+
+  let currentState = makeNodes();
+  const editor = {
+    _pendingEditorState: null,
+    isEditable: () => initialOptions.editable !== false,
+    isComposing: () => initialOptions.composing === true,
+    getEditorState: () => currentState,
+    registerUpdateListener: (fn) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+    update: (fn, opts) => {
+      const tags = opts && opts.tag ? (Array.isArray(opts.tag) ? opts.tag : [opts.tag]) : [];
+      updateLog.push({ tags, discrete: Boolean(opts && opts.discrete), before: stateText });
+      const prev = inReadOrUpdate;
+      inReadOrUpdate = true;
+      editor._pendingEditorState = currentState;
+      try {
+        fn();
+      } finally {
+        editor._pendingEditorState = null;
+        inReadOrUpdate = prev;
+      }
+      currentState = makeNodes();
+      const payload = { editorState: currentState, tags: new Set(tags) };
+      listeners.forEach((fnListener) => fnListener(payload));
+    }
+  };
+
+  return {
+    editor,
+    getText: () => stateText,
+    setRawContent: (nextCmd, nextText, nextOpts = {}) => {
+      mentionCommand = nextCmd;
+      mentionExportValue = nextOpts.exportValue !== undefined ? nextOpts.exportValue : nextCmd;
+      mentionRawText = nextOpts.rawText !== undefined
+        ? nextOpts.rawText
+        : `[/${nextCmd}](slashCommand;${nextCmd})`;
+      stateText = nextText;
+      selection.anchor = { key: textKey, offset: nextText.length, type: 'text' };
+      selection.focus = { key: textKey, offset: nextText.length, type: 'text' };
+      currentState = makeNodes();
+      listeners.forEach((fnListener) => fnListener({ editorState: currentState, tags: new Set() }));
+    },
+    getSelection: () => selection,
+    getUpdateCount: () => updateLog.length,
+    getUpdateLog: () => updateLog
+  };
+}
+
+async function runLexicalPromptVerification() {
+  const i18nCode = localOnly
+    ? fs.readFileSync(path.join(projectRoot, 'build', 'i18n.js'), 'utf8')
+    : asar.extractFile(deployedAsar, path.join('dist', 'i18n.js')).toString('utf8');
+
+  const setupSandbox = (initialEnabled = true) => {
+    const { DomNode, DomElement, makeText } = createMockDomEnv();
+    const html = new DomElement('HTML');
+    html.isConnected = true;
+    const body = new DomElement('BODY');
+    html.appendChild(body);
+    const rootDiv = new DomElement('DIV');
+    rootDiv.id = 'root';
+    body.appendChild(rootDiv);
+    const activeObservers = [];
+    let setTimeoutCount = 0;
+    const countedSetTimeout = (fn, ms, ...rest) => {
+      setTimeoutCount += 1;
+      return setTimeout(fn, ms, ...rest);
+    };
+    const sandbox = {
+      console, setTimeout: countedSetTimeout, clearTimeout, queueMicrotask,
+      Node: DomNode,
+      Element: DomElement,
+      NodeFilter: { SHOW_TEXT: 4, SHOW_ELEMENT: 1 },
+      MutationObserver: class {
+        constructor(cb) { this.cb = cb; activeObservers.push(this); }
+        observe() {}
+      },
+      requestAnimationFrame: (cb) => { cb(); return 1; },
+      window: {
+        __ANTIGRAVITY_I18N_INITIAL_ENABLED__: initialEnabled,
+        location: { protocol: 'app:' },
+        history: {},
+        addEventListener() {}
+      },
+      location: { protocol: 'app:' },
+      document: {
+        readyState: 'complete',
+        title: 'Antigravity',
+        documentElement: html,
+        body,
+        createElement: (tag) => new DomElement(String(tag).toUpperCase()),
+        createTextNode: (val) => makeText(val),
+        querySelectorAll: () => [],
+        addEventListener: () => {}
+      }
+    };
+    sandbox.window.document = sandbox.document;
+    vm.runInNewContext(i18nCode, sandbox);
+    return { DomElement, makeText, rootDiv, sandbox, activeObservers, getTimerCount: () => setTimeoutCount };
+  };
+
+  // 1. ZH mode mount / "Create with Prompt" translates both chip (including <svg> icon) and Lexical TextNode without timer/microtask loops
+  {
+    const { DomElement, makeText, rootDiv, sandbox, getTimerCount } = setupSandbox(true);
+    const lexEl = new DomElement('DIV');
+    lexEl.setAttribute('data-lexical-editor', 'true');
+    lexEl.isContentEditable = true;
+    const ctrl = createMockLexicalController(
+      { command: 'automation' },
+      ' Guide me through creating an automated task'
+    );
+    lexEl.__lexicalEditor = ctrl.editor;
+
+    const p = new DomElement('P');
+    p.isContentEditable = true;
+    const chip = new DomElement('SPAN');
+    chip.setAttribute('contenteditable', 'false');
+    const chipSvg = new DomElement('SVG');
+    const chipSvgPath = new DomElement('PATH');
+    chipSvg.appendChild(chipSvgPath);
+    const chipInner = new DomElement('SPAN');
+    const chipText = makeText('automation');
+    chipInner.appendChild(chipText);
+    chip.appendChild(chipSvg);
+    chip.appendChild(chipInner);
+    const promptDomSpan = new DomElement('SPAN');
+    promptDomSpan.isContentEditable = true;
+    const promptDomText = makeText(' Guide me through creating an automated task');
+    promptDomSpan.appendChild(promptDomText);
+    p.appendChild(chip);
+    p.appendChild(promptDomSpan);
+    lexEl.appendChild(p);
+    rootDiv.appendChild(lexEl);
+
+    assert.strictEqual(chipText.nodeValue, '自动化任务', 'Automation slashCommand chip must translate to 自动化任务');
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    assert.strictEqual(ctrl.getText(), ' 引导我创建一个自动化任务', 'Lexical TextNode must translate via deferred editor.update');
+    assert.strictEqual(promptDomText.nodeValue, ' Guide me through creating an automated task', 'Engine must not directly mutate contentEditable DOM text');
+    assert.strictEqual(ctrl.getSelection().anchor.offset, 13, 'Selection offset must adjust to new end of translated text');
+    assert.strictEqual(ctrl.getUpdateCount(), 1, 'Sync must happen in a single history-merge update');
+    assert(ctrl.getUpdateLog()[0].tags.includes('history-merge'));
+    assert(ctrl.getUpdateLog()[0].tags.includes('antigravity-i18n-preset'));
+    assert.strictEqual(ctrl.getUpdateLog()[0].discrete, true);
+
+    const settledTimers = getTimerCount();
+    assert(settledTimers <= 5, `Timer scheduling must stay bounded during mount/sync, got ${settledTimers}`);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.strictEqual(ctrl.getUpdateCount(), 1, 'Async updateListener scheduling must not trigger a second update loop');
+    assert.strictEqual(getTimerCount(), settledTimers, 'SVG inside [contenteditable="false"] chip must not cause runaway timer rescheduling');
+
+    // 2. EN <-> ZH toggle round-trip (must also remain free of runaway timers with SVG chip)
+    sandbox.window.__antigravitySetI18nEnabled(false);
+    assert.strictEqual(chipText.nodeValue, 'automation', 'Disabling i18n must restore chip text to automation');
+    assert.strictEqual(ctrl.getText(), ' Guide me through creating an automated task', 'Disabling i18n must revert Lexical TextNode to English');
+    assert.strictEqual(ctrl.getSelection().anchor.offset, 44, 'Selection offset must restore to English end offset');
+    assert.strictEqual(ctrl.getUpdateCount(), 2);
+
+    sandbox.window.__antigravitySetI18nEnabled(true);
+    assert.strictEqual(chipText.nodeValue, '自动化任务', 'Re-enabling i18n must re-translate chip text to 自动化任务');
+    assert.strictEqual(ctrl.getText(), ' 引导我创建一个自动化任务', 'Re-enabling i18n must re-translate Lexical TextNode to Chinese');
+    assert.strictEqual(ctrl.getSelection().anchor.offset, 13);
+    assert.strictEqual(ctrl.getUpdateCount(), 3);
+    const afterToggleTimers = getTimerCount();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.strictEqual(getTimerCount(), afterToggleTimers, 'Toggling [中 | EN] with SVG chip must not schedule runaway timers');
+
+    // 3. Draft deserialization compatibility (exportJSON().value === "contextScopeItemMention", getTextContent() has slashCommand;automation)
+    ctrl.setRawContent('automation', ' Guide me through creating an automated task', {
+      exportValue: 'contextScopeItemMention',
+      rawText: '[/automation](slashCommand;automation)'
+    });
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    assert.strictEqual(ctrl.getText(), ' 引导我创建一个自动化任务', 'Deserialized mention node must match via getTextContent()');
+
+    // 4. Other built-in slash command preset prompts (plugin & migrate-workflows)
+    ctrl.setRawContent('plugin', ' Create a plugin that ...', { rawText: '[plugin](slashCommand;plugin)' });
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    assert.strictEqual(ctrl.getText(), ' 创建一个插件，功能是...');
+
+    ctrl.setRawContent('migrate-workflows', ' migrate my existing workflows to skills', {
+      rawText: '[/migrate-workflows](slashCommand;migrate-workflows)'
+    });
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    assert.strictEqual(ctrl.getText(), ' 将我现有的工作流迁移为技能');
+
+    // 5. User-edited text guard (must never overwrite customized prompts)
+    const customEn = ' Guide me through creating an automated task for Gmail';
+    ctrl.setRawContent('automation', customEn);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    assert.strictEqual(ctrl.getText(), customEn, 'Customized English prompt must never be overwritten');
+    sandbox.window.__antigravitySetI18nEnabled(false);
+    assert.strictEqual(ctrl.getText(), customEn);
+    sandbox.window.__antigravitySetI18nEnabled(true);
+    assert.strictEqual(ctrl.getText(), customEn);
+
+    const customZh = ' 每天早上帮我整理邮件';
+    ctrl.setRawContent('automation', customZh);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    assert.strictEqual(ctrl.getText(), customZh, 'Customized Chinese prompt must never be overwritten');
+    sandbox.window.__antigravitySetI18nEnabled(false);
+    assert.strictEqual(ctrl.getText(), customZh, 'Toggling to English must preserve user-edited Chinese text');
+  }
+
+  // 6. EN mode "Create with Prompt": stays English with zero editor.update calls, then translates when switched to ZH
+  {
+    const { DomElement, makeText, rootDiv, sandbox, activeObservers } = setupSandbox(false);
+    const lexEl = new DomElement('DIV');
+    lexEl.setAttribute('data-lexical-editor', 'true');
+    lexEl.isContentEditable = true;
+    const ctrl = createMockLexicalController({ command: 'automation' }, '');
+    lexEl.__lexicalEditor = ctrl.editor;
+    rootDiv.appendChild(lexEl);
+
+    const p = new DomElement('P');
+    p.isContentEditable = true;
+    const chip = new DomElement('SPAN');
+    chip.setAttribute('contenteditable', 'false');
+    const chipText = makeText('automation');
+    chip.appendChild(chipText);
+    p.appendChild(chip);
+    lexEl.appendChild(p);
+    ctrl.setRawContent('automation', ' Guide me through creating an automated task');
+    if (activeObservers[0]) {
+      activeObservers[0].cb([{ type: 'childList', addedNodes: [p] }]);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 15));
+
+    assert.strictEqual(chipText.nodeValue, 'automation', 'English mode must keep chip in English');
+    assert.strictEqual(ctrl.getText(), ' Guide me through creating an automated task', 'English mode must keep prompt in English');
+    assert.strictEqual(ctrl.getUpdateCount(), 0, 'English mode must invoke zero editor.update calls');
+
+    sandbox.window.__antigravitySetI18nEnabled(true);
+    assert.strictEqual(chipText.nodeValue, '自动化任务', 'Switching EN -> ZH must translate existing chip');
+    assert.strictEqual(ctrl.getText(), ' 引导我创建一个自动化任务', 'Switching EN -> ZH must translate existing untouched prompt');
+    assert.strictEqual(ctrl.getUpdateCount(), 1);
+  }
+}
+
 Promise.resolve()
   .then(() => runVerification())
   .then(() => runOtaControllerVerification())
   .then(() => runGuardProxyAndRestoreVerification())
   .then(() => runAutoMtVerification())
+  .then(() => runLexicalPromptVerification())
   .then(() => {
     console.log('OTA CONTROLLER & HOT-RELOAD VERIFICATION PASSED!');
   })

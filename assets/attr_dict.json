@@ -447,5 +447,11 @@
   "Available licenses": "可用许可证",
   "Back": "返回",
   "Selected element preview": "选中区域预览",
-  "Record voice memo": "录制语音备忘"
+  "Record voice memo": "录制语音备忘",
+  "Where it runs": "运行位置",
+  "Add automation": "添加自动化",
+  "Search triggers...": "搜索触发器...",
+  "Approximate; may start a few minutes later": "大约时间，实际启动可能延迟几分钟",
+  "Credentials expiring soon. Refresh credentials to keep this automation running": "凭据即将过期。请刷新凭据以保持此自动化任务正常运行",
+  "Credentials expired. This automation will not run until credentials are refreshed": "凭据已过期。刷新凭据后此自动化任务才会继续运行"
 }

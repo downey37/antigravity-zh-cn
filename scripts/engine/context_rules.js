@@ -332,7 +332,113 @@ function createContextRules() {
         '[data-testid="model-selector-panel"], ' +
         '[data-testid="model-selector-trigger"], ' +
         '[data-testid="orchestrator-picker-row"], ' +
-        '[data-testid="automation-model-value"]'
+        '[data-testid="orchestrator-model"], ' +
+        '[data-testid="orchestrator-executor-model"], ' +
+        '[data-testid="automation-model-value"], ' +
+        '[data-testid="sidecar-model-select"], ' +
+        '[data-testid="sidecar-model-option"], ' +
+        '[data-testid="new-sidecar-model"], ' +
+        '[data-testid="schedule-editor-model"], ' +
+        '[data-testid="cloud-trigger-editor-model"], ' +
+        '[data-model]'
+      )
+    );
+  }
+
+  function isAutomationScheduleContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    return Boolean(
+      contextEl.closest(
+        '[data-testid="automation-schedule-editor"], ' +
+        '[data-testid="schedule-custom"], ' +
+        '[data-testid="schedule-repeat"], ' +
+        '[data-testid="schedule-repeat-option"], ' +
+        '[data-testid="schedule-weekday"], ' +
+        '[data-testid="schedule-weekday-option"], ' +
+        '[data-testid="schedule-custom-unit"], ' +
+        '[data-testid="schedule-custom-unit-option"], ' +
+        '[data-testid="schedule-day-of-month"], ' +
+        '[data-testid="schedule-day-of-month-option"], ' +
+        '[data-testid="schedule-time"], ' +
+        '[data-testid="schedule-time-option"]'
+      )
+    );
+  }
+
+  const AUTOMATION_WEEKDAY_SHORT_MAP = {
+    monday: '一',
+    '星期一': '一',
+    tuesday: '二',
+    '星期二': '二',
+    wednesday: '三',
+    '星期三': '三',
+    thursday: '四',
+    '星期四': '四',
+    friday: '五',
+    '星期五': '五',
+    saturday: '六',
+    '星期六': '六',
+    sunday: '日',
+    '星期日': '日'
+  };
+
+  function getAutomationWeekdayShortLabel(contextEl) {
+    if (!contextEl || !contextEl.closest || !contextEl.closest('[data-testid="schedule-custom"]')) {
+      return null;
+    }
+    const btn = contextEl.closest('button[aria-label], [aria-label]');
+    const lbl = btn && typeof btn.getAttribute === 'function' ? (btn.getAttribute('aria-label') || '').trim() : '';
+    if (!lbl) return null;
+    return AUTOMATION_WEEKDAY_SHORT_MAP[lbl.toLowerCase()] || null;
+  }
+
+  function isAutomationListRowContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    return Boolean(contextEl.closest('[data-testid="sidecar-row"], [data-testid="cloud-trigger-row"]'));
+  }
+
+  function isAutomationEnvironmentContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    return Boolean(
+      contextEl.closest(
+        '[data-testid="new-sidecar-modal"], ' +
+        '[data-testid="new-sidecar-cloud-environment"], ' +
+        '[data-testid="cloud-trigger-editor-panel"], ' +
+        '[data-testid="automation-detail-page"], ' +
+        '[data-testid="sidecar-detail"]'
+      )
+    );
+  }
+
+  function isAutomationStandaloneContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    return Boolean(
+      contextEl.closest(
+        '[data-testid="new-sidecar-project"], ' +
+        '[data-testid="new-sidecar-modal"], ' +
+        '[data-select-popup]'
+      )
+    );
+  }
+
+  function isAutomationReadsContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    return Boolean(
+      contextEl.closest(
+        '[data-testid="automation-settings"], ' +
+        '[data-testid="automation-instructions-reads"]'
+      )
+    );
+  }
+
+  function isAutomationDetailOrListContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    return Boolean(
+      contextEl.closest(
+        '[data-testid="sidecar-detail"], ' +
+        '[data-testid="automation-detail-page"], ' +
+        '[data-testid="sidecars-view"], ' +
+        '[data-testid="sidecar-list"]'
       )
     );
   }
@@ -372,6 +478,13 @@ function createContextRules() {
     isElapsedDurationContext,
     isModelEffortContext,
     isModelLabelContext,
+    isAutomationScheduleContext,
+    getAutomationWeekdayShortLabel,
+    isAutomationListRowContext,
+    isAutomationEnvironmentContext,
+    isAutomationStandaloneContext,
+    isAutomationReadsContext,
+    isAutomationDetailOrListContext,
     getSettingsPageSubtitleContainer,
     isAutoMtEligibleContext
   };

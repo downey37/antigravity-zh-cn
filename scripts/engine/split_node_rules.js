@@ -354,6 +354,82 @@ function translateSplitTextNode(node, val, parent) {
     return /[。！？.]$/.test(prevText) ? ' ' : '。';
   }
 
+  // 25. 自动化详情页概览句拆分节点："Runs " + schedule + " in " + project + " with " + model + " on this computer."
+  if (
+    parent.closest &&
+    parent.closest('[data-testid="automation-settings"]') &&
+    /^(?:Runs|运行计划：)/.test(parentText)
+  ) {
+    if (val === 'Runs') return '运行计划：';
+    if (val === 'in') return '，位于';
+    if (val === 'with') return '，使用';
+    if (val === ' ') {
+      const prevTxt = node.previousSibling ? (node.previousSibling.textContent || '').trim() : '';
+      const nextTxt = node.nextSibling ? (node.nextSibling.textContent || '').trim() : '';
+      if (
+        prevTxt === 'Runs' ||
+        prevTxt === '运行计划：' ||
+        nextTxt === 'in' ||
+        nextTxt === '，位于' ||
+        nextTxt === 'with' ||
+        nextTxt === '，使用' ||
+        nextTxt === 'on this computer.' ||
+        nextTxt === '（本机运行）。'
+      ) {
+        return '';
+      }
+    }
+  }
+
+  // 26. 自动化指令说明读取来源前缀："Reads " -> "可读取："
+  if (
+    val === 'Reads ' &&
+    parent.closest &&
+    parent.closest('[data-testid="automation-instructions-reads"]')
+  ) {
+    return '可读取：';
+  }
+
+  // 27. 自动化名称/ID 冲突及空搜索结果拆分节点
+  if (val === 'An ' && /with this name already exists on this computer|此电脑上已存在同名/.test(parentText)) {
+    return '此电脑上已存在同名的';
+  }
+  if (val === ' with this name already exists on this computer. Run it remotely, or go back and rename it.') {
+    return '。可改为远程运行，或返回修改名称。';
+  }
+  if (val === 'An ' && /with the ID \u201c|（ID 为“/.test(parentText)) {
+    return '';
+  }
+  if (val === ' with the ID \u201c') {
+    return '（ID 为“';
+  }
+  if (val === '\u201d already exists.' && /with the ID \u201c|（ID 为“/.test(parentText)) {
+    return '”）已存在。';
+  }
+  if (val === 'A ' && /with ID |（ID：/.test(parentText)) {
+    return '';
+  }
+  if (val === ' with ID ' && /already exists\.|已存在/.test(parentText)) {
+    return '（ID：';
+  }
+  if (val === ' already exists.' && /with ID |（ID：/.test(parentText)) {
+    return '）已存在。';
+  }
+  if (
+    val === 'No ' &&
+    node.nextSibling &&
+    node.nextSibling.nextSibling &&
+    /^(?: match \u201c|匹配“)/.test(node.nextSibling.nextSibling.textContent || '')
+  ) {
+    return '没有';
+  }
+  if (val === ' match \u201c' && /^(?:No |没有)/.test(parentText)) {
+    return '匹配“';
+  }
+  if (val === '\u201d.' && /match \u201c|匹配“/.test(parentText)) {
+    return '”。';
+  }
+
   return null;
 }
 

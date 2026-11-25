@@ -30,9 +30,30 @@ function antigravityI18nBootstrap(
   let I18N_ENABLED = typeof window !== 'undefined' ? window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ !== false : true;
   let AUTO_MT_ENABLED = typeof window !== 'undefined' ? window.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__ !== false : true;
   let dictGeneration = 0;
-  const CONTEXT_UPGRADE_ZH_SET = new Set(['新建', '无', '关闭思考', '请求审核', '全自动', '自动']);
+  const CONTEXT_UPGRADE_ZH_SET = new Set(['新建', '无', '关闭思考', '请求审核', '全自动', '自动', '下一步', '全机', '独立窗口', '读取操作']);
   const ORIG_TEXT = typeof WeakMap === 'function' ? new WeakMap() : null;
   const ORIG_ATTRS = typeof WeakMap === 'function' ? new WeakMap() : null;
+  const LEXICAL_PRESET_PROMPTS = [
+    {
+      command: 'automation',
+      en: 'Guide me through creating an automated task',
+      zh: '引导我创建一个自动化任务'
+    },
+    {
+      command: 'plugin',
+      en: 'Create a plugin that ...',
+      zh: '创建一个插件，功能是...'
+    },
+    {
+      command: 'migrate-workflows',
+      en: 'migrate my existing workflows to skills',
+      zh: '将我现有的工作流迁移为技能'
+    }
+  ];
+  const BOUND_LEXICAL_EDITORS = typeof WeakSet === 'function' ? new WeakSet() : null;
+  const SYNCING_LEXICAL_EDITORS = typeof WeakSet === 'function' ? new WeakSet() : null;
+  const LEXICAL_SCHEDULED = typeof WeakSet === 'function' ? new WeakSet() : null;
+  let syncingLexicalChips = false;
 
   function normalizeKey(s) {
     return String(s)
@@ -143,6 +164,7 @@ function antigravityI18nBootstrap(
 
   const {
     DYNAMIC_RULES,
+    translateClockTime,
     translateCompactRelativeTime,
     translateCompactDuration,
     translateModelWithEffort,
@@ -161,6 +183,13 @@ function antigravityI18nBootstrap(
     isElapsedDurationContext,
     isModelEffortContext,
     isModelLabelContext,
+    isAutomationScheduleContext,
+    getAutomationWeekdayShortLabel,
+    isAutomationListRowContext,
+    isAutomationEnvironmentContext,
+    isAutomationStandaloneContext,
+    isAutomationReadsContext,
+    isAutomationDetailOrListContext,
     getSettingsPageSubtitleContainer,
     isAutoMtEligibleContext
   } = CONTEXT_RULES_FACTORY();
@@ -225,6 +254,65 @@ function antigravityI18nBootstrap(
       }
       if (normLower === 'auto' || norm === '自动') {
         return leadWs + '自动 (Auto)' + trailWs;
+      }
+    }
+
+    // 自动化自定义定时编辑器上下文（重复单位、星期按钮、月日序数、时间格式与分隔词）
+    if (isAutomationScheduleContext(contextEl)) {
+      if (norm === 'M' || norm === 'T' || norm === 'W' || norm === 'F' || norm === 'S') {
+        const dayZh = getAutomationWeekdayShortLabel(contextEl);
+        if (dayZh) return leadWs + dayZh + trailWs;
+      }
+      if (normLower === 'hours') return leadWs + '小时' + trailWs;
+      if (normLower === 'week') return leadWs + '周' + trailWs;
+      if (normLower === 'month') return leadWs + '月' + trailWs;
+      if (normLower === 'on') {
+        return leadWs + (contextEl && contextEl.closest && contextEl.closest('[data-testid="schedule-custom"]') ? '星期' : '的') + trailWs;
+      }
+      if (normLower === 'on the') return leadWs + '的' + trailWs;
+      if (normLower === 'at') return leadWs + '时间' + trailWs;
+      const ordMatch = norm.match(/^(\d{1,2})(?:st|nd|rd|th)$/i);
+      if (ordMatch) {
+        const dayNum = Number(ordMatch[1]);
+        if (dayNum >= 1 && dayNum <= 31) {
+          return leadWs + `${dayNum} 日` + trailWs;
+        }
+      }
+      if (/^\d{1,2}:\d{2}\s*(?:AM|PM)$/i.test(norm)) {
+        return leadWs + translateClockTime(norm) + trailWs;
+      }
+    }
+
+    // 自动化列表窄屏标签："Next" -> "下次"，"Last" -> "上次"
+    if (isAutomationListRowContext(contextEl)) {
+      if (normLower === 'next' || norm === '下一步') {
+        return leadWs + '下次' + trailWs;
+      }
+      if (normLower === 'last') {
+        return leadWs + '上次' + trailWs;
+      }
+    }
+
+    // 自动化云端环境："Machine" -> "运行云端主机"
+    if ((normLower === 'machine' || norm === '全机') && isAutomationEnvironmentContext(contextEl)) {
+      return leadWs + '运行云端主机' + trailWs;
+    }
+
+    // 自动化项目选择器："Standalone" -> "独立运行"
+    if ((normLower === 'standalone' || norm === '独立窗口') && isAutomationStandaloneContext(contextEl)) {
+      return leadWs + '独立运行' + trailWs;
+    }
+
+    // 自动化详情页读取标签："Reads" -> "可读取"
+    if ((normLower === 'reads' || norm === '读取操作') && isAutomationReadsContext(contextEl)) {
+      return leadWs + '可读取' + trailWs;
+    }
+
+    // 自动化详情/列表中的任务删除无障碍标签："Delete <name>" -> "删除 <name>"
+    if (isAutomationDetailOrListContext(contextEl)) {
+      const delMatch = norm.match(/^Delete\s+(.+)$/);
+      if (delMatch) {
+        return leadWs + `删除 ${delMatch[1]}` + trailWs;
       }
     }
 
@@ -612,6 +700,211 @@ function antigravityI18nBootstrap(
     );
   }
 
+  function getLexicalPresetZh(preset) {
+    return lookupExact(preset.en, preset.en) || preset.zh;
+  }
+
+  function getLexicalSlashCommandName(node) {
+    if (!node || typeof node.getType !== 'function') return null;
+    const nodeType = node.getType();
+    if (nodeType !== 'contextScopeItemMention' && nodeType !== 'beautifulMention') return null;
+    if (typeof node.getTextContent === 'function') {
+      const text = String(node.getTextContent() || '').trim();
+      const match = text.match(/^\[\/?[^\]]+\]\(slashCommand;([^)?]+)/);
+      if (match && match[1]) return match[1].toLowerCase();
+    }
+    if (typeof node.exportJSON === 'function') {
+      try {
+        const json = node.exportJSON();
+        if (
+          json &&
+          json.trigger === '/' &&
+          typeof json.value === 'string' &&
+          json.value &&
+          json.value !== 'contextScopeItemMention'
+        ) {
+          return json.value.toLowerCase();
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  function findLexicalPresetMatch(editorState) {
+    const root = editorState && editorState._nodeMap && typeof editorState._nodeMap.get === 'function'
+      ? editorState._nodeMap.get('root')
+      : null;
+    if (!root || typeof root.getChildren !== 'function') return null;
+    const rootChildren = root.getChildren();
+    if (!Array.isArray(rootChildren) || rootChildren.length !== 1) return null;
+    const para = rootChildren[0];
+    if (!para || typeof para.getType !== 'function' || para.getType() !== 'paragraph') return null;
+    if (typeof para.getChildren !== 'function') return null;
+    const paraChildren = para.getChildren();
+    if (!Array.isArray(paraChildren)) return null;
+    const nonEmpty = [];
+    for (let i = 0; i < paraChildren.length; i++) {
+      const child = paraChildren[i];
+      if (!child || typeof child.getType !== 'function') continue;
+      if (child.getType() === 'text' && typeof child.getTextContent === 'function' && child.getTextContent() === '') {
+        continue;
+      }
+      nonEmpty.push(child);
+    }
+    if (nonEmpty.length !== 2) return null;
+    const cmd = getLexicalSlashCommandName(nonEmpty[0]);
+    if (!cmd) return null;
+    const textNode = nonEmpty[1];
+    if (!textNode || textNode.getType() !== 'text' || typeof textNode.getTextContent !== 'function') return null;
+    let preset = null;
+    for (let i = 0; i < LEXICAL_PRESET_PROMPTS.length; i++) {
+      if (LEXICAL_PRESET_PROMPTS[i].command === cmd) {
+        preset = LEXICAL_PRESET_PROMPTS[i];
+        break;
+      }
+    }
+    if (!preset) return null;
+    const rawText = String(textNode.getTextContent() || '');
+    const wsMatch = rawText.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    const leadWs = wsMatch ? wsMatch[1] : '';
+    const body = wsMatch ? wsMatch[2] : rawText.trim();
+    const trailWs = wsMatch ? wsMatch[3] : '';
+    const zhText = getLexicalPresetZh(preset);
+    if (body !== preset.en && body !== zhText && body !== preset.zh) return null;
+    const targetBody = I18N_ENABLED ? zhText : preset.en;
+    return {
+      textNode,
+      currentText: rawText,
+      targetText: leadWs + targetBody + trailWs
+    };
+  }
+
+  function bindLexicalEditor(editorEl) {
+    const editor = editorEl && editorEl.__lexicalEditor;
+    if (!editor || typeof editor.registerUpdateListener !== 'function') return;
+    if (BOUND_LEXICAL_EDITORS && BOUND_LEXICAL_EDITORS.has(editor)) return;
+    if (BOUND_LEXICAL_EDITORS) BOUND_LEXICAL_EDITORS.add(editor);
+    editor.registerUpdateListener((payload) => {
+      if (SYNCING_LEXICAL_EDITORS && SYNCING_LEXICAL_EDITORS.has(editor)) return;
+      const tags = payload && payload.tags;
+      if (tags && typeof tags.has === 'function' && tags.has('antigravity-i18n-preset')) return;
+      scheduleLexicalSync(editorEl);
+    });
+  }
+
+  function translateLexicalChips(editorEl) {
+    if (!I18N_ENABLED || !editorEl || !editorEl.querySelectorAll || syncingLexicalChips) return;
+    syncingLexicalChips = true;
+    try {
+      const chips = editorEl.querySelectorAll('[contenteditable="false"]');
+      for (let i = 0; i < chips.length; i++) {
+        const chip = chips[i];
+        if (!chip) continue;
+        if (chip.parentElement && chip.parentElement.closest && chip.parentElement.closest('[contenteditable="false"]')) {
+          continue;
+        }
+        translateNode(chip);
+      }
+    } finally {
+      syncingLexicalChips = false;
+    }
+  }
+
+  function syncLexicalEditor(editorEl) {
+    if (!editorEl) return;
+    bindLexicalEditor(editorEl);
+    translateLexicalChips(editorEl);
+    const editor = editorEl.__lexicalEditor;
+    if (!editor || typeof editor.getEditorState !== 'function' || typeof editor.update !== 'function') return;
+    if (typeof editor.isEditable === 'function' && !editor.isEditable()) return;
+    if (typeof editor.isComposing === 'function' && editor.isComposing()) return;
+    if (editor._updating) {
+      scheduleLexicalSync(editorEl);
+      return;
+    }
+    if (SYNCING_LEXICAL_EDITORS && SYNCING_LEXICAL_EDITORS.has(editor)) return;
+    const state = editor.getEditorState();
+    let quickMatch = null;
+    try {
+      quickMatch = typeof state.read === 'function'
+        ? state.read(() => findLexicalPresetMatch(state))
+        : findLexicalPresetMatch(state);
+    } catch (_) {
+      quickMatch = null;
+    }
+    if (!quickMatch || quickMatch.currentText === quickMatch.targetText) return;
+    if (SYNCING_LEXICAL_EDITORS) SYNCING_LEXICAL_EDITORS.add(editor);
+    try {
+      editor.update(() => {
+        const pendingState = editor._pendingEditorState || editor.getEditorState();
+        const match = findLexicalPresetMatch(pendingState);
+        if (!match || match.currentText === match.targetText || typeof match.textNode.setTextContent !== 'function') {
+          return;
+        }
+        const textNode = match.textNode;
+        const textKey = typeof textNode.getKey === 'function' ? textNode.getKey() : textNode.__key;
+        const sel = pendingState && pendingState._selection ? pendingState._selection : null;
+        const hadTextSel = Boolean(
+          sel &&
+          sel.anchor &&
+          sel.focus &&
+          sel.anchor.type === 'text' &&
+          sel.focus.type === 'text' &&
+          textKey !== undefined &&
+          sel.anchor.key === textKey &&
+          sel.focus.key === textKey
+        );
+        const oldLen = match.currentText.length;
+        const nextLen = match.targetText.length;
+        const oldAnchorOffset = hadTextSel ? sel.anchor.offset : 0;
+        const oldFocusOffset = hadTextSel ? sel.focus.offset : 0;
+        const writable = textNode.setTextContent(match.targetText);
+        const targetNode = writable || textNode;
+        if (hadTextSel && typeof targetNode.select === 'function') {
+          const nextAnchor = oldAnchorOffset === oldLen ? nextLen : Math.min(oldAnchorOffset, nextLen);
+          const nextFocus = oldFocusOffset === oldLen ? nextLen : Math.min(oldFocusOffset, nextLen);
+          targetNode.select(nextAnchor, nextFocus);
+        } else if (sel && sel.anchor && sel.focus && textKey !== undefined) {
+          if (sel.anchor.key === textKey && sel.anchor.offset > nextLen) {
+            sel.anchor.offset = nextLen;
+          }
+          if (sel.focus.key === textKey && sel.focus.offset > nextLen) {
+            sel.focus.offset = nextLen;
+          }
+        }
+      }, { tag: ['history-merge', 'antigravity-i18n-preset'], discrete: true });
+    } catch (_) {
+    } finally {
+      if (SYNCING_LEXICAL_EDITORS) SYNCING_LEXICAL_EDITORS.delete(editor);
+    }
+  }
+
+  function scheduleLexicalSync(editorEl) {
+    if (!editorEl) return;
+    if (LEXICAL_SCHEDULED && LEXICAL_SCHEDULED.has(editorEl)) return;
+    if (LEXICAL_SCHEDULED) LEXICAL_SCHEDULED.add(editorEl);
+    setTimeout(() => {
+      if (LEXICAL_SCHEDULED) LEXICAL_SCHEDULED.delete(editorEl);
+      syncLexicalEditor(editorEl);
+    }, 0);
+  }
+
+  function syncAllLexicalEditors(rootEl) {
+    if (!rootEl || rootEl.nodeType !== 1) return;
+    const editors = [];
+    if (rootEl.matches && rootEl.matches('[data-lexical-editor="true"]')) {
+      editors.push(rootEl);
+    } else if (rootEl.closest && rootEl.closest('[data-lexical-editor="true"]')) {
+      editors.push(rootEl.closest('[data-lexical-editor="true"]'));
+    } else if (rootEl.querySelectorAll) {
+      const found = rootEl.querySelectorAll('[data-lexical-editor="true"]');
+      for (let i = 0; i < found.length; i++) editors.push(found[i]);
+    }
+    for (let i = 0; i < editors.length; i++) {
+      syncLexicalEditor(editors[i]);
+    }
+  }
+
   function translateNode(node) {
     if (!node) return;
 
@@ -625,7 +918,13 @@ function antigravityI18nBootstrap(
 
     if (node.nodeType === 3) {
       const parent = node.parentElement || node.parentNode;
-      if (isInjectedI18nControl(parent) || shouldIgnoreTextParent(parent)) return;
+      if (isInjectedI18nControl(parent) || shouldIgnoreTextParent(parent)) {
+        if (!syncingLexicalChips && parent && parent.closest && !parent.closest('[contenteditable="false"]')) {
+          const lex = parent.closest('[data-lexical-editor="true"]');
+          if (lex) scheduleLexicalSync(lex);
+        }
+        return;
+      }
       const val = node.nodeValue;
       if (!val) return;
       const prev = ORIG_TEXT ? ORIG_TEXT.get(node) : null;
@@ -689,6 +988,19 @@ function antigravityI18nBootstrap(
       translateElementAttrs(node);
 
       if (shouldIgnoreElement(node)) {
+        if (node.matches && node.matches('[data-lexical-editor="true"]')) {
+          bindLexicalEditor(node);
+          translateLexicalChips(node);
+          scheduleLexicalSync(node);
+          return;
+        }
+        if (!syncingLexicalChips && node.closest && !node.closest('[contenteditable="false"]')) {
+          const lex = node.closest('[data-lexical-editor="true"]');
+          if (lex) {
+            scheduleLexicalSync(lex);
+            return;
+          }
+        }
         if (
           node.matches &&
           node.matches('.monaco-editor, .code-block, [data-code-block], [data-testid="user-message-content"]') &&
@@ -1256,6 +1568,7 @@ function antigravityI18nBootstrap(
     if (I18N_ENABLED) {
       if (root) translateSubtree(root);
       if (typeof document !== 'undefined') translatePortals();
+      if (root) syncAllLexicalEditors(root);
     } else {
       if (root) restoreOriginalSubtree(root);
       if (typeof document !== 'undefined') {
@@ -1274,6 +1587,7 @@ function antigravityI18nBootstrap(
           }
         }
       }
+      if (root) syncAllLexicalEditors(root);
     }
     updateInjectedTitleBarLabels();
     return I18N_ENABLED;
