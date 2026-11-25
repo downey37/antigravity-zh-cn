@@ -15,6 +15,23 @@ function createContextRules() {
     '[data-testid*="plugin"]', '[data-testid*="card"]', 'summary'
   ].join(', ');
 
+  const AUTO_MT_WHITELIST_SELECTOR = [
+    '[data-testid="nux-card"]',
+    '[data-testid="jetbox-service-announcement-banner"]',
+    '[data-testid="titlebar-service-announcement-slot"]',
+    '[data-testid="terminal-tab-nux"]',
+    '[data-testid="feature-banner"]'
+  ].join(', ');
+
+  function isAutoMtEligibleContext(contextEl) {
+    if (!contextEl || !contextEl.closest) return false;
+    if (!contextEl.closest(AUTO_MT_WHITELIST_SELECTOR)) return false;
+    if (contextEl.closest('code, pre, kbd, samp, var, input, textarea, [data-testid="user-message-content"], [data-markdown-root]')) {
+      return false;
+    }
+    return true;
+  }
+
   function isFileTreeFilename(el) {
     if (!el || !el.closest) return false;
     const trunc = el.closest('.whitespace-nowrap.truncate');
@@ -81,6 +98,16 @@ function createContextRules() {
 
   function isPermissionPresetContext(contextEl) {
     if (!contextEl || !contextEl.closest) return false;
+
+    if (
+      contextEl.closest(
+        '[data-testid="permissions-selector-trigger"], ' +
+        '[data-testid*="permissions-preset-option-"], ' +
+        '[data-testid="permissions-use-global-settings"]'
+      )
+    ) {
+      return true;
+    }
 
     const item = contextEl.closest('.agy-overlay-item, [role="option"], [role="menuitem"], [role="menuitemradio"]');
     if (item && PERMISSION_PRESET_DESC_RE.test(item.textContent || '')) {
@@ -316,7 +343,8 @@ function createContextRules() {
     isElapsedDurationContext,
     isModelEffortContext,
     isModelLabelContext,
-    getSettingsPageSubtitleContainer
+    getSettingsPageSubtitleContainer,
+    isAutoMtEligibleContext
   };
 }
 

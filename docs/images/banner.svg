@@ -36,20 +36,23 @@
 
   <!-- Title & Subtitle -->
   <text x="52" y="72" fill="#F8FAFC" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="34" font-weight="800" letter-spacing="0.5">Antigravity 简体中文汉化补丁</text>
-  <text x="54" y="106" fill="#CBD5E1" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="16" font-weight="500">antigravity-zh-cn · 高覆盖、无损可逆、支持 OTA 热更的桌面客户端本地化工程</text>
+  <text x="54" y="106" fill="#CBD5E1" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="16" font-weight="500">antigravity-zh-cn · 高覆盖、无损可逆、免 TUN 联网与 OTA 热更的本地化工程</text>
 
   <!-- Feature Pills -->
-  <g transform="translate(52 138)" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13" font-weight="600">
-    <rect x="0" y="0" width="114" height="32" rx="16" fill="rgba(56,189,248,0.14)" stroke="rgba(56,189,248,0.45)"/>
-    <text x="57" y="21" text-anchor="middle" fill="#BAE6FD">全界面高覆盖</text>
+  <g transform="translate(52 138)" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12.5" font-weight="600">
+    <rect x="0" y="0" width="108" height="32" rx="16" fill="rgba(56,189,248,0.14)" stroke="rgba(56,189,248,0.45)"/>
+    <text x="54" y="21" text-anchor="middle" fill="#BAE6FD">全界面高覆盖</text>
 
-    <rect x="126" y="0" width="136" height="32" rx="16" fill="rgba(129,140,248,0.16)" stroke="rgba(129,140,248,0.45)"/>
-    <text x="194" y="21" text-anchor="middle" fill="#C7D2FE">OTA 云端热更新</text>
+    <rect x="118" y="0" width="124" height="32" rx="16" fill="rgba(129,140,248,0.16)" stroke="rgba(129,140,248,0.45)"/>
+    <text x="180" y="21" text-anchor="middle" fill="#C7D2FE">OTA 云端热更新</text>
 
-    <rect x="274" y="0" width="126" height="32" rx="16" fill="rgba(52,211,153,0.14)" stroke="rgba(52,211,153,0.42)"/>
-    <text x="337" y="21" text-anchor="middle" fill="#A7F3D0">即时中英切换</text>
+    <rect x="252" y="0" width="114" height="32" rx="16" fill="rgba(52,211,153,0.14)" stroke="rgba(52,211,153,0.42)"/>
+    <text x="309" y="21" text-anchor="middle" fill="#A7F3D0">即时中英切换</text>
 
-    <rect x="412" y="0" width="144" height="32" rx="16" fill="rgba(251,191,36,0.14)" stroke="rgba(251,191,36,0.42)"/>
-    <text x="484" y="21" text-anchor="middle" fill="#FDE68A">免 Node.js 便携包</text>
+    <rect x="376" y="0" width="132" height="32" rx="16" fill="rgba(251,191,36,0.14)" stroke="rgba(251,191,36,0.42)"/>
+    <text x="442" y="21" text-anchor="middle" fill="#FDE68A">免 Node.js 便携包</text>
+
+    <rect x="518" y="0" width="106" height="32" rx="16" fill="rgba(244,114,182,0.14)" stroke="rgba(244,114,182,0.45)"/>
+    <text x="571" y="21" text-anchor="middle" fill="#FBCFE8">免 TUN 联网</text>
   </g>
 </svg>

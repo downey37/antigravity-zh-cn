@@ -39,7 +39,7 @@
 | **回归测试脚本** | `scripts/verify_engine.js` | 校验 `app.asar` 钩子、VM 引擎、中英切换、OTA、代理探测与还原 |
 | **便携包构建脚本** | `scripts/build_portable_release.js` | 生成零 Node 依赖便携压缩包及 `.sha256` 校验文件 |
 | **版本发版工具** | `scripts/release_version.js` | 校验 `package.json` / 基线 / `README.md` 一致性并辅助递增三段式版本号 |
-| **一键桌面入口** | `一键修复或更新汉化.bat` / `一键还原官方英文.bat` / `一键代理守护启动.bat` / `*.sh` | 面向普通用户的一键安装、还原与代理守护启动入口 |
+| **一键桌面入口** | `一键修复或更新汉化.bat` / `一键还原官方英文.bat` / `一键免TUN启动.bat` / `*.sh` | 面向普通用户的一键安装、还原与免 TUN 联网启动入口 |
 
 ---
 

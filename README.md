@@ -9,15 +9,16 @@
 [![Antigravity](https://img.shields.io/badge/适配客户端-Antigravity%20v2.34.0-blue?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases)
 [![Platforms](https://img.shields.io/badge/支持平台-Windows%20%7C%20macOS-0284c7?style=flat-square)](#快速安装使用)
 [![Portable](https://img.shields.io/badge/零依赖便携包-免%20Node.js-10b981?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases/latest)
+[![No-TUN](https://img.shields.io/badge/免%20TUN%20联网-无需开启全局%20TUN-06b6d4?style=flat-square)](#2-免-tun-联网启动windows)
 [![Stars](https://img.shields.io/github/stars/downey37/antigravity-zh-cn?style=flat-square&label=Stars&color=f59e0b)](https://github.com/downey37/antigravity-zh-cn/stargazers)
 [![Discussions](https://img.shields.io/github/discussions/downey37/antigravity-zh-cn?style=flat-square&label=讨论区&color=6366f1)](https://github.com/downey37/antigravity-zh-cn/discussions)
 [![License](https://img.shields.io/github/license/downey37/antigravity-zh-cn?style=flat-square&label=协议)](LICENSE)
 
-<p><b>专为 Google Antigravity 桌面客户端打造的高覆盖、无损可逆、支持 OTA 热更的简体中文本地化套件。</b></p>
+<p><b>专为 Google Antigravity 桌面客户端打造的高覆盖、无损可逆、支持免 TUN 联网与 OTA 热更的简体中文本地化套件。</b></p>
 
 当前版本：**`v0.5.1`**（适配 Antigravity 客户端 `v2.34.0`）
 
-[界面预览](#界面效果预览) · [核心特性](#核心特性一览) · [快速安装](#快速安装使用) · [中英切换](#实用进阶功能) · [代理守护](#智能代理守护启动windows) · [架构原理](#工作原理) · [常见问题](#常见问题-faq) · [参与贡献](#参与贡献与维护)
+[界面预览](#界面效果预览) · [核心特性](#核心特性一览) · [快速安装](#快速安装使用) · [中英切换](#实用进阶功能) · [免 TUN 联网](#2-免-tun-联网启动windows) · [架构原理](#工作原理) · [常见问题](#常见问题-faq) · [参与贡献](#参与贡献与维护)
 
 </div>
 
@@ -25,14 +26,17 @@
 
 ## 界面效果预览
 
-| 主界面 | 常规设置 |
+| 主界面（简体中文 · 标题栏 `[ 中 \| EN ]`） | 一键切换官方英文原文（零重启无损还原） |
 | :---: | :---: |
-| ![主界面汉化效果](docs/images/preview-home.png) | ![常规设置汉化效果](docs/images/preview-settings-general.png) |
+| ![主界面简体中文效果](docs/images/preview-home.png) | ![一键切换英文原文效果](docs/images/preview-home-en.png) |
 
-<div align="center">
-<b>模型与用量（含 Orchestrator 设置与动态提示）</b><br /><br />
-<img src="docs/images/preview-settings-models.png" alt="模型与用量汉化效果" width="100%" />
-</div>
+| 常规设置（权限策略与语音模式） | 模型与用量（Orchestrator 设置与多维度配额） |
+| :---: | :---: |
+| ![常规设置汉化效果](docs/images/preview-settings-general.png) | ![模型与用量汉化效果](docs/images/preview-settings-models.png) |
+
+| 模型选择器与多级思考深度菜单（含「新」徽章精准消歧） | 标题栏 `[ 中 \| EN ]` 开关与 OTA 汉化更新入口 |
+| :---: | :---: |
+| ![模型选择器汉化效果](docs/images/preview-model-selector.png) | ![标题栏切换开关与检查汉化更新](docs/images/preview-titlebar-menu.png) |
 
 ---
 
@@ -44,7 +48,7 @@
 | **零依赖便携包与跨平台支持** | Releases 提供内置生产依赖的免 Node.js 便携包（`-portable.zip`），直接复用客户端自带 Electron 运行时执行注入；支持 **Windows 10 / 11** 与 **macOS**（修改后自动执行本地 `codesign` 深度签名）。 |
 | **顶部标题栏一键原文 / 译文切换** | 在顶部标题栏常驻 **`[ 中 | EN ]`** 胶囊开关（也可从菜单/托盘触发），基于 `WeakMap` 精确追踪原文并联动主进程 `_i18nT` 动态双语，无需重启即可在简体中文与 100% 纯净官方英文原文间无损切换，并**自动记住切换状态**跨重启保留。 |
 | **云端词库热更新（OTA）** | 启动后自动从 `ota-dist` 通道单向只读拉取纯 JSON 词库与声明式模板（SHA-256 校验、零远端 JS 执行、零遥测），**免重启实时生效**；亦支持菜单手动检查或 `ANTIGRAVITY_I18N_NO_OTA=1` 禁用。 |
-| **更新自愈与智能代理守护** | 官方客户端自动更新时主进程挂钩唤醒自愈重打补丁；配套启动守护支持读取 **Windows 系统代理** 并自动探测常见本地代理端口（`7897` / `10808` / `7890`），未检测到本地代理时干净走直连 / TUN。 |
+| **免 TUN 联网与更新自愈** | **无需开启全局 TUN 虚拟网卡**（免管理员权限，不干扰公司内网、VPN、WSL / Docker 与游戏）；配套一键启动脚本自动读取 **Windows 系统代理** 或探测常见本地代理端口（`7897` / `10808` / `7890`），同步为 Electron 前端与后台 Go 核心注入代理参数，普通系统代理即可全链路稳定联网；未检测到本地代理时干净走直连 / TUN，同时在官方客户端更新后自动唤醒自愈重打补丁。 |
 | **无损备份与一键还原** | 首次注入前自动备份原版核心为 `app.asar.bak`，支持 **一键还原官方英文原版** 与自动化 Node VM 沙箱回归校验。 |
 
 ---
@@ -102,7 +106,6 @@ npm run deploy
 如同浏览器翻译插件的「原文 / 译文」切换一样，无需重启客户端即可随时在 **简体中文** 与 **100% 纯净官方英文原文** 间瞬时切换，且**偏好会自动记住**，下次启动仍保持你的选择：
 
 - 顶部标题栏常驻胶囊开关：**`[ 中 | EN ]`**（单手直达，点击即切）
-- 左上角应用菜单：**「Antigravity → 切换为英文原文 (关闭汉化) / 切换为简体中文 (开启汉化)」**
 - 顶部原生菜单栏：**「帮助 → 切换为英文原文 (关闭汉化) / 切换为简体中文 (开启汉化)」**
 - 系统托盘右键菜单：**「切换为英文原文 (关闭汉化) / 切换为简体中文 (开启汉化)」**
 
@@ -110,12 +113,12 @@ npm run deploy
 
 ---
 
-### 2. 智能代理守护启动（Windows）
+### 2. 免 TUN 联网启动（Windows）
 
-若你在内网或本地代理环境下遇到客户端联网不稳定、或官方更新后忘记重打补丁，可直接双击 **`一键代理守护启动.bat`**（或命令行运行 `node scripts/guard_launch.js`）来启动 Antigravity：
+Antigravity 后台 Go 核心默认不完整遵循 Windows 系统代理，通常需要开启全局 TUN 虚拟网卡才能稳定联网（易与公司内网、VPN、WSL / Docker 或游戏冲突）。双击 **`一键免TUN启动.bat`**（或命令行运行 `node scripts/guard_launch.js`）即可实现 **免 TUN 联网 + 官方更新自动自愈**：
 
 1. **启动前自动自愈**：毫秒级检测 `app.asar`，若刚被官方更新覆盖为原版则自动重打汉化补丁后再启动。
-2. **多级代理自动探测（无需写死端口）**：按以下优先级自动配置前端网络参数与后台 Go 核心环境变量：
+2. **免 TUN 全链路代理自动注入（前端 + 后台 Go 核心，无需写死端口）**：只需保持代理工具处于普通系统代理或本地端口监听即可（无需开启 TUN 虚拟网卡），启动脚本按以下优先级自动为 Electron 前端与后台 Go 核心注入代理参数：
 
 | 优先级 | 来源 / 规则 | 说明 |
 | :---: | :--- | :--- |
@@ -137,7 +140,7 @@ flowchart LR
     D --> E["WeakMap 原文追踪<br/>(界面内中英瞬时无损切换)"]
     C --> F["SHA-256 云端 OTA 热更新<br/>(纯 JSON + 声明式正则，免重启生效)"]
     C -.->|"官方自动更新覆盖后"| B
-    G["一键代理守护启动<br/>(Windows 系统代理 + 7897/10808/7890 探测)"] --> B
+    G["免 TUN 联网启动<br/>(无需开启全局 TUN · 自动注入前端与 Go 核心代理)"] --> B
 ```
 
 ---
@@ -151,22 +154,26 @@ flowchart LR
 
 <details>
 <summary><b>2. Antigravity 官方客户端自动更新后汉化会失效吗？</b></summary>
-<p>本工程内置<b>双重自愈机制</b>：主进程更新器挂钩会在软件退出更新后自动重新注入补丁；通过 <code>一键代理守护启动.bat</code> 启动时也会在启动前自动检查并自愈。如果遇到跨大版本底层重写导致少量新词条未覆盖，重新执行一键更新脚本或等待云端 OTA 词库推送即可。</p>
+<p>本工程内置<b>双重自愈机制</b>：主进程更新器挂钩会在软件退出更新后自动重新注入补丁；通过 <code>一键免TUN启动.bat</code> 启动时也会在启动前自动检查并自愈。如果遇到跨大版本底层重写导致少量新词条未覆盖，重新执行一键更新脚本或等待云端 OTA 词库推送即可。</p>
 </details>
 
 <details>
 <summary><b>3. 我电脑没有安装 Node.js 也可以使用吗？</b></summary>
-<p><b>可以！</b>从 Releases 下载名称带 <code>-portable.zip</code> 的零依赖便携包后，脚本会自动通过客户端自带的 Electron 运行时（<code>ELECTRON_RUN_AS_NODE=1</code>）执行补丁、校验、还原与守护启动，全程无需单独安装 Node.js。</p>
+<p><b>可以！</b>从 Releases 下载名称带 <code>-portable.zip</code> 的零依赖便携包后，脚本会自动通过客户端自带的 Electron 运行时（<code>ELECTRON_RUN_AS_NODE=1</code>）执行补丁、校验、还原与免 TUN 启动，全程无需单独安装 Node.js。</p>
 </details>
 
 <details>
 <summary><b>4. 如何在不断开汉化的情况下随时对照官方英文界面？</b></summary>
-<p>直接点击顶部标题栏的 <b><code>[ 中 | EN ]</code></b> 常驻开关（或在左上角 <b>Antigravity</b> 菜单 / 帮助菜单 / 系统托盘右键中切换）即可零重启瞬时切换到 100% 纯净官方英文原文，包括菜单、弹窗与远程提示都会同步切换；再次点击即可切回简体中文，且你的选择会自动记住并在重启后保留。</p>
+<p>直接点击顶部标题栏的 <b><code>[ 中 | EN ]</code></b> 常驻开关（或在顶部原生帮助菜单 / 系统托盘右键中切换）即可零重启瞬时切换到 100% 纯净官方英文原文，包括菜单、弹窗与远程提示都会同步切换；再次点击即可切回简体中文，且你的选择会自动记住并在重启后保留。</p>
 </details>
 
 <details>
-<summary><b>5. 我使用的是全局 TUN 虚拟网卡模式或不想启用自动代理探测怎么办？</b></summary>
-<p>当系统代理关闭且本地 <code>7897 / 10808 / 7890</code> 均未监听时，守护启动器会自动清理残留代理环境变量并走直连 / TUN。如需强制禁止自动探测，可设置环境变量 <code>ANTIGRAVITY_PROXY=direct</code> 或 <code>ANTIGRAVITY_AUTO_PROXY=0</code>。</p>
+<summary><b>5. 不想开全局 TUN 模式怎么联网？如果已经在用 TUN 会有冲突吗？</b></summary>
+<p><b>不会冲突，两种方式都能干净支持：</b></p>
+<ul>
+<li><b>不想开 TUN（免 TUN 联网）</b>：保持 Clash Verge Rev / v2rayN / Clash 等工具的普通系统代理模式，直接双击 <code>一键免TUN启动.bat</code> 即可自动为前端与后台 Go 核心注入代理，无需开启全局 TUN 虚拟网卡。</li>
+<li><b>已经在使用全局 TUN / 直连</b>：当系统代理关闭且本地 <code>7897 / 10808 / 7890</code> 均未监听时，启动脚本会自动清理残留代理环境变量并干净走直连 / TUN；如需强制关闭自动探测，可设置环境变量 <code>ANTIGRAVITY_PROXY=direct</code> 或 <code>ANTIGRAVITY_AUTO_PROXY=0</code>。</li>
+</ul>
 </details>
 
 <details>
@@ -192,6 +199,8 @@ flowchart LR
 | `ANTIGRAVITY_I18N_NO_OTA` | 设为 `1` 时禁用云端 OTA 词库热更新 | 未设置（默认开启） |
 | `ANTIGRAVITY_I18N_OTA_URL` | 自定义 OTA 源（支持逗号分隔多源回退） | GitHub Raw + jsDelivr |
 | `ANTIGRAVITY_I18N_OTA_INTERVAL_MS` | 后台 OTA 轮询间隔（毫秒） | `7200000`（2 小时） |
+| `ANTIGRAVITY_I18N_AUTO_MT` | 是否开启白名单动态公告卡片异步机翻兜底（亦可在「帮助 → 自动翻译动态公告」开关） | 默认开启（设 `0` 关闭） |
+| `ANTIGRAVITY_I18N_MT_PROVIDER` / `ANTIGRAVITY_I18N_MT_URL` / `ANTIGRAVITY_I18N_MT_API_KEY` / `ANTIGRAVITY_I18N_MT_MODEL` | 动态公告机翻引擎配置（默认免 Key `google-gtx`，可选 `openai` 兼容接口接入自定义模型或本地 Ollama） | `google-gtx` |
 | `ANTIGRAVITY_PROXY` / `ANTIGRAVITY_NO_PROXY` | 显式指定代理（设 `direct` 可强制直连）与绕过列表 | 例：`http://127.0.0.1:7897` |
 | `ANTIGRAVITY_AUTO_PROXY` | 设为 `0` 时关闭 `guard_launch.js` 自动端口探测 | 默认开启 |
 
@@ -209,7 +218,7 @@ flowchart LR
   - `runtime_paths.js`：跨平台安装路径解析与 macOS 自动签名辅助
   - `i18n_core.js`：基于 `app.asar.bak` 植入主进程与前端引擎并打包部署
   - `restore_antigravity.js`：校验并无损还原 `app.asar.bak` 为官方英文原版
-  - `guard_launch.js` / `auto_patch_on_update.js`：启动守护、代理自动探测与更新自愈
+  - `guard_launch.js` / `auto_patch_on_update.js`：免 TUN 代理探测启动与更新自愈
   - `build_clean_engine.js` / `build_ota_pack.js` / `build_portable_release.js`：引擎构建、OTA 包与零依赖便携包构建器
   - `scan_updates.js` / `verify_engine.js` / `release_version.js`：跟版扫漏、Node VM 回归校验与 SemVer 发版工具
 - `docs/`：架构说明、文件清单与维护指南

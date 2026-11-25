@@ -16,6 +16,14 @@ const DEFAULT_BASE_URLS = [
   'https://raw.githubusercontent.com/downey37/antigravity-zh-cn/ota-dist',
   'https://cdn.jsdelivr.net/gh/downey37/antigravity-zh-cn@ota-dist'
 ];
+const DEFAULT_MT_URL = 'https://translate.googleapis.com/translate_a/single';
+const MT_CACHE_SCHEMA_VERSION = 1;
+const MAX_MT_CACHE_ENTRIES = 500;
+const MAX_MT_TEXT_LENGTH = 600;
+const MIN_MT_TEXT_LENGTH = 4;
+const MT_FAIL_COOLDOWN_MS = 60 * 1000;
+const MT_RATE_WINDOW_MS = 60 * 1000;
+const MT_MAX_REQ_PER_MIN = 20;
 
 function safeRequireElectron() {
   try {
@@ -139,7 +147,168 @@ function isEligibleSubframeUrl(frameUrl, mainOrigin) {
   }
 }
 
-function nodeHttpFetchText(urlStr, headers, timeoutMs) {
+function normalizeMtText(raw) {
+  return String(raw || '')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2026/g, '...')
+    .replace(/[\u00A0\u2007\u202F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isEligibleMtText(text) {
+  const norm = normalizeMtText(text);
+  if (!norm || norm.length < MIN_MT_TEXT_LENGTH || norm.length > MAX_MT_TEXT_LENGTH) {
+    return false;
+  }
+  if (/[\u4e00-\u9fff]/.test(norm)) {
+    return false;
+  }
+  if (!/[A-Za-z]{2,}[\s/-]+[A-Za-z]{2,}/.test(norm)) {
+    return false;
+  }
+  if (/^(?:https?:\/\/|[A-Za-z]:\\|\/[\w.-]+\/|\{[\s\S]*\}|\[[\s\S]*\])/.test(norm)) {
+    return false;
+  }
+  return true;
+}
+
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function protectDynamicMtTerms(text, preserveList = []) {
+  const input = String(text || '');
+  const spans = [];
+  const collectMatches = (re) => {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(input)) !== null) {
+      if (!m[0]) {
+        re.lastIndex += 1;
+        continue;
+      }
+      spans.push({ start: m.index, end: m.index + m[0].length, text: m[0] });
+    }
+  };
+
+  collectMatches(/\b(?:Gemini|Claude|GPT(?:-OSS)?|DeepSeek)\s+\d+(?:\.\d+)?(?:\s+(?:Pro|Ultra|Flash|Nano|Neon|Carbon|Argon|Hydrogen|Opus|Sonnet|Haiku|Mini|Preview|Thinking|Exp|Lite|Fast|\d+[BM]))*\b/gi);
+  collectMatches(/\b(?:Claude\s+(?:Opus|Sonnet|Haiku)|GPT-OSS|Google\s+AI\s+(?:Pro|Ultra|Plus)|Google\s+(?:Workspace|Cloud|Drive|Docs|Sheets|Slides|Chat|Chrome)|AI\s+Credits)\b/gi);
+
+  if (Array.isArray(preserveList) && preserveList.length > 0) {
+    const sorted = preserveList
+      .filter((item) => typeof item === 'string' && item.trim().length > 0)
+      .slice()
+      .sort((a, b) => b.length - a.length);
+    for (let i = 0; i < sorted.length; i++) {
+      const term = sorted[i].trim();
+      if (!term) continue;
+      const flags = term.toLowerCase() === 'antigravity' ? 'gi' : 'g';
+      collectMatches(new RegExp(`(?<![A-Za-z0-9])${escapeRegExp(term)}(?![A-Za-z0-9])`, flags));
+    }
+  }
+
+  collectMatches(/\b(?:Antigravity|Orchestrator|Gemini|Claude|Carbon|Argon|Hydrogen|Neon|Opus|Sonnet|Haiku|Flash|Swarm|Cascade|MCP|WSL|SSH|API|CLI|IDE|Tokens?)\b/g);
+
+  spans.sort((a, b) => (a.start - b.start) || (b.end - a.end));
+  const chosen = [];
+  let cursor = 0;
+  for (let i = 0; i < spans.length; i++) {
+    const sp = spans[i];
+    if (sp.start >= cursor) {
+      chosen.push(sp);
+      cursor = sp.end;
+    }
+  }
+
+  if (chosen.length === 0) {
+    return { masked: input, placeholders: [] };
+  }
+
+  let masked = '';
+  let pos = 0;
+  const placeholders = [];
+  for (let i = 0; i < chosen.length; i++) {
+    const sp = chosen[i];
+    masked += input.slice(pos, sp.start);
+    masked += `AGYTERM${i}X`;
+    placeholders.push(sp.text);
+    pos = sp.end;
+  }
+  masked += input.slice(pos);
+  return { masked, placeholders };
+}
+
+function restoreDynamicMtTerms(translated, placeholders = []) {
+  if (typeof translated !== 'string' || !translated.trim()) return null;
+  let out = translated;
+  if (Array.isArray(placeholders) && placeholders.length > 0) {
+    const seen = new Set();
+    const tokenRe = /AGYTERM(\d+)X/gi;
+    let m;
+    while ((m = tokenRe.exec(out)) !== null) {
+      const idx = Number(m[1]);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= placeholders.length) {
+        return null;
+      }
+      seen.add(idx);
+    }
+    if (seen.size !== placeholders.length) {
+      return null;
+    }
+    out = out.replace(/AGYTERM(\d+)X/gi, (_, rawIdx) => placeholders[Number(rawIdx)]);
+  }
+  out = out
+    .replace(/([\u4e00-\u9fff])([A-Za-z0-9])/g, '$1 $2')
+    .replace(/([A-Za-z0-9])([\u4e00-\u9fff])/g, '$1 $2')
+    .replace(/\s+([，。！？；：、）》」』】])/g, '$1')
+    .replace(/([（《「『【])\s+/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+  if (!/[\u4e00-\u9fff]/.test(out)) return null;
+  return out;
+}
+
+function parseGoogleGtxResponse(rawText) {
+  try {
+    const parsed = JSON.parse(rawText);
+    if (!Array.isArray(parsed) || !Array.isArray(parsed[0])) return null;
+    let joined = '';
+    for (let i = 0; i < parsed[0].length; i++) {
+      const seg = parsed[0][i];
+      if (Array.isArray(seg) && typeof seg[0] === 'string') {
+        joined += seg[0];
+      }
+    }
+    const trimmed = joined.trim();
+    return trimmed || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function parseOpenAiMtResponse(rawText) {
+  try {
+    const parsed = JSON.parse(rawText);
+    const content = parsed && Array.isArray(parsed.choices) && parsed.choices[0] &&
+      parsed.choices[0].message && typeof parsed.choices[0].message.content === 'string'
+      ? parsed.choices[0].message.content
+      : null;
+    if (!content) return null;
+    const cleaned = content
+      .trim()
+      .replace(/^```(?:text|markdown)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .replace(/^["“]|["”]$/g, '')
+      .trim();
+    return cleaned || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function nodeHttpFetchText(urlStr, headers, timeoutMs, reqOptions = {}) {
   return new Promise((resolve, reject) => {
     let parsed;
     try {
@@ -147,24 +316,30 @@ function nodeHttpFetchText(urlStr, headers, timeoutMs) {
     } catch (err) {
       return reject(err);
     }
+    const method = String((reqOptions && reqOptions.method) || 'GET').toUpperCase();
+    const body = reqOptions && reqOptions.body != null ? String(reqOptions.body) : null;
+    const reqHeaders = {
+      'Accept-Encoding': 'identity',
+      'User-Agent': 'antigravity-zh-cn-ota/1',
+      ...(headers || {})
+    };
+    if (body !== null && reqHeaders['Content-Length'] === undefined && reqHeaders['content-length'] === undefined) {
+      reqHeaders['Content-Length'] = Buffer.byteLength(body, 'utf8');
+    }
     const client = parsed.protocol === 'https:' ? https : http;
     const req = client.request(
       parsed,
       {
-        method: 'GET',
-        headers: {
-          'Accept-Encoding': 'identity',
-          'User-Agent': 'antigravity-zh-cn-ota/1',
-          ...(headers || {})
-        },
+        method,
+        headers: reqHeaders,
         timeout: timeoutMs
       },
       (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && (!headers || !headers._redirectDepth || headers._redirectDepth < 3)) {
+        if (method === 'GET' && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && (!headers || !headers._redirectDepth || headers._redirectDepth < 3)) {
           res.resume();
           const nextUrl = new URL(res.headers.location, parsed).toString();
           const nextHeaders = { ...(headers || {}), _redirectDepth: ((headers && headers._redirectDepth) || 0) + 1 };
-          return nodeHttpFetchText(nextUrl, nextHeaders, timeoutMs).then(resolve, reject);
+          return nodeHttpFetchText(nextUrl, nextHeaders, timeoutMs, reqOptions).then(resolve, reject);
         }
         const chunks = [];
         let total = 0;
@@ -189,6 +364,9 @@ function nodeHttpFetchText(urlStr, headers, timeoutMs) {
       req.destroy(new Error(`Request timeout after ${timeoutMs}ms`));
     });
     req.on('error', reject);
+    if (body !== null) {
+      req.write(body, 'utf8');
+    }
     req.end();
   });
 }
@@ -253,9 +431,19 @@ function createOtaController(options = {}) {
     return flag === '1' || flag === 'true' || flag === 'yes';
   }
 
+  function getAutoMtEnvOverride() {
+    const raw = env.ANTIGRAVITY_I18N_AUTO_MT;
+    if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+    const flag = String(raw).trim().toLowerCase();
+    if (flag === '0' || flag === 'false' || flag === 'no' || flag === 'off') return false;
+    if (flag === '1' || flag === 'true' || flag === 'yes' || flag === 'on') return true;
+    return null;
+  }
+
   const cacheDir = resolveCacheDir();
   const packCachePath = path.join(cacheDir, 'dict-pack.json');
   const stateCachePath = path.join(cacheDir, 'state.json');
+  const mtCachePath = path.join(cacheDir, 'dynamic-mt-cache.json');
 
   let state = {
     etag: '',
@@ -264,13 +452,19 @@ function createOtaController(options = {}) {
     lastCheckedAt: '',
     lastSource: '',
     notifiedEngineVersion: '',
-    i18nEnabled: true
+    i18nEnabled: true,
+    autoMtEnabled: true
   };
   let activePack = null;
   let activeApplyScript = null;
   let activeNativeContextDict = null;
   let initializedCache = false;
   let stateLoaded = false;
+  let mtCacheLoaded = false;
+  const mtCacheMap = new Map();
+  const mtInFlight = new Map();
+  const mtFailCooldown = new Map();
+  const mtReqTimestamps = [];
   let backgroundStarted = false;
   let initialTimer = null;
   let pollTimer = null;
@@ -278,6 +472,7 @@ function createOtaController(options = {}) {
   let inFlightManual = false;
   const trackedWebContents = new Set();
   const languageChangeListeners = new Set();
+  const autoMtChangeListeners = new Set();
 
   function loadStateSync() {
     if (stateLoaded) return;
@@ -302,6 +497,10 @@ function createOtaController(options = {}) {
   let i18nEnabled = isI18nInitiallyDisabled()
     ? false
     : (typeof state.i18nEnabled === 'boolean' ? state.i18nEnabled : true);
+  const autoMtEnvOverride = getAutoMtEnvOverride();
+  let autoMtEnabled = autoMtEnvOverride !== null
+    ? autoMtEnvOverride
+    : (typeof state.autoMtEnabled === 'boolean' ? state.autoMtEnabled : true);
 
   function setActivePack(pack) {
     activePack = pack;
@@ -362,20 +561,27 @@ function createOtaController(options = {}) {
     return activeNativeContextDict;
   }
 
-  async function defaultFetchText(urlStr, reqHeaders) {
+  async function defaultFetchText(urlStr, reqHeaders, reqOptions = {}) {
     const netFetch = electronMod && electronMod.net && typeof electronMod.net.fetch === 'function'
       ? electronMod.net.fetch.bind(electronMod.net)
       : (typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : null);
+
+    const method = String((reqOptions && reqOptions.method) || 'GET').toUpperCase();
+    const body = reqOptions && reqOptions.body != null ? String(reqOptions.body) : undefined;
 
     if (netFetch && typeof AbortController !== 'undefined') {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const res = await netFetch(urlStr, {
-          method: 'GET',
+        const fetchOpts = {
+          method,
           headers: reqHeaders || {},
           signal: controller.signal
-        });
+        };
+        if (body !== undefined) {
+          fetchOpts.body = body;
+        }
+        const res = await netFetch(urlStr, fetchOpts);
         const status = res.status;
         const etag = res.headers && typeof res.headers.get === 'function' ? (res.headers.get('etag') || '') : '';
         if (status === 304) {
@@ -390,7 +596,7 @@ function createOtaController(options = {}) {
         clearTimeout(timer);
       }
     }
-    return nodeHttpFetchText(urlStr, reqHeaders, timeoutMs);
+    return nodeHttpFetchText(urlStr, reqHeaders, timeoutMs, reqOptions);
   }
 
   const fetchText = typeof options.fetchText === 'function' ? options.fetchText : defaultFetchText;
@@ -451,7 +657,214 @@ function createOtaController(options = {}) {
   }
 
   function getInitialStateScript() {
-    return `window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = ${i18nEnabled ? 'true' : 'false'};`;
+    return (
+      `window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = ${i18nEnabled ? 'true' : 'false'};\n` +
+      `window.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__ = ${autoMtEnabled ? 'true' : 'false'};`
+    );
+  }
+
+  function broadcastAutoMtState(enabled) {
+    const scriptStr = `if (window.__antigravitySetAutoMtEnabled) { window.__antigravitySetAutoMtEnabled(${enabled ? 'true' : 'false'}); }`;
+    for (const wc of trackedWebContents) {
+      if (typeof wc.isDestroyed === 'function' && wc.isDestroyed()) {
+        trackedWebContents.delete(wc);
+        continue;
+      }
+      applyPackToWebContents(wc, scriptStr);
+    }
+  }
+
+  function isAutoMtEnabled() {
+    return autoMtEnabled;
+  }
+
+  function setAutoMtEnabled(nextEnabled) {
+    const normalized = Boolean(nextEnabled);
+    if (normalized === autoMtEnabled) return autoMtEnabled;
+    autoMtEnabled = normalized;
+    state.autoMtEnabled = normalized;
+    saveStateSync();
+    broadcastAutoMtState(autoMtEnabled);
+    for (const listener of autoMtChangeListeners) {
+      try {
+        listener(autoMtEnabled);
+      } catch (_) {}
+    }
+    return autoMtEnabled;
+  }
+
+  function toggleAutoMtEnabled() {
+    return setAutoMtEnabled(!autoMtEnabled);
+  }
+
+  function onAutoMtChange(fn) {
+    if (typeof fn !== 'function') return () => {};
+    autoMtChangeListeners.add(fn);
+    return () => autoMtChangeListeners.delete(fn);
+  }
+
+  function loadMtCacheSync() {
+    if (mtCacheLoaded) return;
+    mtCacheLoaded = true;
+    try {
+      if (!fs.existsSync(mtCachePath)) return;
+      const raw = fs.readFileSync(mtCachePath, 'utf8');
+      if (Buffer.byteLength(raw, 'utf8') > MAX_PACK_BYTES) return;
+      const parsed = JSON.parse(raw);
+      if (!isPlainObject(parsed) || parsed.schemaVersion !== MT_CACHE_SCHEMA_VERSION || !isPlainObject(parsed.entries)) {
+        return;
+      }
+      for (const [k, v] of Object.entries(parsed.entries)) {
+        if (!k || !isPlainObject(v) || typeof v.zh !== 'string' || !v.zh.trim()) continue;
+        mtCacheMap.set(k, {
+          zh: v.zh,
+          ts: typeof v.ts === 'number' ? v.ts : 0,
+          provider: typeof v.provider === 'string' ? v.provider : ''
+        });
+      }
+    } catch (_) {}
+  }
+
+  function saveMtCacheSync() {
+    try {
+      if (mtCacheMap.size > MAX_MT_CACHE_ENTRIES) {
+        const sorted = Array.from(mtCacheMap.entries()).sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
+        const toRemove = mtCacheMap.size - MAX_MT_CACHE_ENTRIES;
+        for (let i = 0; i < toRemove; i++) {
+          mtCacheMap.delete(sorted[i][0]);
+        }
+      }
+      const entries = {};
+      for (const [k, v] of mtCacheMap.entries()) {
+        entries[k] = v;
+      }
+      atomicWriteFileSync(
+        mtCachePath,
+        JSON.stringify({ schemaVersion: MT_CACHE_SCHEMA_VERSION, entries }, null, 2) + '\n'
+      );
+    } catch (_) {}
+  }
+
+  function getEffectivePreserveList() {
+    loadCachedPackSync();
+    if (activePack && Array.isArray(activePack.preserveList) && activePack.preserveList.length > 0) {
+      return activePack.preserveList;
+    }
+    if (Array.isArray(builtinMeta.preserveList) && builtinMeta.preserveList.length > 0) {
+      return builtinMeta.preserveList;
+    }
+    if (Array.isArray(options.preserveList)) {
+      return options.preserveList;
+    }
+    return [];
+  }
+
+  function isWithinMtRateLimit() {
+    const now = Date.now();
+    while (mtReqTimestamps.length > 0 && now - mtReqTimestamps[0] > MT_RATE_WINDOW_MS) {
+      mtReqTimestamps.shift();
+    }
+    if (mtReqTimestamps.length >= MT_MAX_REQ_PER_MIN) {
+      return false;
+    }
+    mtReqTimestamps.push(now);
+    return true;
+  }
+
+  async function translateDynamicText(rawText) {
+    if (!autoMtEnabled) {
+      return { status: 'disabled', translated: '' };
+    }
+    const norm = normalizeMtText(rawText);
+    if (!isEligibleMtText(norm)) {
+      return { status: 'ineligible', translated: '' };
+    }
+    loadMtCacheSync();
+    if (mtCacheMap.has(norm)) {
+      const hit = mtCacheMap.get(norm);
+      if (hit && hit.zh) {
+        return { status: 'ok', translated: hit.zh, cached: true, provider: hit.provider || '' };
+      }
+    }
+    if (isOtaDisabled()) {
+      return { status: 'disabled', translated: '' };
+    }
+    const failUntil = mtFailCooldown.get(norm) || 0;
+    if (failUntil > Date.now()) {
+      return { status: 'cooldown', translated: '' };
+    }
+    if (mtInFlight.has(norm)) {
+      return mtInFlight.get(norm);
+    }
+    if (!isWithinMtRateLimit()) {
+      return { status: 'rate_limited', translated: '' };
+    }
+
+    const work = (async () => {
+      try {
+        const preserveList = getEffectivePreserveList();
+        const { masked, placeholders } = protectDynamicMtTerms(norm, preserveList);
+        const provider = String(options.mtProvider || env.ANTIGRAVITY_I18N_MT_PROVIDER || 'google-gtx').trim().toLowerCase();
+        let rawTranslated = null;
+
+        if (provider === 'openai') {
+          const mtUrl = String(options.mtUrl || env.ANTIGRAVITY_I18N_MT_URL || '').trim();
+          if (!mtUrl) {
+            return { status: 'error', translated: '', error: 'Missing ANTIGRAVITY_I18N_MT_URL for openai provider' };
+          }
+          const apiKey = String(options.mtApiKey || env.ANTIGRAVITY_I18N_MT_API_KEY || '').trim();
+          const model = String(options.mtModel || env.ANTIGRAVITY_I18N_MT_MODEL || 'gpt-4o-mini').trim();
+          const headers = { 'Content-Type': 'application/json' };
+          if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+          const payload = JSON.stringify({
+            model,
+            temperature: 0,
+            messages: [
+              {
+                role: 'system',
+                content: 'Translate the English desktop UI announcement into concise, natural Simplified Chinese. Preserve all tokens matching AGYTERM<digits>X verbatim without altering or translating them. Output only the translated text.'
+              },
+              { role: 'user', content: masked }
+            ]
+          });
+          const res = await fetchText(mtUrl, headers, { method: 'POST', body: payload });
+          if (res.status < 200 || res.status >= 300) {
+            throw new Error(`HTTP ${res.status} from openai MT endpoint`);
+          }
+          rawTranslated = parseOpenAiMtResponse(res.text);
+        } else {
+          const baseMtUrl = String(options.mtUrl || env.ANTIGRAVITY_I18N_MT_URL || DEFAULT_MT_URL).trim();
+          const sep = baseMtUrl.includes('?') ? '&' : '?';
+          const reqUrl = `${baseMtUrl}${sep}client=gtx&sl=en&tl=zh-CN&dt=t&q=${encodeURIComponent(masked)}`;
+          const res = await fetchText(reqUrl, { Accept: 'application/json' });
+          if (res.status < 200 || res.status >= 300) {
+            throw new Error(`HTTP ${res.status} from google-gtx MT endpoint`);
+          }
+          rawTranslated = parseGoogleGtxResponse(res.text);
+        }
+
+        const restored = restoreDynamicMtTerms(rawTranslated, placeholders);
+        if (!restored || restored === norm) {
+          mtFailCooldown.set(norm, Date.now() + MT_FAIL_COOLDOWN_MS);
+          return { status: 'error', translated: '' };
+        }
+        mtCacheMap.set(norm, { zh: restored, ts: Date.now(), provider });
+        saveMtCacheSync();
+        return { status: 'ok', translated: restored, cached: false, provider };
+      } catch (err) {
+        mtFailCooldown.set(norm, Date.now() + MT_FAIL_COOLDOWN_MS);
+        return {
+          status: 'error',
+          translated: '',
+          error: err && err.message ? err.message : String(err)
+        };
+      } finally {
+        mtInFlight.delete(norm);
+      }
+    })();
+
+    mtInFlight.set(norm, work);
+    return work;
   }
 
   function broadcastLanguageState(enabled) {
@@ -773,6 +1186,11 @@ function createOtaController(options = {}) {
     setI18nEnabled,
     toggleI18nEnabled,
     onLanguageChange,
+    isAutoMtEnabled,
+    setAutoMtEnabled,
+    toggleAutoMtEnabled,
+    onAutoMtChange,
+    translateDynamicText,
     getInitialStateScript,
     t
   };
@@ -789,9 +1207,16 @@ function getDefaultController() {
 module.exports = {
   SUPPORTED_SCHEMA_VERSION,
   DEFAULT_BASE_URLS,
+  DEFAULT_MT_URL,
   compareSemver,
   isNewerPack,
   validatePackObject,
+  normalizeMtText,
+  isEligibleMtText,
+  protectDynamicMtTerms,
+  restoreDynamicMtTerms,
+  parseGoogleGtxResponse,
+  parseOpenAiMtResponse,
   createOtaController,
   getDefaultController,
   registerWebContents: (wc) => getDefaultController().registerWebContents(wc),
@@ -804,6 +1229,11 @@ module.exports = {
   setI18nEnabled: (enabled) => getDefaultController().setI18nEnabled(enabled),
   toggleI18nEnabled: () => getDefaultController().toggleI18nEnabled(),
   onLanguageChange: (fn) => getDefaultController().onLanguageChange(fn),
+  isAutoMtEnabled: () => getDefaultController().isAutoMtEnabled(),
+  setAutoMtEnabled: (enabled) => getDefaultController().setAutoMtEnabled(enabled),
+  toggleAutoMtEnabled: () => getDefaultController().toggleAutoMtEnabled(),
+  onAutoMtChange: (fn) => getDefaultController().onAutoMtChange(fn),
+  translateDynamicText: (text) => getDefaultController().translateDynamicText(text),
   getInitialStateScript: () => getDefaultController().getInitialStateScript(),
   t: (zh, en) => getDefaultController().t(zh, en)
 };

@@ -58,7 +58,8 @@ function isAsarPatched(targetAsar = asarPath) {
     if (
       !menuBuf.includes('translateMenuRecursively') ||
       !menuBuf.includes('antigravity-i18n-check-update') ||
-      !menuBuf.includes('antigravity-i18n-toggle-lang')
+      !menuBuf.includes('antigravity-i18n-toggle-lang') ||
+      !menuBuf.includes('antigravity-i18n-toggle-auto-mt')
     ) return false;
     const utilsBuf = asar.extractFile(targetAsar, path.join('dist', 'utils.js'));
     if (
@@ -72,7 +73,7 @@ function isAsarPatched(targetAsar = asarPath) {
     const mainBuf = asar.extractFile(targetAsar, path.join('dist', 'main.js'));
     if (!mainBuf.includes('function _i18nT(') || !mainBuf.includes('antigravity-i18n-toggle-lang')) return false;
     const i18nBuf = asar.extractFile(targetAsar, path.join('dist', 'i18n.js'));
-    return i18nBuf.includes('antigravity-i18n-titlebar-toggle');
+    return i18nBuf.includes('antigravity-i18n-titlebar-toggle') && i18nBuf.includes('__antigravitySetAutoMtEnabled');
   } catch (_) {
     return false;
   }
@@ -378,6 +379,19 @@ function _getAntigravityI18nOta() {
                 console.error('[Antigravity-i18n] 切换显示语言失败:', err);
             }
         },
+    }));
+    addItemToSubmenu(menu, 'Help', 3, new electron_1.MenuItem({
+        id: 'antigravity-i18n-toggle-auto-mt',
+        type: 'checkbox',
+        checked: _isMenuAutoMtEnabled(),
+        label: _isMenuI18nEnabled() ? '自动翻译动态公告' : 'Auto-Translate Announcements',
+        click: () => {
+            try {
+                require('./i18n_ota').toggleAutoMtEnabled();
+            } catch (err) {
+                console.error('[Antigravity-i18n] 切换自动翻译动态公告失败:', err);
+            }
+        },
     }));`;
     const menuHook = `
 const MENU_I18N = {
@@ -400,7 +414,8 @@ const MENU_I18N = {
 const MENU_ZH_TO_EN = Object.fromEntries(Object.entries(MENU_I18N).map(([en, zh]) => [zh, en]));
 const MENU_CUSTOM_LABELS = {
     'antigravity-i18n-check-update': { zh: '检查汉化更新', en: 'Check i18n Updates' },
-    'antigravity-i18n-toggle-lang': { zh: '切换为英文原文 (关闭汉化)', en: '切换为简体中文 (开启汉化)' }
+    'antigravity-i18n-toggle-lang': { zh: '切换为英文原文 (关闭汉化)', en: '切换为简体中文 (开启汉化)' },
+    'antigravity-i18n-toggle-auto-mt': { zh: '自动翻译动态公告', en: 'Auto-Translate Announcements' }
 };
 function _isMenuI18nEnabled() {
     try {
@@ -410,11 +425,22 @@ function _isMenuI18nEnabled() {
         return true;
     }
 }
+function _isMenuAutoMtEnabled() {
+    try {
+        const ota = require('./i18n_ota');
+        return !ota || typeof ota.isAutoMtEnabled !== 'function' || ota.isAutoMtEnabled();
+    } catch (_) {
+        return true;
+    }
+}
 function translateMenuRecursively(menu, enabled = true) {
     if (!menu || !menu.items) return;
     menu.items.forEach((item) => {
         if (item.id && Object.prototype.hasOwnProperty.call(MENU_CUSTOM_LABELS, item.id)) {
             item.label = enabled ? MENU_CUSTOM_LABELS[item.id].zh : MENU_CUSTOM_LABELS[item.id].en;
+            if (item.id === 'antigravity-i18n-toggle-auto-mt') {
+                item.checked = _isMenuAutoMtEnabled();
+            }
         } else if (item.label) {
             if (!item.__antigravityOrigLabel) {
                 if (Object.prototype.hasOwnProperty.call(MENU_I18N, item.label)) {
@@ -449,11 +475,26 @@ function _ensureMenuLangSubscription() {
                 } catch (_) {}
             });
         }
+        if (ota && typeof ota.onAutoMtChange === 'function') {
+            ota.onAutoMtChange(() => {
+                try {
+                    const cur = electron_1.Menu.getApplicationMenu();
+                    if (cur) {
+                        translateMenuRecursively(cur, _isMenuI18nEnabled());
+                        electron_1.Menu.setApplicationMenu(cur);
+                    }
+                } catch (_) {}
+            });
+        }
     } catch (_) {}
 }
 `;
     if (code.includes('MENU_I18N')) {
-      if (code.includes('antigravity-i18n-toggle-lang') && code.includes('切换为英文原文')) {
+      if (
+        code.includes('antigravity-i18n-toggle-lang') &&
+        code.includes('切换为英文原文') &&
+        code.includes('antigravity-i18n-toggle-auto-mt')
+      ) {
         return code;
       }
       let upgraded = applyPairs(code, [
@@ -614,13 +655,13 @@ function _ensureTrayLangSubscription() {
     if (!next.includes("exposeInMainWorld('desktopMic', remoteDesktopMic);\n    electron_1.contextBridge.exposeInMainWorld('antigravityI18nOta'")) {
       next = next.replace(
         /(electron_1\.contextBridge\.exposeInMainWorld\('desktopMic',\s*remoteDesktopMic\);)/,
-        `$1\n    electron_1.contextBridge.exposeInMainWorld('antigravityI18nOta', {\n        toggleLanguage: () => electron_1.ipcRenderer.invoke('i18n-ota:toggle-language'),\n        getLanguageEnabled: () => electron_1.ipcRenderer.invoke('i18n-ota:get-language-enabled'),\n    });`
+        `$1\n    electron_1.contextBridge.exposeInMainWorld('antigravityI18nOta', {\n        toggleLanguage: () => electron_1.ipcRenderer.invoke('i18n-ota:toggle-language'),\n        getLanguageEnabled: () => electron_1.ipcRenderer.invoke('i18n-ota:get-language-enabled'),\n        translateDynamicText: (text) => electron_1.ipcRenderer.invoke('i18n-ota:translate-dynamic', text),\n        getAutoMtEnabled: () => electron_1.ipcRenderer.invoke('i18n-ota:get-auto-mt-enabled'),\n        toggleAutoMt: () => electron_1.ipcRenderer.invoke('i18n-ota:toggle-auto-mt'),\n    });`
       );
     }
     if (!next.includes("exposeInMainWorld('electronUpdater', updaterAPI);\n    electron_1.contextBridge.exposeInMainWorld('antigravityI18nOta'")) {
       next = next.replace(
         /(electron_1\.contextBridge\.exposeInMainWorld\('electronUpdater',\s*updaterAPI\);)/,
-        `$1\n    electron_1.contextBridge.exposeInMainWorld('antigravityI18nOta', {\n        checkForUpdates: () => electron_1.ipcRenderer.invoke('i18n-ota:check-updates'),\n        toggleLanguage: () => electron_1.ipcRenderer.invoke('i18n-ota:toggle-language'),\n        getLanguageEnabled: () => electron_1.ipcRenderer.invoke('i18n-ota:get-language-enabled'),\n    });`
+        `$1\n    electron_1.contextBridge.exposeInMainWorld('antigravityI18nOta', {\n        checkForUpdates: () => electron_1.ipcRenderer.invoke('i18n-ota:check-updates'),\n        toggleLanguage: () => electron_1.ipcRenderer.invoke('i18n-ota:toggle-language'),\n        getLanguageEnabled: () => electron_1.ipcRenderer.invoke('i18n-ota:get-language-enabled'),\n        translateDynamicText: (text) => electron_1.ipcRenderer.invoke('i18n-ota:translate-dynamic', text),\n        getAutoMtEnabled: () => electron_1.ipcRenderer.invoke('i18n-ota:get-auto-mt-enabled'),\n        toggleAutoMt: () => electron_1.ipcRenderer.invoke('i18n-ota:toggle-auto-mt'),\n    });`
       );
     }
     return next;
@@ -738,7 +779,7 @@ function spawnAutoPatcherOnUpdate(shouldRelaunch = true) {
     if (!next.includes('i18n-ota:check-updates')) {
       next = next.replace(
         /(localOnly\('updater:check-for-updates',\s*\(\)\s*=>\s*\{[\s\S]*?\}\);)/,
-        `$1\n    localOnly('i18n-ota:check-updates', () => {\n        try {\n            return require('./i18n_ota').checkForUpdates({ manual: true });\n        } catch (err) {\n            console.error('[Antigravity-i18n] IPC 检查汉化更新失败:', err);\n            return { status: 'error', error: String((err && err.message) || err) };\n        }\n    });\n    electron_1.ipcMain.handle('i18n-ota:toggle-language', () => {\n        try {\n            return { enabled: require('./i18n_ota').toggleI18nEnabled() };\n        } catch (err) {\n            console.error('[Antigravity-i18n] IPC 切换显示语言失败:', err);\n            return { enabled: true, error: String((err && err.message) || err) };\n        }\n    });\n    electron_1.ipcMain.handle('i18n-ota:get-language-enabled', () => {\n        try {\n            return { enabled: require('./i18n_ota').isI18nEnabled() };\n        } catch (_) {\n            return { enabled: true };\n        }\n    });`
+        `$1\n    localOnly('i18n-ota:check-updates', () => {\n        try {\n            return require('./i18n_ota').checkForUpdates({ manual: true });\n        } catch (err) {\n            console.error('[Antigravity-i18n] IPC 检查汉化更新失败:', err);\n            return { status: 'error', error: String((err && err.message) || err) };\n        }\n    });\n    electron_1.ipcMain.handle('i18n-ota:toggle-language', () => {\n        try {\n            return { enabled: require('./i18n_ota').toggleI18nEnabled() };\n        } catch (err) {\n            console.error('[Antigravity-i18n] IPC 切换显示语言失败:', err);\n            return { enabled: true, error: String((err && err.message) || err) };\n        }\n    });\n    electron_1.ipcMain.handle('i18n-ota:get-language-enabled', () => {\n        try {\n            return { enabled: require('./i18n_ota').isI18nEnabled() };\n        } catch (_) {\n            return { enabled: true };\n        }\n    });\n    electron_1.ipcMain.handle('i18n-ota:translate-dynamic', (_event, text) => {\n        try {\n            return require('./i18n_ota').translateDynamicText(text);\n        } catch (err) {\n            return { status: 'error', translated: '', error: String((err && err.message) || err) };\n        }\n    });\n    electron_1.ipcMain.handle('i18n-ota:get-auto-mt-enabled', () => {\n        try {\n            return { enabled: require('./i18n_ota').isAutoMtEnabled() };\n        } catch (_) {\n            return { enabled: true };\n        }\n    });\n    electron_1.ipcMain.handle('i18n-ota:toggle-auto-mt', () => {\n        try {\n            return { enabled: require('./i18n_ota').toggleAutoMtEnabled() };\n        } catch (err) {\n            return { enabled: true, error: String((err && err.message) || err) };\n        }\n    });`
       );
     }
     if (!next.includes('translateContextMenuLabel')) {
@@ -1088,13 +1129,13 @@ function translateContextMenuLabel(rawLabel) {
   const { engineScript, dictCount, builtinMeta } = buildEngine();
   console.log(`[3/4] 正在内联生成 ${dictCount || '全量'} 词条确定性引擎与 OTA 热更模块...`);
   fs.writeFileSync(path.join(tempDir, 'dist', 'i18n.js'), engineScript, 'utf8');
-  fs.writeFileSync(path.join(tempDir, 'dist', 'i18n_meta.json'), JSON.stringify(builtinMeta, null, 2) + '\n', 'utf8');
+  const preserveList = JSON.parse(fs.readFileSync(path.join(projectRoot, 'assets', 'preserve_list.json'), 'utf8'));
+  fs.writeFileSync(path.join(tempDir, 'dist', 'i18n_meta.json'), JSON.stringify({ ...builtinMeta, preserveList }, null, 2) + '\n', 'utf8');
   const otaMainSrc = path.join(__dirname, 'ota', 'i18n_ota_main.js');
   if (!fs.existsSync(otaMainSrc)) {
     throw new Error(`未找到主进程 OTA 模块: ${otaMainSrc}`);
   }
   fs.copyFileSync(otaMainSrc, path.join(tempDir, 'dist', 'i18n_ota.js'));
-  const preserveList = JSON.parse(fs.readFileSync(path.join(projectRoot, 'assets', 'preserve_list.json'), 'utf8'));
   const rawDict = JSON.parse(fs.readFileSync(path.join(projectRoot, 'assets', 'dictionary.json'), 'utf8'));
   const cleanedDict = cleanDictObject(rawDict, preserveList);
   const nativeMenuDict = {};

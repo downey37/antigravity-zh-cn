@@ -393,5 +393,9 @@
   "Threads as cells, with each worker where it works": "以单元格展示各线程及工作节点所在位置",
   "Export graph replay as an animated GIF": "将关系图回放导出为动态 GIF",
   "Close preview": "关闭预览",
-  "Channels": "频道"
+  "Channels": "频道",
+  "Model cannot be changed while the agent is running": "智能体运行期间无法切换模型",
+  "Runs on this machine": "在此电脑上运行",
+  "Search Hosts...": "搜索主机...",
+  "Cloning locally...": "正在克隆到本地..."
 }

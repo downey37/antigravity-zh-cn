@@ -1,5 +1,5 @@
 name: Bug / 兼容性问题反馈
-description: 反馈安装、还原、中英切换、代理守护或客户端兼容性异常
+description: 反馈安装、还原、中英切换、免 TUN 联网或客户端兼容性异常
 title: "[Bug] "
 labels: ["bug"]
 body:

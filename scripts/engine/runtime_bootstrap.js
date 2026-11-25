@@ -15,6 +15,9 @@ function antigravityI18nBootstrap(
   'use strict';
 
   if (window.__ANTIGRAVITY_I18N_INITIALIZED__) {
+    if (typeof window.__antigravitySetAutoMtEnabled === 'function' && typeof window.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__ === 'boolean') {
+      window.__antigravitySetAutoMtEnabled(window.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__);
+    }
     if (typeof window.__antigravitySetI18nEnabled === 'function' && typeof window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ === 'boolean') {
       window.__antigravitySetI18nEnabled(window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__);
     } else if (window.__antigravityTranslateAll) {
@@ -25,6 +28,7 @@ function antigravityI18nBootstrap(
   window.__ANTIGRAVITY_I18N_INITIALIZED__ = true;
 
   let I18N_ENABLED = typeof window !== 'undefined' ? window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ !== false : true;
+  let AUTO_MT_ENABLED = typeof window !== 'undefined' ? window.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__ !== false : true;
   let dictGeneration = 0;
   const CONTEXT_UPGRADE_ZH_SET = new Set(['新建', '无', '关闭思考', '请求审核', '全自动', '自动']);
   const ORIG_TEXT = typeof WeakMap === 'function' ? new WeakMap() : null;
@@ -157,7 +161,8 @@ function antigravityI18nBootstrap(
     isElapsedDurationContext,
     isModelEffortContext,
     isModelLabelContext,
-    getSettingsPageSubtitleContainer
+    getSettingsPageSubtitleContainer,
+    isAutoMtEligibleContext
   } = CONTEXT_RULES_FACTORY();
 
   const TARGET_ATTRS = [
@@ -399,14 +404,103 @@ function antigravityI18nBootstrap(
     return str;
   }
 
-  function applyTextTranslation(node, currentVal, nextVal, fromSplit) {
+  const AUTO_MT_MEM_CACHE = new Map();
+  const AUTO_MT_PENDING = new Map();
+  const AUTO_MT_FAILED_UNTIL = new Map();
+
+  function isAutoMtCandidateText(norm) {
+    if (!norm || norm.length < 4 || norm.length > 600) return false;
+    if (/[\u4e00-\u9fff]/.test(norm) || PRESERVE_SET.has(norm)) return false;
+    if (!/[A-Za-z]{2,}[\s/-]+[A-Za-z]{2,}/.test(norm)) return false;
+    if (/^(?:https?:\/\/|[A-Za-z]:\\|\/[\w.-]+\/|\{[\s\S]*\}|\[[\s\S]*\])/.test(norm)) return false;
+    return true;
+  }
+
+  function applyTextTranslation(node, currentVal, nextVal, fromSplit, fromAutoMt) {
     if (nextVal === currentVal) return;
     if (ORIG_TEXT) {
       const prev = ORIG_TEXT.get(node);
       const trueOrig = prev && currentVal === prev.translated ? prev.orig : currentVal;
-      ORIG_TEXT.set(node, { orig: trueOrig, translated: nextVal, gen: dictGeneration, fromSplit: Boolean(fromSplit) });
+      ORIG_TEXT.set(node, {
+        orig: trueOrig,
+        translated: nextVal,
+        gen: dictGeneration,
+        fromSplit: Boolean(fromSplit),
+        fromAutoMt: Boolean(fromAutoMt)
+      });
     }
     node.nodeValue = nextVal;
+  }
+
+  function maybeTranslateDynamicAnnouncement(node, val, parent) {
+    if (!I18N_ENABLED || !AUTO_MT_ENABLED) return false;
+    if (!isAutoMtEligibleContext(parent)) return false;
+    const wsMatch = val.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    const leadWs = wsMatch ? wsMatch[1] : '';
+    const trimmed = wsMatch ? wsMatch[2] : val.trim();
+    const trailWs = wsMatch ? wsMatch[3] : '';
+    if (!trimmed) return false;
+    const norm = normalizeKey(trimmed);
+    if (!isAutoMtCandidateText(norm)) return false;
+
+    if (AUTO_MT_MEM_CACHE.has(norm)) {
+      const cachedZh = AUTO_MT_MEM_CACHE.get(norm);
+      if (cachedZh && cachedZh !== norm) {
+        applyTextTranslation(node, val, leadWs + cachedZh + trailWs, false, true);
+        return true;
+      }
+      return false;
+    }
+
+    const otaBridge = typeof window !== 'undefined' ? window.antigravityI18nOta : null;
+    if (!otaBridge || typeof otaBridge.translateDynamicText !== 'function') return false;
+    if ((AUTO_MT_FAILED_UNTIL.get(norm) || 0) > Date.now()) return false;
+
+    let waiters = AUTO_MT_PENDING.get(norm);
+    const isNewRequest = !waiters;
+    if (!waiters) {
+      waiters = [];
+      AUTO_MT_PENDING.set(norm, waiters);
+    }
+    if (!waiters.some((w) => w.node === node)) {
+      waiters.push({ node, origVal: val, leadWs, trailWs });
+    }
+
+    if (isNewRequest) {
+      try {
+        Promise.resolve(otaBridge.translateDynamicText(norm))
+          .then((res) => {
+            const pendingWaiters = AUTO_MT_PENDING.get(norm) || [];
+            AUTO_MT_PENDING.delete(norm);
+            if (res && res.status === 'ok' && typeof res.translated === 'string') {
+              const zh = res.translated.trim();
+              if (zh && zh !== norm) {
+                AUTO_MT_MEM_CACHE.set(norm, zh);
+                if (I18N_ENABLED && AUTO_MT_ENABLED) {
+                  for (let i = 0; i < pendingWaiters.length; i++) {
+                    const w = pendingWaiters[i];
+                    if (w && w.node && w.node.isConnected !== false && w.node.nodeValue === w.origVal) {
+                      applyTextTranslation(w.node, w.origVal, w.leadWs + zh + w.trailWs, false, true);
+                    }
+                  }
+                }
+                return;
+              }
+            }
+            if (!res || res.status !== 'disabled') {
+              AUTO_MT_FAILED_UNTIL.set(norm, Date.now() + 60000);
+            }
+          })
+          .catch(() => {
+            AUTO_MT_PENDING.delete(norm);
+            AUTO_MT_FAILED_UNTIL.set(norm, Date.now() + 60000);
+          });
+      } catch (_) {
+        AUTO_MT_PENDING.delete(norm);
+        AUTO_MT_FAILED_UNTIL.set(norm, Date.now() + 60000);
+      }
+    }
+    return false;
   }
 
   function applyAttrTranslation(node, attr, currentVal, nextVal) {
@@ -506,7 +600,7 @@ function antigravityI18nBootstrap(
   }
 
   const INJECTED_I18N_SELECTOR =
-    '[data-antigravity-i18n-titlebar-toggle-wrap="true"], [data-antigravity-i18n-titlebar-toggle="true"], [data-antigravity-i18n-ota-item="true"], [data-antigravity-i18n-toggle-item="true"]';
+    '[data-antigravity-i18n-titlebar-toggle-wrap="true"], [data-antigravity-i18n-titlebar-toggle="true"], [data-antigravity-i18n-ota-item="true"]';
 
   function isInjectedI18nControl(node) {
     if (!node) return false;
@@ -580,7 +674,9 @@ function antigravityI18nBootstrap(
         trans = trans.replace(/。(\s*)$/, '$1');
       }
       if (trans !== val) {
-        applyTextTranslation(node, val, trans, false);
+        applyTextTranslation(node, val, trans, false, false);
+      } else {
+        maybeTranslateDynamicAnnouncement(node, val, parent);
       }
       return;
     }
@@ -785,11 +881,8 @@ function antigravityI18nBootstrap(
       : (typeof document.querySelectorAll === 'function' ? document : null);
     if (!queryRoot) return;
     const otaLabel = I18N_ENABLED ? '检查汉化更新' : 'Check i18n Updates';
-    const toggleLabel = I18N_ENABLED ? '切换为英文原文 (关闭汉化)' : '切换为简体中文 (开启汉化)';
     const otaBtns = queryRoot.querySelectorAll('[data-antigravity-i18n-ota-item="true"]');
     for (let i = 0; i < otaBtns.length; i++) setBtnLabelText(otaBtns[i], otaLabel);
-    const toggleBtns = queryRoot.querySelectorAll('[data-antigravity-i18n-toggle-item="true"]');
-    for (let i = 0; i < toggleBtns.length; i++) setBtnLabelText(toggleBtns[i], toggleLabel);
     const titleToggles = queryRoot.querySelectorAll('[data-antigravity-i18n-titlebar-toggle="true"]');
     for (let i = 0; i < titleToggles.length; i++) updateTitleBarToggleVisuals(titleToggles[i]);
   }
@@ -803,9 +896,7 @@ function antigravityI18nBootstrap(
       return;
     }
     const otaBridge = window.antigravityI18nOta;
-    const canCheckUpdates = typeof otaBridge.checkForUpdates === 'function';
-    const canToggleLang = typeof otaBridge.toggleLanguage === 'function' || typeof window.__antigravitySetI18nEnabled === 'function';
-    if (!canCheckUpdates && !canToggleLang) return;
+    if (typeof otaBridge.checkForUpdates !== 'function') return;
 
     const candidates = [];
     if (rootEl && rootEl.nodeType === 1) {
@@ -819,11 +910,7 @@ function antigravityI18nBootstrap(
     for (let i = 0; i < candidates.length; i++) {
       const optBtn = candidates[i];
       if (!optBtn || !optBtn.closest || !optBtn.closest('[data-testid="title-menu-bar"]')) continue;
-      if (
-        optBtn.getAttribute &&
-        (optBtn.getAttribute('data-antigravity-i18n-ota-item') === 'true' ||
-          optBtn.getAttribute('data-antigravity-i18n-toggle-item') === 'true')
-      ) {
+      if (optBtn.getAttribute && optBtn.getAttribute('data-antigravity-i18n-ota-item') === 'true') {
         continue;
       }
       const label = (optBtn.textContent || '').trim();
@@ -842,52 +929,24 @@ function antigravityI18nBootstrap(
       const itemWrapper = optBtn.parentElement;
       const menuPopup = itemWrapper && itemWrapper.parentElement;
       if (!menuPopup) continue;
-
-      let anchor = itemWrapper;
-      if (canCheckUpdates && !(menuPopup.querySelector && menuPopup.querySelector('[data-antigravity-i18n-ota-item="true"]'))) {
-        const otaWrapper = makeTitleMenuButton(
-          optBtn,
-          'data-antigravity-i18n-ota-item',
-          I18N_ENABLED ? '检查汉化更新' : 'Check i18n Updates',
-          () => {
-            try {
-              Promise.resolve(otaBridge.checkForUpdates()).catch(() => {});
-            } catch (_) {}
-          }
-        );
-        if (anchor.nextSibling) {
-          menuPopup.insertBefore(otaWrapper, anchor.nextSibling);
-        } else {
-          menuPopup.appendChild(otaWrapper);
-        }
-        anchor = otaWrapper;
-      } else if (menuPopup.querySelector) {
-        const existingOtaBtn = menuPopup.querySelector('[data-antigravity-i18n-ota-item="true"]');
-        if (existingOtaBtn && existingOtaBtn.parentElement) {
-          anchor = existingOtaBtn.parentElement;
-        }
+      if (menuPopup.querySelector && menuPopup.querySelector('[data-antigravity-i18n-ota-item="true"]')) {
+        continue;
       }
 
-      if (canToggleLang && !(menuPopup.querySelector && menuPopup.querySelector('[data-antigravity-i18n-toggle-item="true"]'))) {
-        const toggleWrapper = makeTitleMenuButton(
-          optBtn,
-          'data-antigravity-i18n-toggle-item',
-          I18N_ENABLED ? '切换为英文原文 (关闭汉化)' : '切换为简体中文 (开启汉化)',
-          () => {
-            try {
-              if (typeof otaBridge.toggleLanguage === 'function') {
-                Promise.resolve(otaBridge.toggleLanguage()).catch(() => {});
-              } else if (typeof window.__antigravitySetI18nEnabled === 'function') {
-                window.__antigravitySetI18nEnabled(!I18N_ENABLED);
-              }
-            } catch (_) {}
-          }
-        );
-        if (anchor.nextSibling) {
-          menuPopup.insertBefore(toggleWrapper, anchor.nextSibling);
-        } else {
-          menuPopup.appendChild(toggleWrapper);
+      const otaWrapper = makeTitleMenuButton(
+        optBtn,
+        'data-antigravity-i18n-ota-item',
+        I18N_ENABLED ? '检查汉化更新' : 'Check i18n Updates',
+        () => {
+          try {
+            Promise.resolve(otaBridge.checkForUpdates()).catch(() => {});
+          } catch (_) {}
         }
+      );
+      if (itemWrapper.nextSibling) {
+        menuPopup.insertBefore(otaWrapper, itemWrapper.nextSibling);
+      } else {
+        menuPopup.appendChild(otaWrapper);
       }
     }
   }
@@ -930,6 +989,32 @@ function antigravityI18nBootstrap(
     }
   }
 
+  function restoreAutoMtSubtree(root) {
+    if (!root) return;
+    if (root.nodeType === 3) {
+      if (ORIG_TEXT) {
+        const rec = ORIG_TEXT.get(root);
+        if (rec && rec.fromAutoMt && root.nodeValue === rec.translated && rec.orig !== rec.translated) {
+          root.nodeValue = rec.orig;
+        }
+      }
+      return;
+    }
+    if (root.nodeType === 1) {
+      if (isInjectedI18nControl(root)) return;
+      if (root.shadowRoot) {
+        restoreAutoMtSubtree(root.shadowRoot);
+      }
+      for (let child = root.firstChild; child; child = child.nextSibling) {
+        restoreAutoMtSubtree(child);
+      }
+    } else if (root.nodeType === 11) {
+      for (let child = root.firstChild; child; child = child.nextSibling) {
+        restoreAutoMtSubtree(child);
+      }
+    }
+  }
+
   function translateSubtree(root) {
     if (!root) return;
     translateNode(root);
@@ -945,6 +1030,42 @@ function antigravityI18nBootstrap(
   };
   window.__antigravityIsI18nEnabled = function () {
     return I18N_ENABLED;
+  };
+  window.__antigravityIsAutoMtEnabled = function () {
+    return AUTO_MT_ENABLED;
+  };
+  window.__antigravitySetAutoMtEnabled = function (enabled) {
+    const nextEnabled = Boolean(enabled);
+    if (nextEnabled === AUTO_MT_ENABLED) {
+      return AUTO_MT_ENABLED;
+    }
+    AUTO_MT_ENABLED = nextEnabled;
+    const root = typeof document !== 'undefined' ? (document.documentElement || document.body) : null;
+    if (AUTO_MT_ENABLED) {
+      if (I18N_ENABLED) {
+        if (root) translateSubtree(root);
+        if (typeof document !== 'undefined') translatePortals();
+      }
+    } else {
+      if (root) restoreAutoMtSubtree(root);
+      if (typeof document !== 'undefined') {
+        const queryRoot = (document.documentElement && typeof document.documentElement.querySelectorAll === 'function')
+          ? document.documentElement
+          : (typeof document.querySelectorAll === 'function' ? document : null);
+        if (queryRoot) {
+          const portals = queryRoot.querySelectorAll(PORTAL_SELECTOR);
+          for (let i = 0; i < portals.length; i++) {
+            const p = portals[i];
+            if (!p) continue;
+            if (p.parentElement && p.parentElement.closest && p.parentElement.closest(PORTAL_SELECTOR)) {
+              continue;
+            }
+            restoreAutoMtSubtree(p);
+          }
+        }
+      }
+    }
+    return AUTO_MT_ENABLED;
   };
   window.__antigravitySetI18nEnabled = function (enabled) {
     const nextEnabled = Boolean(enabled);

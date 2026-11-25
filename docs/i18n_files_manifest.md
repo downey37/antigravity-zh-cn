@@ -6,7 +6,7 @@
 
 - `一键修复或更新汉化.bat`：Windows 双击一键修复/应用最新版汉化补丁（免 Node.js，自动回落复用客户端内置 Electron 运行时）。
 - `一键还原官方英文.bat`：Windows 双击一键将 `app.asar.bak` 无损还原为官方英文原版。
-- `一键代理守护启动.bat`：Windows 启动守护入口，启动前自动自愈补丁并探测 Windows 系统代理与本地端口（`7897 / 10808 / 7890`）。
+- `一键免TUN启动.bat`：Windows 免 TUN 联网启动入口，启动前自动自愈补丁并探测 Windows 系统代理与本地端口（`7897 / 10808 / 7890`）。
 - `install_macos.sh` / `restore_macos.sh`：macOS 一键安装与一键还原脚本（含自动本地 `codesign` 深度签名）。
 - `build_and_deploy.ps1`：编译生成 `build/i18n.js`，从 `app.asar.bak` 打包部署至官方安装目录，并自动运行 `verify_engine.js` 校验。
 - `package.json` / `package-lock.json`：提供 `@electron/asar` 打包拆包依赖与标准化 npm 脚本。
@@ -37,7 +37,7 @@
 - `scripts/scan_updates.js`：从 `%APPDATA%\Antigravity\Cache\Cache_Data` 刷新最新前端 `bundle_main.js` 基线并扫描遗漏英文 UI 字符串。
 - `scripts/verify_engine.js`：使用 Node `vm` 对已部署 `app.asar`、DOM 切换、OTA 热更、代理自动探测与还原逻辑执行回归测试。
 - `scripts/release_version.js`：校验 `package.json`、`assets/baseline/version.json` 与 `README.md` 版本一致性，并辅助递增三段式版本号及生成标准 Tag / Release 命令。
-- `scripts/guard_launch.js` & `scripts/auto_patch_on_update.js` & `scripts/patch_antigravity.js`：启动守护（内置 Windows 系统代理读取与 `7897 / 10808 / 7890` 自动探测）、官方更新后自动重打补丁与一键修复入口。
+- `scripts/guard_launch.js` & `scripts/auto_patch_on_update.js` & `scripts/patch_antigravity.js`：免 TUN 联网启动（内置 Windows 系统代理读取与 `7897 / 10808 / 7890` 自动探测）、官方更新后自动重打补丁与一键修复入口。
 
 ## 4. 构建产物、CI 与文档
 

@@ -711,10 +711,11 @@ function createDynamicRules(helpers) {
       }
     }
 
-    // 3. "{Model} is now available (in Antigravity)."
-    m = s.match(/^((?:Claude|Gemini|Sonnet|Opus|GPT|Orchestrator|Argon|Carbon|Hydrogen|Neon)\b[^.!?]*?)\s+is\s+now\s+available(\s+in\s+Antigravity)?\.?$/i);
+    // 3. "{Model} [is/are] now available (in Antigravity)[.!]"
+    m = s.match(/^((?:Claude|Gemini|Sonnet|Opus|Haiku|GPT(?:-OSS)?|Orchestrator|Argon|Carbon|Hydrogen|Neon|Flash)\b[^.!?]*?)\s+(?:(?:is|are)\s+)?now\s+available(\s+in\s+Antigravity)?([.!])?$/i);
     if (m) {
-      return m[2] ? `${m[1].trim()} 现已在 Antigravity 中开放。` : `${m[1].trim()} 现已开放。`;
+      const punct = m[3] === '!' ? '！' : '。';
+      return m[2] ? `${m[1].trim()} 现已在 Antigravity 中开放${punct}` : `${m[1].trim()} 现已开放${punct}`;
     }
 
     // 4. "{Model/Third-party} is/are (currently) only available to/on/for {Audience/Plan}."
@@ -1361,6 +1362,10 @@ function createDynamicRules(helpers) {
     }],
     [/^Agent permissions preset selector,\s*current:\s*(.+)$/i, (_, p) => `智能体权限预设选择器，当前：${lookupExact(p.trim(), normalizeKey(p.trim())) || p.trim()}`],
     [/^Agent permissions preset:\s*(.+?),\s*(.+)$/i, (_, p, reason) => `智能体权限预设：${lookupExact(p.trim(), normalizeKey(p.trim())) || p.trim()}，${lookupExact(reason.trim(), normalizeKey(reason.trim())) || reason.trim()}`],
+    [/^(\d+)\s+hidden hosts?$/i, '$1 个已隐藏的主机'],
+    [/^Where the agent runs,\s*current:\s*(.+?)\s*\((.+)\)$/i, (_, loc, busy) => `智能体运行位置，当前：${lookupExact(loc.trim(), normalizeKey(loc.trim())) || loc.trim()}（${lookupExact(busy.trim(), normalizeKey(busy.trim())) || busy.trim()}）`],
+    [/^Where the agent runs,\s*current:\s*(.+)$/i, (_, loc) => `智能体运行位置，当前：${lookupExact(loc.trim(), normalizeKey(loc.trim())) || loc.trim()}`],
+    [/^Model:\s*(.+?),\s*(Model cannot be changed while the agent is running)$/i, (_, model, reason) => `模型：${translateModelWithEffort(model.trim()) || translateModelParenEffort(model.trim()) || model.trim()}，${lookupExact(reason.trim(), normalizeKey(reason.trim())) || reason.trim()}`],
     [/^(.+?)\s+needs?\s+the terminal sandbox,\s*which isn't available on this host\.$/i, (_, names) => {
       const translatedNames = names
         .split(/\s+and\s+/i)

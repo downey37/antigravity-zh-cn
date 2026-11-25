@@ -177,14 +177,18 @@ function runVerification() {
     assert(ipcCode.includes('getNativeContextDict'), 'ipcHandlers.js must integrate OTA getNativeContextDict');
     assert(ipcCode.includes('i18n-ota:check-updates'), 'ipcHandlers.js must register i18n-ota:check-updates IPC handler');
     assert(ipcCode.includes("ipcMain.handle('i18n-ota:toggle-language'") && ipcCode.includes("ipcMain.handle('i18n-ota:get-language-enabled'"), 'ipcHandlers.js must register language toggle IPC handlers via ipcMain.handle');
+    assert(ipcCode.includes("ipcMain.handle('i18n-ota:translate-dynamic'") && ipcCode.includes("ipcMain.handle('i18n-ota:get-auto-mt-enabled'") && ipcCode.includes("ipcMain.handle('i18n-ota:toggle-auto-mt'"), 'ipcHandlers.js must register dynamic auto-MT IPC handlers via ipcMain.handle');
     assert(ipcCode.includes('isI18nEnabled') && ipcCode.includes('function _i18nT('), 'ipcHandlers.js must respect isI18nEnabled and define _i18nT');
     const preloadCode = asar.extractFile(deployedAsar, path.join('dist', 'preload.js')).toString('utf8');
     assert(
       (preloadCode.match(/exposeInMainWorld\('antigravityI18nOta'/g) || []).length === 2 &&
       preloadCode.includes('i18n-ota:check-updates') &&
       preloadCode.includes('toggleLanguage') &&
-      preloadCode.includes('i18n-ota:toggle-language'),
-      'preload.js must expose antigravityI18nOta in both remote and local window branches'
+      preloadCode.includes('i18n-ota:toggle-language') &&
+      preloadCode.includes('translateDynamicText') &&
+      preloadCode.includes('getAutoMtEnabled') &&
+      preloadCode.includes('toggleAutoMt'),
+      'preload.js must expose antigravityI18nOta (including auto-MT IPC) in both remote and local window branches'
     );
     const mainCode = asar.extractFile(deployedAsar, path.join('dist', 'main.js')).toString('utf8');
     assert(mainCode.includes('antigravity-i18n-check-update') && mainCode.includes('antigravity-i18n-toggle-lang') && mainCode.includes('function _i18nT(') && mainCode.includes('切换为英文原文'), 'main.js must add OTA check, language toggle, and _i18nT');
@@ -196,7 +200,8 @@ function runVerification() {
     assert(asar.statFile(deployedAsar, path.join('dist', 'i18n_meta.json')), 'app.asar must include dist/i18n_meta.json');
     const embeddedMeta = JSON.parse(asar.extractFile(deployedAsar, path.join('dist', 'i18n_meta.json')).toString('utf8'));
     assert.strictEqual(embeddedMeta.schemaVersion, 1, 'dist/i18n_meta.json must have schemaVersion 1');
-    assert(menuCode.includes('translateMenuRecursively') && menuCode.includes('antigravity-i18n-check-update') && menuCode.includes('antigravity-i18n-toggle-lang') && menuCode.includes('onLanguageChange') && menuCode.includes('__antigravityOrigLabel || menuItem.label'), 'menu.js must include translateMenuRecursively, OTA check, language toggle item, onLanguageChange listener, and __antigravityOrigLabel updateAction lookup');
+    assert(Array.isArray(embeddedMeta.preserveList) && embeddedMeta.preserveList.includes('Antigravity'), 'dist/i18n_meta.json must include preserveList');
+    assert(menuCode.includes('translateMenuRecursively') && menuCode.includes('antigravity-i18n-check-update') && menuCode.includes('antigravity-i18n-toggle-lang') && menuCode.includes('antigravity-i18n-toggle-auto-mt') && menuCode.includes('onLanguageChange') && menuCode.includes('onAutoMtChange') && menuCode.includes('__antigravityOrigLabel || menuItem.label'), 'menu.js must include translateMenuRecursively, OTA check, language toggle, auto-MT toggle item, change listeners, and __antigravityOrigLabel updateAction lookup');
     const getCodeIdx = utilsCode.indexOf('function _getAntigravityI18nCode');
     const createWinIdx = utilsCode.indexOf('function createWindow');
     assert(
@@ -580,6 +585,43 @@ function runVerification() {
   assert.strictEqual(api.translateString('Default', presetOpt), '默认');
   assert.strictEqual(api.translateString('Auto', presetOpt), '自动 (Auto)');
 
+  const permTriggerEl = makeEl({ testid: 'permissions-selector-trigger' });
+  const permGlobalEl = makeEl({ testid: 'permissions-use-global-settings' });
+  for (const el of [permTriggerEl, permGlobalEl]) {
+    assert.strictEqual(api.translateString('Turbo', el), '全自动 (Turbo)');
+    assert.strictEqual(api.translateString('Request Review', el), '请求审核 (Request Review)');
+    assert.strictEqual(api.translateString('Auto', el), '自动 (Auto)');
+    assert.strictEqual(api.translateString('Default', el), '默认');
+  }
+  assert.strictEqual(api.translateString('Turbo'), '全自动');
+  assert.strictEqual(api.translateString('Request Review'), '请求审核');
+
+  assert.strictEqual(
+    api.translateString('Model cannot be changed while the agent is running'),
+    '智能体运行期间无法切换模型'
+  );
+  assert.strictEqual(
+    api.translateString('Model: Gemini 3.1 Pro High, Model cannot be changed while the agent is running'),
+    '模型：Gemini 3.1 Pro 高，智能体运行期间无法切换模型'
+  );
+  assert.strictEqual(api.translateString('Runs on this machine'), '在此电脑上运行');
+  assert.strictEqual(api.translateString('Search Hosts\u2026'), '搜索主机...');
+  assert.strictEqual(api.translateString('Search Hosts...'), '搜索主机...');
+  assert.strictEqual(api.translateString('Loading Hosts\u2026'), '正在加载主机...');
+  assert.strictEqual(api.translateString('No hosts in ~/.ssh/config yet'), '~/.ssh/config 中暂无主机配置');
+  assert.strictEqual(api.translateString('No matching hosts'), '未找到匹配的主机');
+  assert.strictEqual(api.translateString('1 hidden host'), '1 个已隐藏的主机');
+  assert.strictEqual(api.translateString('3 hidden hosts'), '3 个已隐藏的主机');
+  assert.strictEqual(api.translateString('Cloning locally\u2026'), '正在克隆到本地...');
+  assert.strictEqual(
+    api.translateString('Where the agent runs, current: This Computer'),
+    '智能体运行位置，当前：此电脑'
+  );
+  assert.strictEqual(
+    api.translateString('Where the agent runs, current: This Computer (Cloning locally\u2026)'),
+    '智能体运行位置，当前：此电脑（正在克隆到本地...）'
+  );
+
   // 3d. v2.33.0 Keyboard Shortcuts & Keybinding Scheme translations
   assert.strictEqual(api.translateString('Keybinding Scheme'), '按键绑定方案');
   assert.strictEqual(api.translateString('VS Code Default'), 'VS Code 默认');
@@ -599,14 +641,14 @@ function runVerification() {
   assert.strictEqual(api.translateString('Orchestrator Settings'), 'Orchestrator 设置');
   assert.strictEqual(
     api.translateString('Choose the models Orchestrator uses. A larger, smarter orchestrator model with a faster, cheaper executor gives high quality for fewer tokens.'),
-    '选择 Orchestrator 使用的模型。用更强、更聪明的 Orchestrator 模型搭配更快、更实惠的执行器模型，可在消耗更少 Token 的情况下获得高质量结果。'
+    '选择 Orchestrator 使用的模型。用更强、更聪明的 Orchestrator 模型搭配更快、更实惠的执行模型，可在消耗更少 Token 的情况下获得高质量结果。'
   );
   assert.strictEqual(api.translateString('Orchestrator Model'), 'Orchestrator 模型');
   assert.strictEqual(
     api.translateString('Plans the work, makes design decisions, and reviews the result. Pick a top-tier model. You can also pick one per conversation from the Orchestrator row in the model menu.'),
     '负责规划工作、做出设计决策并审查结果。建议选择顶级模型。你也可以在模型选择器的“Orchestrator”行中为每个会话单独选择。'
   );
-  assert.strictEqual(api.translateString('Executor Model'), '执行器模型');
+  assert.strictEqual(api.translateString('Executor Model'), '执行模型');
   assert.strictEqual(
     api.translateString('Carries out the plan: searches, edits, builds, and tests. Pick a faster, cheaper model.'),
     '负责执行计划：搜索、编辑、构建与测试。建议选择更快、更实惠的模型。'
@@ -617,7 +659,7 @@ function runVerification() {
   assert.strictEqual(api.translateString('Thinking effort'), '思考深度');
   assert.strictEqual(
     api.translateString('Offloads routine steps to a faster executor. Same quality, fewer tokens used.'),
-    '将常规步骤分流给更快的执行器。同等质量，消耗更少 Token。'
+    '将常规步骤分流给更快的执行模型。同等质量，消耗更少 Token。'
   );
   assert.strictEqual(
     api.translateString('For most deep reasoning and complex problems'),
@@ -647,6 +689,8 @@ function runVerification() {
   assert.strictEqual(api.translateString('Experimental'), '实验性');
   assert.strictEqual(api.translateString('Prototype'), '原型');
   assert.strictEqual(api.translateString('Third-party'), '第三方');
+  assert.strictEqual(api.translateString('Gemini 4 Carbon now available!'), 'Gemini 4 Carbon 现已开放！');
+  assert.strictEqual(api.translateString('Gemini 4 Carbon now available in Antigravity!'), 'Gemini 4 Carbon 现已在 Antigravity 中开放！');
 
   // 3e-1b. "Leaving Soon" model retirement, replacement & switch-to-model tooltip dynamic templates
   const leavingCases = [
@@ -1572,7 +1616,7 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(sandbox.window.__antigravityTranslateString('foo'), 'foo');
   assert.strictEqual(sandbox.window.__antigravityApplyOtaPack(otaPack), false, 'Re-applying same OTA packVersion must be idempotent no-op');
 
-  // 11. Windows custom title-menu-bar ("Antigravity" dropdown) injects "检查汉化更新" and "临时切换为英文" right below "检查更新"
+  // 11. Windows custom title-menu-bar ("Antigravity" dropdown) injects "检查汉化更新" right below "检查更新" (no redundant toggle item)
   const titleBar = new DomElement('DIV');
   titleBar.setAttribute('data-testid', 'title-menu-bar');
   const menuWrap = new DomElement('DIV');
@@ -1605,9 +1649,8 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(injectedBtns[0].textContent, '检查汉化更新');
   assert.strictEqual(injectedBtns[0].className, updBtn.className);
   const injectedToggleBtns = popup.querySelectorAll('[data-antigravity-i18n-toggle-item="true"]');
-  assert.strictEqual(injectedToggleBtns.length, 1, 'Windows Antigravity title menu must inject exactly one 切换为英文原文 item');
-  assert.strictEqual(injectedToggleBtns[0].textContent, '切换为英文原文 (关闭汉化)');
-  assert.strictEqual(popup.children.length, 4);
+  assert.strictEqual(injectedToggleBtns.length, 0, 'Windows Antigravity title menu must not inject redundant toggle item when top [中 | EN] pill exists');
+  assert.strictEqual(popup.children.length, 3);
   const titleBarToggleBtns = titleBar.querySelectorAll('[data-antigravity-i18n-titlebar-toggle="true"]');
   assert.strictEqual(titleBarToggleBtns.length, 1, 'Top title bar must inject permanent [中 | EN] toggle pill');
   const titleToggleBtn = titleBarToggleBtns[0];
@@ -1639,7 +1682,6 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(verSpan.firstChild.nodeValue, 'Version 2.34.0');
   assert.strictEqual(updSpan.firstChild.nodeValue, 'Check for Updates');
   assert.strictEqual(injectedBtns[0].textContent, 'Check i18n Updates');
-  assert.strictEqual(injectedToggleBtns[0].textContent, '切换为简体中文 (开启汉化)');
   assert.strictEqual(titleToggleBtn.getAttribute('title'), 'Current: English (Click to switch to 简体中文)');
   assert(enPill.getAttribute('style').includes('font-weight:600'));
   assert(zhPill.getAttribute('style').includes('opacity:0.55'));
@@ -1665,7 +1707,6 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(whileEnglishText.nodeValue, '添加资源');
   assert.strictEqual(updSpan.firstChild.nodeValue, '检查更新');
   assert.strictEqual(injectedBtns[0].textContent, '检查汉化更新');
-  assert.strictEqual(injectedToggleBtns[0].textContent, '切换为英文原文 (关闭汉化)');
   assert.strictEqual(titleToggleBtn.getAttribute('title'), '当前：简体中文（点击切换为英文原文）');
 
   // 13. Startup in persisted English mode (__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false) keeps UI English while injecting clickable [中 | EN] pill
@@ -2028,6 +2069,28 @@ function runMutationConvergenceVerification(i18nCode) {
   assert.strictEqual(delayedBtn.getAttribute('title'), '请求审核 (Request Review)');
   assertNoOscillationAfterSyntheticMutations([delayedText, delayedBtn]);
   assert.strictEqual(delayedText.nodeValue, '请求审核 (Request Review)');
+
+  // 2b. Bottom chat-footer permission selector trigger + SSH host search input
+  const footerPermBtn = new DomElement('BUTTON');
+  footerPermBtn.setAttribute('data-testid', 'permissions-selector-trigger');
+  footerPermBtn.setAttribute('aria-label', 'Agent permissions preset selector, current: Turbo');
+  const footerPermSpan = new DomElement('SPAN');
+  const footerPermText = createLiveText('Turbo');
+  footerPermSpan.appendChild(footerPermText);
+  footerPermBtn.appendChild(footerPermSpan);
+
+  const sshSearchInput = new DomElement('INPUT');
+  sshSearchInput.setAttribute('data-testid', 'project-selector-ssh-host-search');
+  sshSearchInput.setAttribute('placeholder', 'Search Hosts\u2026');
+
+  body.appendChild(footerPermBtn);
+  body.appendChild(sshSearchInput);
+  flushMutations();
+  assert.strictEqual(footerPermText.nodeValue, '全自动 (Turbo)');
+  assert.strictEqual(footerPermBtn.getAttribute('aria-label'), '智能体权限预设选择器，当前：全自动');
+  assert.strictEqual(sshSearchInput.getAttribute('placeholder'), '搜索主机...');
+  assertNoOscillationAfterSyntheticMutations([footerPermText, footerPermBtn, sshSearchInput]);
+  assert.strictEqual(footerPermText.nodeValue, '全自动 (Turbo)');
 
   // 3. New badge context ("NEW", "New", "new", "Create New") + attr
   const modelPanel = new DomElement('DIV');
@@ -2429,13 +2492,13 @@ async function runOtaControllerVerification() {
     const unsubscribe = ctrl.onLanguageChange((enabled) => langEvents.push(enabled));
     assert.strictEqual(ctrl.isI18nEnabled(), true);
     assert.strictEqual(ctrl.t('中文', 'English'), '中文');
-    assert.strictEqual(ctrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = true;');
+    assert.strictEqual(ctrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = true;\nwindow.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__ = true;');
     const preToggleMainCount = mainExecs.length;
     const preTogglePluginCount = pluginFrameExecs.length;
     assert.strictEqual(ctrl.setI18nEnabled(false), false);
     assert.strictEqual(ctrl.isI18nEnabled(), false);
     assert.strictEqual(ctrl.t('中文', 'English'), 'English');
-    assert.strictEqual(ctrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;');
+    assert.strictEqual(ctrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;\nwindow.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__ = true;');
     assert.deepStrictEqual(langEvents, [false]);
     assert.strictEqual(mainExecs.length, preToggleMainCount + 1);
     assert(mainExecs[mainExecs.length - 1].includes('__antigravitySetI18nEnabled(false)'));
@@ -2452,7 +2515,7 @@ async function runOtaControllerVerification() {
     });
     assert.strictEqual(relaunchedOffCtrl.isI18nEnabled(), false, 'New controller after restart must remember English preference');
     assert.strictEqual(relaunchedOffCtrl.t('中文', 'English'), 'English');
-    assert.strictEqual(relaunchedOffCtrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;');
+    assert.strictEqual(relaunchedOffCtrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;\nwindow.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__ = true;');
 
     assert.strictEqual(ctrl.toggleI18nEnabled(), true);
     assert.deepStrictEqual(langEvents, [false, true]);
@@ -2475,7 +2538,7 @@ async function runOtaControllerVerification() {
       env: { ANTIGRAVITY_I18N_DISABLED: '1' }
     });
     assert.strictEqual(envDisabledCtrl.isI18nEnabled(), false);
-    assert.strictEqual(envDisabledCtrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;');
+    assert.strictEqual(envDisabledCtrl.getInitialStateScript(), 'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false;\nwindow.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__ = true;');
   } finally {
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(tmpCacheDir, { recursive: true, force: true });
@@ -2636,10 +2699,299 @@ async function runGuardProxyAndRestoreVerification() {
   }
 }
 
+async function runAutoMtVerification() {
+  const http = require('http');
+  const {
+    isEligibleMtText,
+    protectDynamicMtTerms,
+    restoreDynamicMtTerms,
+    createOtaController
+  } = require('./ota/i18n_ota_main');
+  const preserveList = JSON.parse(fs.readFileSync(path.join(projectRoot, 'assets', 'preserve_list.json'), 'utf8'));
+
+  // 1. Brand/model term masking, restoration, and eligibility guards
+  const sampleBody = 'Both Carbon and Argon are now included as part of the entire Gemini entitlement, so you can use them for much longer.';
+  const { masked, placeholders } = protectDynamicMtTerms(sampleBody, preserveList);
+  assert.deepStrictEqual(placeholders, ['Carbon', 'Argon', 'Gemini']);
+  assert.strictEqual(
+    masked,
+    'Both AGYTERM0X and AGYTERM1X are now included as part of the entire AGYTERM2X entitlement, so you can use them for much longer.'
+  );
+  const restored = restoreDynamicMtTerms(
+    'AGYTERM0X和AGYTERM1X现已包含在整个AGYTERM2X权益中，因此你可以使用它们更长时间。',
+    placeholders
+  );
+  assert.strictEqual(
+    restored,
+    'Carbon 和 Argon 现已包含在整个 Gemini 权益中，因此你可以使用它们更长时间。'
+  );
+  assert.strictEqual(restoreDynamicMtTerms('missing placeholder text 中文', placeholders), null);
+  assert.strictEqual(restoreDynamicMtTerms('AGYTERM0X and AGYTERM99X 中文', placeholders), null);
+
+  assert.strictEqual(isEligibleMtText(sampleBody), true);
+  assert.strictEqual(isEligibleMtText('已经是中文内容'), false);
+  assert.strictEqual(isEligibleMtText('SingleWord'), false);
+  assert.strictEqual(isEligibleMtText('https://example.com/docs/page'), false);
+  assert.strictEqual(isEligibleMtText('C:\\Users\\Alice\\project\\file.js'), false);
+  assert.strictEqual(isEligibleMtText('{"key": "value"}'), false);
+  assert.strictEqual(isEligibleMtText('word '.repeat(150)), false);
+
+  // 2. Main-process auto-MT controller + mock HTTP (google-gtx & openai) + persistent cache + dedup + toggle
+  let gtxCalls = 0;
+  let openaiCalls = 0;
+  const server = http.createServer((req, res) => {
+    const parsedUrl = new URL(req.url, 'http://127.0.0.1');
+    if (parsedUrl.pathname === '/gtx') {
+      gtxCalls++;
+      const q = parsedUrl.searchParams.get('q') || '';
+      const out = q.includes('AGYTERM0X') && q.includes('AGYTERM1X') && q.includes('AGYTERM2X')
+        ? 'AGYTERM0X和AGYTERM1X现已包含在整个AGYTERM2X权益中，因此你可以使用它们更长时间。'
+        : '延迟重试翻译结果：' + q;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify([[[out, q]]]));
+      return;
+    }
+    if (parsedUrl.pathname === '/openai') {
+      openaiCalls++;
+      const chunks = [];
+      req.on('data', (c) => chunks.push(c));
+      req.on('end', () => {
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        assert.strictEqual(req.headers.authorization, 'Bearer test-key');
+        assert.strictEqual(body.model, 'test-model');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          choices: [{ message: { content: 'AGYTERM0X已升级完成。' } }]
+        }));
+      });
+      return;
+    }
+    res.writeHead(404);
+    res.end('not found');
+  });
+
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const tmpCacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-auto-mt-test-'));
+
+  try {
+    const broadcastExecs = [];
+    const mockWc = {
+      isDestroyed: () => false,
+      getURL: () => 'https://antigravity.local/app',
+      once: () => {},
+      executeJavaScript: (code) => { broadcastExecs.push(code); return Promise.resolve(); },
+      mainFrame: { framesInSubtree: [] }
+    };
+
+    const ctrl = createOtaController({
+      electron: null,
+      cacheDir: tmpCacheDir,
+      baseUrls: [`http://127.0.0.1:${port}/unused`],
+      mtUrl: `http://127.0.0.1:${port}/gtx`,
+      preserveList,
+      env: {}
+    });
+    ctrl.registerWebContents(mockWc);
+
+    // 2a. Concurrent calls deduplicate to 1 HTTP request & persist to dynamic-mt-cache.json
+    const [mt1, mt2] = await Promise.all([
+      ctrl.translateDynamicText(sampleBody),
+      ctrl.translateDynamicText(sampleBody)
+    ]);
+    assert.strictEqual(mt1.status, 'ok');
+    assert.strictEqual(mt1.translated, 'Carbon 和 Argon 现已包含在整个 Gemini 权益中，因此你可以使用它们更长时间。');
+    assert.strictEqual(mt2.translated, mt1.translated);
+    assert.strictEqual(gtxCalls, 1, 'Concurrent identical requests must deduplicate into 1 HTTP call');
+
+    const diskCache = JSON.parse(fs.readFileSync(path.join(tmpCacheDir, 'dynamic-mt-cache.json'), 'utf8'));
+    assert.strictEqual(diskCache.entries[sampleBody].zh, mt1.translated);
+
+    // 2b. New controller after restart serves directly from disk cache with 0 HTTP requests
+    const ctrl2 = createOtaController({
+      electron: null,
+      cacheDir: tmpCacheDir,
+      baseUrls: [`http://127.0.0.1:${port}/unused`],
+      mtUrl: `http://127.0.0.1:${port}/gtx`,
+      preserveList,
+      env: {}
+    });
+    const mtCached = await ctrl2.translateDynamicText(sampleBody);
+    assert.strictEqual(mtCached.status, 'ok');
+    assert.strictEqual(mtCached.cached, true);
+    assert.strictEqual(mtCached.translated, mt1.translated);
+    assert.strictEqual(gtxCalls, 1, 'Restarted controller must serve from disk cache without HTTP request');
+
+    // 2c. OpenAI-compatible POST provider
+    const openaiCtrl = createOtaController({
+      electron: null,
+      cacheDir: fs.mkdtempSync(path.join(tmpCacheDir, 'oa-')),
+      baseUrls: [`http://127.0.0.1:${port}/unused`],
+      mtProvider: 'openai',
+      mtUrl: `http://127.0.0.1:${port}/openai`,
+      mtApiKey: 'test-key',
+      mtModel: 'test-model',
+      preserveList,
+      env: {}
+    });
+    const oaRes = await openaiCtrl.translateDynamicText('Gemini 4 Carbon upgrade is ready for all users.');
+    assert.strictEqual(oaRes.status, 'ok');
+    assert.strictEqual(oaRes.translated, 'Gemini 4 Carbon 已升级完成。');
+    assert.strictEqual(openaiCalls, 1);
+
+    // 2d. Toggle autoMtEnabled persists to state.json, updates getInitialStateScript, and respects NO_OTA / AUTO_MT=0
+    const autoMtEvents = [];
+    const unsubAuto = ctrl.onAutoMtChange((val) => autoMtEvents.push(val));
+    assert.strictEqual(ctrl.setAutoMtEnabled(false), false);
+    assert.deepStrictEqual(autoMtEvents, [false]);
+    assert(broadcastExecs.some((c) => c.includes('__antigravitySetAutoMtEnabled(false)')));
+    assert.strictEqual(
+      ctrl.getInitialStateScript(),
+      'window.__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = true;\nwindow.__ANTIGRAVITY_I18N_AUTO_MT_ENABLED__ = false;'
+    );
+    const disabledRes = await ctrl.translateDynamicText('Another new announcement message here.');
+    assert.strictEqual(disabledRes.status, 'disabled');
+    assert.strictEqual(gtxCalls, 1);
+
+    assert.strictEqual(ctrl.toggleAutoMtEnabled(), true);
+    assert.deepStrictEqual(autoMtEvents, [false, true]);
+    unsubAuto();
+
+    const noOtaCtrl = createOtaController({
+      electron: null,
+      cacheDir: fs.mkdtempSync(path.join(tmpCacheDir, 'no-ota-')),
+      baseUrls: [`http://127.0.0.1:${port}/unused`],
+      fetchText: () => { throw new Error('Should never fetch when NO_OTA=1'); },
+      env: { ANTIGRAVITY_I18N_NO_OTA: '1' }
+    });
+    const noOtaMt = await noOtaCtrl.translateDynamicText('Fresh announcement text here.');
+    assert.strictEqual(noOtaMt.status, 'disabled');
+
+    const envAutoOffCtrl = createOtaController({
+      electron: null,
+      cacheDir: tmpCacheDir,
+      baseUrls: [`http://127.0.0.1:${port}/unused`],
+      env: { ANTIGRAVITY_I18N_AUTO_MT: '0' }
+    });
+    assert.strictEqual(envAutoOffCtrl.isAutoMtEnabled(), false);
+
+    // 3. Renderer VM DOM integration test (whitelist isolation, sync + async MT, [中 | EN] & Auto-MT toggle reversibility)
+    const i18nCode = localOnly
+      ? fs.readFileSync(path.join(projectRoot, 'build', 'i18n.js'), 'utf8')
+      : asar.extractFile(deployedAsar, path.join('dist', 'i18n.js')).toString('utf8');
+    const { DomNode, DomElement, makeText } = createMockDomEnv();
+    const html = new DomElement('HTML');
+    html.isConnected = true;
+    const body = new DomElement('BODY');
+    html.appendChild(body);
+    const rootDiv = new DomElement('DIV');
+    rootDiv.id = 'root';
+    body.appendChild(rootDiv);
+
+    const ipcRequests = [];
+    const sandbox = {
+      console, setTimeout, clearTimeout,
+      Node: DomNode,
+      Element: DomElement,
+      NodeFilter: { SHOW_TEXT: 4, SHOW_ELEMENT: 1 },
+      MutationObserver: class { observe() {} },
+      requestAnimationFrame: (cb) => { cb(); return 1; },
+      window: {
+        location: { protocol: 'app:' },
+        history: {},
+        addEventListener() {},
+        antigravityI18nOta: {
+          translateDynamicText: (txt) => {
+            ipcRequests.push(txt);
+            return ctrl2.translateDynamicText(txt);
+          }
+        }
+      },
+      location: { protocol: 'app:' },
+      document: {
+        readyState: 'complete',
+        title: 'Antigravity',
+        documentElement: html,
+        body,
+        createElement: (tag) => new DomElement(String(tag).toUpperCase()),
+        createTextNode: (val) => makeText(val),
+        querySelectorAll: () => [],
+        addEventListener: () => {}
+      }
+    };
+    sandbox.window.document = sandbox.document;
+    vm.runInNewContext(i18nCode, sandbox);
+
+    // 3a. Non-whitelisted div & user chat message must never trigger auto-MT IPC
+    const normalDiv = new DomElement('DIV');
+    const normalText = makeText('Some completely arbitrary untranslated sentence in a regular div.');
+    normalDiv.appendChild(normalText);
+    rootDiv.appendChild(normalDiv);
+
+    const userMsg = new DomElement('DIV');
+    userMsg.setAttribute('data-testid', 'user-message-content');
+    const userMsgText = makeText('Please explain how Carbon and Argon models work in detail.');
+    userMsg.appendChild(userMsgText);
+    rootDiv.appendChild(userMsg);
+    assert.strictEqual(ipcRequests.length, 0, 'Non-whitelisted containers must never trigger auto-MT');
+
+    // 3b. Whitelisted nux-card: title & button translate synchronously; body triggers 1 async MT call
+    const nuxCard = new DomElement('DIV');
+    nuxCard.setAttribute('data-testid', 'nux-card');
+    const nuxTitle = new DomElement('DIV');
+    const nuxTitleText = makeText('Gemini 4 Carbon now available!');
+    nuxTitle.appendChild(nuxTitleText);
+    const nuxBody = new DomElement('DIV');
+    const nuxBodyText = makeText(sampleBody);
+    nuxBody.appendChild(nuxBodyText);
+    const nuxBtn = new DomElement('BUTTON');
+    const nuxBtnText = makeText('Dismiss');
+    nuxBtn.appendChild(nuxBtnText);
+    nuxCard.appendChild(nuxTitle);
+    nuxCard.appendChild(nuxBody);
+    nuxCard.appendChild(nuxBtn);
+    rootDiv.appendChild(nuxCard);
+
+    assert.strictEqual(nuxTitleText.nodeValue, 'Gemini 4 Carbon 现已开放！');
+    assert.strictEqual(nuxBtnText.nodeValue, '忽略');
+    assert.strictEqual(ipcRequests.length, 1, 'Only unmatched NUX body should invoke translateDynamicText');
+    assert.strictEqual(ipcRequests[0], sampleBody);
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.strictEqual(nuxBodyText.nodeValue, 'Carbon 和 Argon 现已包含在整个 Gemini 权益中，因此你可以使用它们更长时间。');
+
+    // 3c. Global [中 | EN] toggle restores all NUX nodes cleanly and re-applies synchronously from memory cache
+    sandbox.window.__antigravitySetI18nEnabled(false);
+    assert.strictEqual(nuxTitleText.nodeValue, 'Gemini 4 Carbon now available!');
+    assert.strictEqual(nuxBodyText.nodeValue, sampleBody);
+    assert.strictEqual(nuxBtnText.nodeValue, 'Dismiss');
+
+    sandbox.window.__antigravitySetI18nEnabled(true);
+    assert.strictEqual(nuxTitleText.nodeValue, 'Gemini 4 Carbon 现已开放！');
+    assert.strictEqual(nuxBodyText.nodeValue, 'Carbon 和 Argon 现已包含在整个 Gemini 权益中，因此你可以使用它们更长时间。');
+    assert.strictEqual(nuxBtnText.nodeValue, '忽略');
+    assert.strictEqual(ipcRequests.length, 1, 'Re-enabling Chinese must reuse renderer memory cache without extra IPC');
+
+    // 3d. Auto-MT toggle off restores only auto-MT nodes while preserving local title/button translations
+    sandbox.window.__antigravitySetAutoMtEnabled(false);
+    assert.strictEqual(nuxBodyText.nodeValue, sampleBody);
+    assert.strictEqual(nuxTitleText.nodeValue, 'Gemini 4 Carbon 现已开放！');
+    assert.strictEqual(nuxBtnText.nodeValue, '忽略');
+
+    sandbox.window.__antigravitySetAutoMtEnabled(true);
+    assert.strictEqual(nuxBodyText.nodeValue, 'Carbon 和 Argon 现已包含在整个 Gemini 权益中，因此你可以使用它们更长时间。');
+    assert.strictEqual(ipcRequests.length, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(tmpCacheDir, { recursive: true, force: true });
+  }
+}
+
 Promise.resolve()
   .then(() => runVerification())
   .then(() => runOtaControllerVerification())
   .then(() => runGuardProxyAndRestoreVerification())
+  .then(() => runAutoMtVerification())
   .then(() => {
     console.log('OTA CONTROLLER & HOT-RELOAD VERIFICATION PASSED!');
   })

@@ -101,7 +101,7 @@ function buildPortableRelease(options = {}) {
     'README.md',
     '一键修复或更新汉化.bat',
     '一键还原官方英文.bat',
-    '一键代理守护启动.bat',
+    '一键免TUN启动.bat',
     'build_and_deploy.ps1',
     'install_macos.sh',
     'restore_macos.sh'
