@@ -600,7 +600,7 @@ function antigravityI18nBootstrap(
   }
 
   const INJECTED_I18N_SELECTOR =
-    '[data-antigravity-i18n-titlebar-toggle-wrap="true"], [data-antigravity-i18n-titlebar-toggle="true"], [data-antigravity-i18n-ota-item="true"]';
+    '[data-antigravity-i18n-titlebar-toggle-wrap="true"], [data-antigravity-i18n-titlebar-toggle="true"], [data-antigravity-i18n-titlebar-style="true"], [data-antigravity-i18n-ota-item="true"]';
 
   function isInjectedI18nControl(node) {
     if (!node) return false;
@@ -774,26 +774,101 @@ function antigravityI18nBootstrap(
     }
   }
 
-  const PILL_ACTIVE_STYLE = 'padding:2px 5px;border-radius:4px;background:rgba(56,189,248,0.24);font-weight:600;opacity:1;';
-  const PILL_INACTIVE_STYLE = 'padding:2px 5px;border-radius:4px;background:transparent;font-weight:400;opacity:0.55;';
+  const TITLEBAR_TOGGLE_STYLE_CSS = [
+    '[data-antigravity-i18n-titlebar-toggle-wrap="true"]{margin-left:6px;display:inline-flex;align-items:center;-webkit-app-region:no-drag;}',
+    '[data-antigravity-i18n-titlebar-toggle="true"]{position:relative;box-sizing:border-box;appearance:none;-webkit-appearance:none;margin:0;display:inline-grid;grid-template-columns:1fr 1fr;align-items:center;height:24px;min-width:58px;padding:2px;border-radius:8px;border:1px solid var(--border,var(--card-border,rgba(10,10,12,0.10)));background:var(--background,var(--card,#ffffff));box-shadow:0 1px 2px rgba(10,10,12,0.05);color:var(--foreground,inherit);font-size:11.5px;line-height:1;cursor:pointer;user-select:none;touch-action:none;-webkit-app-region:no-drag;overflow:visible;outline:none;transition:border-color 180ms ease,background-color 180ms ease,box-shadow 180ms ease;}',
+    '[data-antigravity-i18n-titlebar-toggle="true"]:hover{border-color:color-mix(in srgb,var(--foreground,#808080) 12%,var(--border,rgba(10,10,12,0.14)));background:var(--card,var(--background,#ffffff));box-shadow:0 1px 3px rgba(10,10,12,0.08);}',
+    '.dark [data-antigravity-i18n-titlebar-toggle="true"]{background:var(--onyx-raised,var(--card,var(--sidebar-muted,#15151a)));border-color:var(--border,var(--card-border,rgba(255,255,255,0.08)));box-shadow:0 1px 2px rgba(0,0,0,0.28);}',
+    '.dark [data-antigravity-i18n-titlebar-toggle="true"]:hover{background:var(--onyx-selected,var(--sidebar-secondary,var(--card,#1f1f24)));border-color:color-mix(in srgb,var(--foreground,#ffffff) 12%,var(--border,rgba(255,255,255,0.10)));box-shadow:0 1px 3px rgba(0,0,0,0.38);}',
+    '[data-antigravity-i18n-titlebar-toggle="true"]:focus-visible{box-shadow:0 0 0 2px color-mix(in srgb,var(--primary,var(--accent,#2F71E3)) 38%,transparent);}',
+    '[data-antigravity-i18n-pill-thumb="true"]{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);margin:0;border:none;background:transparent;box-shadow:none;pointer-events:none;z-index:0;will-change:transform;transform:translate3d(0%,0,0);transition:transform 420ms cubic-bezier(0.34,1.56,0.64,1);}',
+    '[data-antigravity-i18n-titlebar-toggle="true"][data-lang="en"] [data-antigravity-i18n-pill-thumb="true"]{transform:translate3d(100%,0,0);}',
+    '[data-antigravity-i18n-titlebar-toggle="true"][data-dragging="true"] [data-antigravity-i18n-pill-thumb="true"]{transition:none;}',
+    '[data-antigravity-i18n-pill-thumb-fill="true"]{display:block;width:100%;height:100%;border-radius:6px;background:var(--primary,var(--accent,#2F71E3));box-shadow:0 1px 2px color-mix(in srgb,var(--primary,var(--accent,#2F71E3)) 26%,rgba(0,0,0,0.16));transform-origin:center center;transition:transform 200ms cubic-bezier(0.34,1.56,0.64,1),filter 160ms ease,box-shadow 200ms ease;}',
+    '[data-antigravity-i18n-titlebar-toggle="true"][data-pressed="true"] [data-antigravity-i18n-pill-thumb-fill="true"]{transform:scale(1.07,0.91);filter:brightness(1.05);}',
+    '[data-antigravity-i18n-titlebar-toggle="true"][data-dragging="true"] [data-antigravity-i18n-pill-thumb-fill="true"]{transform:scale(1.09,0.89);filter:brightness(1.07);box-shadow:0 2px 5px color-mix(in srgb,var(--primary,var(--accent,#2F71E3)) 36%,rgba(0,0,0,0.2));}',
+    '[data-antigravity-i18n-titlebar-toggle="true"]:not([data-dragging="true"])[data-bounce="zh"] [data-antigravity-i18n-pill-thumb-fill="true"]{animation:ag-i18n-jelly-zh 440ms cubic-bezier(0.22,1,0.36,1);}',
+    '[data-antigravity-i18n-titlebar-toggle="true"]:not([data-dragging="true"])[data-bounce="en"] [data-antigravity-i18n-pill-thumb-fill="true"]{animation:ag-i18n-jelly-en 440ms cubic-bezier(0.22,1,0.36,1);}',
+    '[data-antigravity-i18n-pill-zh="true"],[data-antigravity-i18n-pill-en="true"]{position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;height:100%;margin:0;border:none;background:transparent;box-shadow:none;white-space:nowrap;pointer-events:none;transition:color 200ms ease,opacity 200ms ease,transform 240ms cubic-bezier(0.34,1.56,0.64,1);color:var(--muted-foreground,currentColor);font-weight:500;opacity:0.85;}',
+    '[data-antigravity-i18n-titlebar-toggle="true"]:hover [data-antigravity-i18n-pill-zh="true"],[data-antigravity-i18n-titlebar-toggle="true"]:hover [data-antigravity-i18n-pill-en="true"]{color:var(--foreground,currentColor);opacity:1;}',
+    '[data-antigravity-i18n-titlebar-toggle="true"]:not([data-drag-target])[data-lang="zh"] [data-antigravity-i18n-pill-zh="true"],[data-antigravity-i18n-titlebar-toggle="true"]:not([data-drag-target])[data-lang="en"] [data-antigravity-i18n-pill-en="true"],[data-antigravity-i18n-titlebar-toggle="true"][data-drag-target="zh"] [data-antigravity-i18n-pill-zh="true"],[data-antigravity-i18n-titlebar-toggle="true"][data-drag-target="en"] [data-antigravity-i18n-pill-en="true"],[data-antigravity-i18n-titlebar-toggle="true"]:hover:not([data-drag-target])[data-lang="zh"] [data-antigravity-i18n-pill-zh="true"],[data-antigravity-i18n-titlebar-toggle="true"]:hover:not([data-drag-target])[data-lang="en"] [data-antigravity-i18n-pill-en="true"],[data-antigravity-i18n-titlebar-toggle="true"]:hover[data-drag-target="zh"] [data-antigravity-i18n-pill-zh="true"],[data-antigravity-i18n-titlebar-toggle="true"]:hover[data-drag-target="en"] [data-antigravity-i18n-pill-en="true"]{color:var(--primary-foreground,#ffffff);font-weight:600;opacity:1;transform:scale(1.02);}',
+    '@keyframes ag-i18n-jelly-zh{0%{transform:scale(1,1);}26%{transform:scale(1.20,0.84);}54%{transform:scale(0.91,1.09);}78%{transform:scale(1.04,0.97);}100%{transform:scale(1,1);}}',
+    '@keyframes ag-i18n-jelly-en{0%{transform:scale(1,1);}26%{transform:scale(1.20,0.84);}54%{transform:scale(0.91,1.09);}78%{transform:scale(1.04,0.97);}100%{transform:scale(1,1);}}',
+    '@media (prefers-reduced-motion:reduce){[data-antigravity-i18n-pill-thumb="true"],[data-antigravity-i18n-pill-thumb-fill="true"],[data-antigravity-i18n-pill-zh="true"],[data-antigravity-i18n-pill-en="true"]{transition:none!important;animation:none!important;}}'
+  ].join('\n');
 
-  function updateTitleBarToggleVisuals(btn) {
+  function removeAttrIfPresent(el, attr) {
+    if (!el || typeof el.removeAttribute !== 'function') return;
+    if (typeof el.hasAttribute === 'function' && !el.hasAttribute(attr)) return;
+    el.removeAttribute(attr);
+  }
+
+  function setThumbTransform(thumb, val) {
+    if (thumb && thumb.style) {
+      thumb.style.transform = val;
+    }
+  }
+
+  function ensureTitleBarToggleStyles() {
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') return;
+    const styleHost = document.head || document.documentElement;
+    if (!styleHost) return;
+    const queryRoot = (document.documentElement && typeof document.documentElement.querySelector === 'function')
+      ? document.documentElement
+      : (typeof styleHost.querySelector === 'function'
+        ? styleHost
+        : (typeof document.querySelector === 'function' ? document : null));
+    if (queryRoot && queryRoot.querySelector('[data-antigravity-i18n-titlebar-style="true"]')) {
+      return;
+    }
+    const styleEl = document.createElement('style');
+    styleEl.setAttribute('data-antigravity-i18n-titlebar-style', 'true');
+    if (typeof document.createTextNode === 'function') {
+      styleEl.appendChild(document.createTextNode(TITLEBAR_TOGGLE_STYLE_CSS));
+    } else {
+      styleEl.textContent = TITLEBAR_TOGGLE_STYLE_CSS;
+    }
+    styleHost.appendChild(styleEl);
+  }
+
+  function updateTitleBarToggleVisuals(btn, forcedEnabled, allowBounce) {
     if (!btn) return;
-    const tip = I18N_ENABLED
-      ? '当前：简体中文（点击切换为英文原文）'
-      : 'Current: English (Click to switch to 简体中文)';
+    const enabled = typeof forcedEnabled === 'boolean' ? forcedEnabled : I18N_ENABLED;
+    const nextLang = enabled ? 'zh' : 'en';
+    const prevLang = typeof btn.getAttribute === 'function' ? btn.getAttribute('data-lang') : null;
+    const tip = enabled
+      ? '当前：简体中文（点击或拖动切换为英文原文）'
+      : 'Current: English (Click or drag to switch to 简体中文)';
     setAttrIfChanged(btn, 'title', tip);
     setAttrIfChanged(btn, 'aria-label', tip);
+    setAttrIfChanged(btn, 'aria-pressed', enabled ? 'true' : 'false');
+    setAttrIfChanged(btn, 'data-lang', nextLang);
+    if (prevLang && prevLang !== nextLang && allowBounce !== false) {
+      setAttrIfChanged(btn, 'data-bounce', nextLang);
+    }
     if (typeof btn.querySelector === 'function') {
       const zhSpan = btn.querySelector('[data-antigravity-i18n-pill-zh="true"]');
       const enSpan = btn.querySelector('[data-antigravity-i18n-pill-en="true"]');
       if (zhSpan) {
-        setAttrIfChanged(zhSpan, 'style', I18N_ENABLED ? PILL_ACTIVE_STYLE : PILL_INACTIVE_STYLE);
+        setAttrIfChanged(zhSpan, 'data-active', enabled ? 'true' : 'false');
       }
       if (enSpan) {
-        setAttrIfChanged(enSpan, 'style', I18N_ENABLED ? PILL_INACTIVE_STYLE : PILL_ACTIVE_STYLE);
+        setAttrIfChanged(enSpan, 'data-active', enabled ? 'false' : 'true');
       }
     }
+  }
+
+  function triggerTitleBarToggle(btn) {
+    try {
+      const bridgeNow = typeof window !== 'undefined' ? window.antigravityI18nOta : null;
+      if (bridgeNow && typeof bridgeNow.toggleLanguage === 'function') {
+        Promise.resolve(bridgeNow.toggleLanguage()).catch(() => {
+          updateTitleBarToggleVisuals(btn, I18N_ENABLED, false);
+        });
+      } else if (typeof window.__antigravitySetI18nEnabled === 'function') {
+        window.__antigravitySetI18nEnabled(!I18N_ENABLED);
+      }
+    } catch (_) {}
   }
 
   function ensureTitleBarLangToggle(rootEl) {
@@ -805,6 +880,8 @@ function antigravityI18nBootstrap(
     ) {
       return;
     }
+
+    ensureTitleBarToggleStyles();
 
     const bars = [];
     if (rootEl && rootEl.nodeType === 1) {
@@ -828,12 +905,17 @@ function antigravityI18nBootstrap(
 
       const wrap = document.createElement('div');
       wrap.setAttribute('data-antigravity-i18n-titlebar-toggle-wrap', 'true');
-      wrap.setAttribute('style', 'margin-left:4px;display:inline-flex;align-items:center;-webkit-app-region:no-drag;');
 
       const btn = document.createElement('button');
       btn.setAttribute('type', 'button');
       btn.setAttribute('data-antigravity-i18n-titlebar-toggle', 'true');
-      btn.setAttribute('style', 'display:inline-flex;align-items:center;gap:2px;height:22px;padding:1px 3px;border-radius:6px;border:1px solid rgba(128,128,128,0.28);background:rgba(128,128,128,0.08);color:inherit;font-size:11px;line-height:1;cursor:pointer;user-select:none;-webkit-app-region:no-drag;');
+
+      const thumb = document.createElement('span');
+      thumb.setAttribute('data-antigravity-i18n-pill-thumb', 'true');
+      thumb.setAttribute('aria-hidden', 'true');
+      const thumbFill = document.createElement('span');
+      thumbFill.setAttribute('data-antigravity-i18n-pill-thumb-fill', 'true');
+      thumb.appendChild(thumbFill);
 
       const zhSpan = document.createElement('span');
       zhSpan.setAttribute('data-antigravity-i18n-pill-zh', 'true');
@@ -851,21 +933,117 @@ function antigravityI18nBootstrap(
         enSpan.textContent = 'EN';
       }
 
+      btn.appendChild(thumb);
       btn.appendChild(zhSpan);
       btn.appendChild(enSpan);
-      updateTitleBarToggleVisuals(btn);
+      updateTitleBarToggleVisuals(btn, I18N_ENABLED, false);
 
       if (typeof btn.addEventListener === 'function') {
+        let activePointerId = null;
+        let startX = 0;
+        let baseOffset = 0;
+        let maxTravel = 27;
+        let currentProgress = I18N_ENABLED ? 0 : 1;
+        let hasDragged = false;
+        let suppressNextClick = false;
+        let suppressClickTimer = 0;
+
+        const clearDragVisuals = () => {
+          removeAttrIfPresent(btn, 'data-pressed');
+          removeAttrIfPresent(btn, 'data-dragging');
+          removeAttrIfPresent(btn, 'data-drag-target');
+          setThumbTransform(thumb, '');
+        };
+
+        btn.addEventListener('pointerdown', (ev) => {
+          if (ev && typeof ev.button === 'number' && ev.button !== 0) return;
+          if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+          const rectWidth = typeof btn.getBoundingClientRect === 'function' ? btn.getBoundingClientRect().width : 0;
+          const trackWidth = btn.clientWidth || (rectWidth ? Math.max(0, rectWidth - 2) : 0) || 56;
+          maxTravel = Math.max(1, (trackWidth - 4) / 2);
+          activePointerId = ev && ev.pointerId !== undefined ? ev.pointerId : 1;
+          startX = ev && typeof ev.clientX === 'number' ? ev.clientX : 0;
+          baseOffset = I18N_ENABLED ? 0 : maxTravel;
+          currentProgress = I18N_ENABLED ? 0 : 1;
+          hasDragged = false;
+          setAttrIfChanged(btn, 'data-pressed', 'true');
+          if (typeof btn.setPointerCapture === 'function' && ev && ev.pointerId !== undefined) {
+            try { btn.setPointerCapture(ev.pointerId); } catch (_) {}
+          }
+        });
+
+        btn.addEventListener('pointermove', (ev) => {
+          if (activePointerId === null) return;
+          if (ev && ev.pointerId !== undefined && ev.pointerId !== activePointerId) return;
+          const clientX = ev && typeof ev.clientX === 'number' ? ev.clientX : startX;
+          const dx = clientX - startX;
+          if (!hasDragged && Math.abs(dx) < 3) return;
+          if (!hasDragged) {
+            hasDragged = true;
+            setAttrIfChanged(btn, 'data-dragging', 'true');
+          }
+          const rawOffset = baseOffset + dx;
+          let clampedOffset = rawOffset;
+          if (rawOffset < 0) {
+            clampedOffset = Math.max(-3.5, rawOffset * 0.18);
+          } else if (rawOffset > maxTravel) {
+            clampedOffset = maxTravel + Math.min(3.5, (rawOffset - maxTravel) * 0.18);
+          }
+          currentProgress = Math.max(0, Math.min(1, rawOffset / maxTravel));
+          setThumbTransform(thumb, `translate3d(${clampedOffset.toFixed(2)}px, 0, 0)`);
+          setAttrIfChanged(btn, 'data-drag-target', currentProgress < 0.5 ? 'zh' : 'en');
+        });
+
+        const finishPointer = (ev, cancelled) => {
+          if (activePointerId === null) return;
+          if (ev && ev.pointerId !== undefined && ev.pointerId !== activePointerId) return;
+          if (typeof btn.releasePointerCapture === 'function' && ev && ev.pointerId !== undefined) {
+            try { btn.releasePointerCapture(ev.pointerId); } catch (_) {}
+          }
+          const didDrag = hasDragged;
+          activePointerId = null;
+          hasDragged = false;
+          removeAttrIfPresent(btn, 'data-pressed');
+          removeAttrIfPresent(btn, 'data-dragging');
+          removeAttrIfPresent(btn, 'data-drag-target');
+          if (didDrag) {
+            suppressNextClick = true;
+            if (suppressClickTimer) clearTimeout(suppressClickTimer);
+            suppressClickTimer = setTimeout(() => {
+              suppressClickTimer = 0;
+              suppressNextClick = false;
+            }, 120);
+            if (!cancelled) {
+              const targetEnabled = currentProgress < 0.5;
+              if (targetEnabled !== I18N_ENABLED) {
+                updateTitleBarToggleVisuals(btn, targetEnabled, true);
+                setThumbTransform(thumb, '');
+                triggerTitleBarToggle(btn);
+                return;
+              }
+            }
+          }
+          setThumbTransform(thumb, '');
+        };
+
+        btn.addEventListener('pointerup', (ev) => finishPointer(ev, false));
+        btn.addEventListener('pointercancel', (ev) => {
+          clearDragVisuals();
+          finishPointer(ev, true);
+        });
+
         btn.addEventListener('click', (ev) => {
           if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
-          try {
-            const bridgeNow = typeof window !== 'undefined' ? window.antigravityI18nOta : null;
-            if (bridgeNow && typeof bridgeNow.toggleLanguage === 'function') {
-              Promise.resolve(bridgeNow.toggleLanguage()).catch(() => {});
-            } else if (typeof window.__antigravitySetI18nEnabled === 'function') {
-              window.__antigravitySetI18nEnabled(!I18N_ENABLED);
+          if (suppressNextClick) {
+            suppressNextClick = false;
+            if (suppressClickTimer) {
+              clearTimeout(suppressClickTimer);
+              suppressClickTimer = 0;
             }
-          } catch (_) {}
+            return;
+          }
+          updateTitleBarToggleVisuals(btn, !I18N_ENABLED, true);
+          triggerTitleBarToggle(btn);
         });
       }
 
@@ -1496,6 +1674,18 @@ function antigravityI18nBootstrap(
     }, 40);
   }
 
+  let settledTimer = 0;
+  function scheduleSettledTranslate(delay = 280) {
+    if (!I18N_ENABLED) return;
+    if (settledTimer) clearTimeout(settledTimer);
+    settledTimer = setTimeout(() => {
+      settledTimer = 0;
+      if (!I18N_ENABLED) return;
+      translatePortals();
+      window.__antigravityTranslateAll();
+    }, delay);
+  }
+
   function initEngine() {
     if (document.documentElement) {
       observeRoot(document.documentElement);
@@ -1503,6 +1693,7 @@ function antigravityI18nBootstrap(
     }
     window.__antigravityTranslateAll();
     updateInjectedTitleBarLabels();
+    scheduleSettledTranslate(350);
   }
 
   if (typeof document !== 'undefined') {
@@ -1553,6 +1744,7 @@ function antigravityI18nBootstrap(
               const res = orig.apply(this, args);
               schedulePortalTranslate();
               scheduleFullTranslate();
+              scheduleSettledTranslate(280);
               return res;
             };
           }

@@ -74,13 +74,14 @@ function getDictionaryCounts(rootDir = DEFAULT_ROOT) {
 }
 
 /**
- * 校验 package.json、assets/baseline/version.json、README.md 与文档中的版本一致性。
+ * 校验 package.json、assets/baseline/version.json、README.md、README.en.md 与文档中的版本一致性。
  */
 function verifyVersionConsistency(rootDir = DEFAULT_ROOT) {
   const errors = [];
   const pkgPath = path.join(rootDir, 'package.json');
   const baselinePath = path.join(rootDir, 'assets', 'baseline', 'version.json');
   const readmePath = path.join(rootDir, 'README.md');
+  const readmeEnPath = path.join(rootDir, 'README.en.md');
   const manifestPath = path.join(rootDir, 'docs', 'i18n_files_manifest.md');
 
   let patchVersion = '';
@@ -124,6 +125,22 @@ function verifyVersionConsistency(rootDir = DEFAULT_ROOT) {
     }
   }
 
+  if (fs.existsSync(readmeEnPath)) {
+    const readmeEn = fs.readFileSync(readmeEnPath, 'utf8');
+    if (isStrictSemver(clientVersion)) {
+      const expectedEnBadge = `Targets-Antigravity%20v${clientVersion}-blue`;
+      if (!readmeEn.includes(expectedEnBadge)) {
+        errors.push(`README.en.md 顶部适配徽章未匹配 "${expectedEnBadge}"。`);
+      }
+    }
+    if (isStrictSemver(patchVersion) && isStrictSemver(clientVersion)) {
+      const expectedEnIntro = `Current version: **\`v${patchVersion}\`** (supports Antigravity client \`v${clientVersion}\`)`;
+      if (!readmeEn.includes(expectedEnIntro)) {
+        errors.push(`README.en.md 简介版本行未匹配 "${expectedEnIntro}"。`);
+      }
+    }
+  }
+
   if (fs.existsSync(manifestPath)) {
     const manifest = fs.readFileSync(manifestPath, 'utf8');
     if (manifest.includes('v2.32.2')) {
@@ -148,7 +165,7 @@ function verifyVersionConsistency(rootDir = DEFAULT_ROOT) {
 }
 
 /**
- * 同步更新 package.json 与 README.md 中的版本号、适配徽章和词条数量统计。
+ * 同步更新 package.json、README.md 与 README.en.md 中的版本号、适配徽章和词条数量统计。
  */
 function syncVersionFiles({ patchVersion, clientVersion, rootDir = DEFAULT_ROOT, dryRun = false }) {
   const cleanPatch = normalizeStrictSemver(patchVersion, '补丁版本号');
@@ -156,6 +173,7 @@ function syncVersionFiles({ patchVersion, clientVersion, rootDir = DEFAULT_ROOT,
 
   const pkgPath = path.join(rootDir, 'package.json');
   const readmePath = path.join(rootDir, 'README.md');
+  const readmeEnPath = path.join(rootDir, 'README.en.md');
   const baselinePath = path.join(rootDir, 'assets', 'baseline', 'version.json');
 
   const rawPkg = fs.readFileSync(pkgPath, 'utf8');
@@ -189,9 +207,35 @@ function syncVersionFiles({ patchVersion, clientVersion, rootDir = DEFAULT_ROOT,
     .replace(introRe, `当前版本：**\`v${cleanPatch}\`**（适配 Antigravity 客户端 \`v${cleanClient}\`）`)
     .replace(statsRe, `${dictBucket} 条静态词库 + ${attrBucket} 条属性译文`);
 
+  let nextReadmeEn = null;
+  if (fs.existsSync(readmeEnPath)) {
+    const rawReadmeEn = fs.readFileSync(readmeEnPath, 'utf8');
+    const enBadgeRe = /Targets-Antigravity%20v\d+\.\d+\.\d+-blue/;
+    const enIntroRe = /Current version: \*\*`v\d+\.\d+\.\d+`\*\* \(supports Antigravity client `v\d+\.\d+\.\d+`\)/;
+    const enStatsRe = /\d+\+ static entries \+ \d+\+ attribute translations/;
+
+    if (!enBadgeRe.test(rawReadmeEn)) {
+      throw new Error('README.en.md 中未找到适配客户端徽章锚点（Targets-Antigravity%20vX.Y.Z-blue）。');
+    }
+    if (!enIntroRe.test(rawReadmeEn)) {
+      throw new Error('README.en.md 中未找到简介版本声明锚点（Current version: **`vX.Y.Z`** (supports Antigravity client `vA.B.C`)）。');
+    }
+    if (!enStatsRe.test(rawReadmeEn)) {
+      throw new Error('README.en.md 中未找到词库规模统计锚点（N+ static entries + M+ attribute translations）。');
+    }
+
+    nextReadmeEn = rawReadmeEn
+      .replace(enBadgeRe, `Targets-Antigravity%20v${cleanClient}-blue`)
+      .replace(enIntroRe, `Current version: **\`v${cleanPatch}\`** (supports Antigravity client \`v${cleanClient}\`)`)
+      .replace(enStatsRe, `${dictBucket} static entries + ${attrBucket} attribute translations`);
+  }
+
   if (!dryRun) {
     fs.writeFileSync(pkgPath, nextPkgText, 'utf8');
     fs.writeFileSync(readmePath, nextReadme, 'utf8');
+    if (nextReadmeEn !== null) {
+      fs.writeFileSync(readmeEnPath, nextReadmeEn, 'utf8');
+    }
   }
 
   let baselineVersion = '';
@@ -326,9 +370,12 @@ function runCli() {
     );
   }
 
+  const readmeFiles = fs.existsSync(path.join(DEFAULT_ROOT, 'README.en.md'))
+    ? 'README.md README.en.md'
+    : 'README.md';
   const stageFiles = result.baselineMatches
-    ? 'package.json README.md'
-    : 'package.json README.md assets/baseline/version.json';
+    ? `package.json ${readmeFiles}`
+    : `package.json ${readmeFiles} assets/baseline/version.json`;
 
   console.log('\n标准发版命令参考:');
   console.log('  npm run verify:local');

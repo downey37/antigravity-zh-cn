@@ -1202,6 +1202,114 @@ function createDynamicRules(helpers) {
     return lookupExact(trimmed, normalizeKey(trimmed)) || translatePlanOrModelNotice(trimmed) || translateQuotaTextParts(trimmed);
   }
 
+  const AUTH_RPC_CODE_MAP = {
+    unavailable: '服务不可用',
+    deadline_exceeded: '请求超时',
+    unauthenticated: '未通过身份验证',
+    permission_denied: '权限不足',
+    canceled: '已取消',
+    cancelled: '已取消',
+    internal: '内部错误',
+    invalid_argument: '参数无效',
+    failed_precondition: '前置条件不满足',
+    resource_exhausted: '配额已耗尽',
+    not_found: '未找到',
+    aborted: '操作中止',
+    unknown: '未知错误'
+  };
+
+  const OAUTH_CODE_ZH_MAP = {
+    access_denied: '访问被拒绝 (access_denied)',
+    invalid_grant: '授权已失效或无效 (invalid_grant)',
+    invalid_request: '请求无效 (invalid_request)',
+    server_error: '服务器错误 (server_error)',
+    temporarily_unavailable: '服务暂时不可用 (temporarily_unavailable)'
+  };
+
+  function translateAuthErrorDetail(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return raw;
+    const norm = normalizeKey(s);
+    const exact = lookupExact(s, norm);
+    if (exact) return exact;
+
+    const rpcMatch = norm.match(/^\[(unavailable|deadline_exceeded|unauthenticated|permission_denied|canceled|cancelled|internal|invalid_argument|failed_precondition|resource_exhausted|not_found|aborted|unknown)\]\s+(.+)$/i);
+    if (rpcMatch) {
+      const codeZh = AUTH_RPC_CODE_MAP[rpcMatch[1].toLowerCase()] || rpcMatch[1];
+      const innerZh = translateAuthErrorDetail(rpcMatch[2]);
+      return `[${codeZh}] ${innerZh}`;
+    }
+
+    const oauthCode = OAUTH_CODE_ZH_MAP[norm.toLowerCase()];
+    if (oauthCode) return oauthCode;
+
+    if (/^(?:Rpc failed due to xhr error|Failed to fetch|NetworkError\b[^.]*)\.?$/i.test(norm)) {
+      return '网络请求失败（请检查网络连接或代理设置）';
+    }
+    if (/^(?:context deadline exceeded|Client\.Timeout exceeded[^.]*|i\/o timeout|operation timed out|connection timed out|TLS handshake timeout)\.?$/i.test(norm)) {
+      return '网络连接超时（请检查网络或代理设置）';
+    }
+    if (/^connection refused\.?$/i.test(norm)) {
+      return '连接被拒绝（本地或远程服务未响应）';
+    }
+    if (/^connection reset by peer\.?$/i.test(norm)) {
+      return '连接被对端重置（请检查网络或代理设置）';
+    }
+    if (/^no such host\.?$/i.test(norm)) {
+      return '域名解析失败（请检查 DNS、网络或代理设置）';
+    }
+    if (/^(?:network is unreachable|network is down|no route to host)\.?$/i.test(norm)) {
+      return '网络不可达（请检查网络连接或代理设置）';
+    }
+    if (/^proxy authentication required\.?$/i.test(norm)) {
+      return '需要代理身份验证';
+    }
+    if (/^(?:Remote instance is unreachable|InstanceUnreachableError)\.?$/i.test(norm)) {
+      return '无法连接到远程实例';
+    }
+
+    let m = norm.match(/^(.+?)\s+is not (?:currently )?available in your (?:country|region|location)(?: or region)?\.?$/i);
+    if (m) {
+      return `${m[1].trim()} 目前暂不支持你所在的地区。`;
+    }
+    m = norm.match(/^(?:This|Your) account is not eligible(?!.*higher rate limits)(?:\s+(?:to use|for)\s+(.+?))?\.?$/i);
+    if (m) {
+      return m[1] ? `此账号暂不符合使用 ${m[1].trim()} 的条件。` : '此账号暂不符合使用条件。';
+    }
+    m = norm.match(/^(?:This|Your) account is not supported(?:\s+by\s+(.+?))?\.?$/i);
+    if (m) {
+      return m[1] ? `暂不支持使用此账号登录 ${m[1].trim()}。` : '暂不支持使用此账号登录。';
+    }
+    m = norm.match(/^(?:Your\s+)?(?:Workspace\s+)?(?:organization|administrator)\s+has\s+disabled\s+(.+?)\.?$/i);
+    if (m) {
+      return `你的组织管理员已禁用 ${m[1].trim()}。`;
+    }
+    m = norm.match(/^You must be at least (\d+) years old to use\s+(.+?)\.?$/i);
+    if (m) {
+      return `使用 ${m[2].trim()} 需要年满 ${m[1]} 周岁。`;
+    }
+
+    // 复合错误串中常见的网络错误尾缀替换
+    const replaced = norm
+      .replace(/\bRpc failed due to xhr error\b/gi, '网络请求失败（请检查网络连接或代理设置）')
+      .replace(/\bFailed to fetch\b/gi, '网络请求失败（请检查网络连接或代理设置）')
+      .replace(/\bcontext deadline exceeded\b/gi, '请求超时（context deadline exceeded）')
+      .replace(/\bClient\.Timeout exceeded(?: while awaiting headers)?\b/gi, '请求超时')
+      .replace(/\bi\/o timeout\b/gi, 'I/O 超时')
+      .replace(/\boperation timed out\b/gi, '操作超时')
+      .replace(/\bconnection timed out\b/gi, '连接超时')
+      .replace(/\bTLS handshake timeout\b/gi, 'TLS 握手超时')
+      .replace(/\bconnection refused\b/gi, '连接被拒绝')
+      .replace(/\bconnection reset by peer\b/gi, '连接被对端重置')
+      .replace(/\bno such host\b/gi, '域名解析失败')
+      .replace(/\bnetwork is unreachable\b/gi, '网络不可达')
+      .replace(/\bnetwork is down\b/gi, '网络已断开')
+      .replace(/\bno route to host\b/gi, '无法路由到主机')
+      .replace(/\bproxy authentication required\b/gi, '需要代理身份验证')
+      .replace(/\bRemote instance is unreachable\b/gi, '无法连接到远程实例');
+    return replaced !== norm ? replaced : s;
+  }
+
   const DYNAMIC_RULES = [
     // 文件变更、代码行统计、会话数、预算与工具计数
     [/^(\d+)\s+files?\s+changed$/i, '$1 个文件已更改'],
@@ -1366,6 +1474,13 @@ function createDynamicRules(helpers) {
     [/^Where the agent runs,\s*current:\s*(.+?)\s*\((.+)\)$/i, (_, loc, busy) => `智能体运行位置，当前：${lookupExact(loc.trim(), normalizeKey(loc.trim())) || loc.trim()}（${lookupExact(busy.trim(), normalizeKey(busy.trim())) || busy.trim()}）`],
     [/^Where the agent runs,\s*current:\s*(.+)$/i, (_, loc) => `智能体运行位置，当前：${lookupExact(loc.trim(), normalizeKey(loc.trim())) || loc.trim()}`],
     [/^Model:\s*(.+?),\s*(Model cannot be changed while the agent is running)$/i, (_, model, reason) => `模型：${translateModelWithEffort(model.trim()) || translateModelParenEffort(model.trim()) || model.trim()}，${lookupExact(reason.trim(), normalizeKey(reason.trim())) || reason.trim()}`],
+    [/^You have (\d+) conversations in progress\.\s*Updating will interrupt them,\s*and they will automatically resume once the update completes\.$/i, '你有 $1 个正在进行的会话。更新会暂时中断它们，并在更新完成后自动恢复。'],
+    [/^You have (\d+) conversations in progress\.\s*Updating will cancel them and you'll need to manually restart them\.$/i, '你有 $1 个正在进行的会话。更新将取消它们，之后你需要手动重新启动。'],
+    [/^All (\d+) will be revoked\.\s*The plugin will ask before doing this again\.$/i, '将撤销全部 $1 项权限。插件下次执行此类操作前会再次询问你。'],
+    [/^Revoke all:\s*(.+)$/i, '全部撤销：$1'],
+    [/^Revoke:\s*(.+)$/i, '撤销：$1'],
+    [/^Allowed in\s+(.+)$/i, '在 $1 中允许'],
+    [/^Resolved\s+"(.+)"$/i, '已解决“$1”'],
     [/^(.+?)\s+needs?\s+the terminal sandbox,\s*which isn't available on this host\.$/i, (_, names) => {
       const translatedNames = names
         .split(/\s+and\s+/i)
@@ -1444,6 +1559,28 @@ function createDynamicRules(helpers) {
     [/^Sign in to\s+(.+?)\s+on this computer$/i, '在此计算机上登录 $1'],
     [/^Sign in to\s+(.+?)\s+remotely$/i, '远程登录 $1'],
     [/^Sign in to\s+(.+)$/i, '登录 $1'],
+    [/^Welcome to\s+(.+?)!$/i, '欢迎使用 $1！'],
+    [/^Select\s+(.+?)\s+Theme$/i, '选择 $1 主题'],
+    [/^Hey\s+([A-Za-z0-9._-]{1,32})!$/i, (_, name) => name.toLowerCase() === 'there' ? '你好！' : `你好，${name}！`],
+    [/^You're signing in on\s+(.+?)\.\s+Your sign-in stays on that machine\.?$/i, '你正在 $1 上登录。登录状态将仅保留在该主机上。'],
+    [/^Sign-ins to\s+(.+?)\s+are kept in the cloud with your account\.?$/i, '你在 $1 的登录凭据会随你的账号保存在云端。'],
+    [/^Authenticated as\s+(.+)$/i, '已登录为 $1'],
+    [/^Sign-in failed:\s*(.+)$/i, (_, detail) => `登录失败：${translateAuthErrorDetail(detail)}`],
+    [/^Authentication failed:\s*(.+)$/i, (_, detail) => `身份验证失败：${translateAuthErrorDetail(detail)}`],
+    [/^(?:Failed|Unable) to sign in(?::\s*(.+)|\.?)$/i, (_, detail) => detail ? `登录失败：${translateAuthErrorDetail(detail)}` : '登录失败'],
+    [/^(?:Failed|Unable) to authenticate(?::\s*(.+)|\.?)$/i, (_, detail) => detail ? `身份验证失败：${translateAuthErrorDetail(detail)}` : '身份验证失败'],
+    [/^OAuth callback error\s*\(([^)]+)\):\s*(.+)$/i, (_, code, detail) => `OAuth 回调错误 (${code})：${translateAuthErrorDetail(detail)}`],
+    [/^OAuth callback error:\s*(.+)$/i, (_, detail) => `OAuth 回调错误：${translateAuthErrorDetail(detail)}`],
+    [/^OAuth token exchange failed:\s*(.+)$/i, (_, detail) => `OAuth 令牌交换失败：${translateAuthErrorDetail(detail)}`],
+    [/^OAuth callback server failed:\s*(.+)$/i, (_, detail) => `OAuth 回调服务启动失败：${translateAuthErrorDetail(detail)}`],
+    [/^OAuth token refresh failed:\s*(.+)$/i, (_, detail) => `OAuth 令牌刷新失败：${translateAuthErrorDetail(detail)}`],
+    [/^OAuth error:\s*(.+)$/i, (_, detail) => `OAuth 错误：${translateAuthErrorDetail(detail)}`],
+    [/^OAuth2 flow failed for\s+(.+?):\s*(.+)$/i, (_, target, detail) => `${target} 的 OAuth2 登录流程失败：${translateAuthErrorDetail(detail)}`],
+    [/^OAuth credentials definitively rejected by server \((.+)\)$/i, (_, detail) => `服务器已拒绝 OAuth 凭据 (${translateAuthErrorDetail(detail)})`],
+    [/^OAuth credentials definitively rejected during validation \((.+)\)$/i, (_, detail) => `验证时服务器已拒绝 OAuth 凭据 (${translateAuthErrorDetail(detail)})`],
+    [/^Failed to exchange authorization code:\s*(.+)$/i, (_, detail) => `交换授权码失败：${translateAuthErrorDetail(detail)}`],
+    [/^Failed to refresh token for\s+(.+?):\s*(.+)$/i, (_, target, detail) => `刷新 ${target} 令牌失败：${translateAuthErrorDetail(detail)}`],
+    [/^\[(unavailable|deadline_exceeded|unauthenticated|permission_denied|canceled|cancelled|internal|invalid_argument|failed_precondition|resource_exhausted|not_found|aborted|unknown)\]\s+(.+)$/i, (m) => translateAuthErrorDetail(m)],
     [/^Secret for a new\s+(.+?)\s+account$/i, '新 $1 账号的密钥'],
     [/^New secret for\s+(.+)$/i, '$1 的新密钥'],
     [/^Secret for\s+(.+)$/i, '$1 的密钥'],
@@ -1714,6 +1851,7 @@ function createDynamicRules(helpers) {
     // 模型标签说明 (i) 与不同订阅套餐提示动态模板（统一术语与多句组合支持）
     [/^(.+?)\s+that may offload routine steps to\s+(.+?)\.\s*Same\s+(.+?)-level quality,\s*fewer tokens used\.?$/i, '$1，可将常规步骤分流至 $2。同等 $3 级质量，消耗更少 Token。'],
     [/^(?=.*\b(?:available|unavailable|removed|removal|removing|deprecated|deprecating|retired|retiring|sunset|leaving|leaves|leave|replaced|until|subscribers?|plans?|tiers?|rate\s+limits?|base\s+limits?|quota|limit|ineligible|not\s+eligible|third-party|upgrade\s+to|managed\s+by|administrator|switch(?:ing)?\s+to|migrat(?:e|ing)\s+to|transition\s+to|recommend|try|use|instead|do\s+not\s+include|requires?)\b)[\s\S]+$/i, (m) => translatePlanOrModelNotice(m) || m],
+    [/^(?=.*(?:Rpc failed due to xhr error|Failed to fetch|NetworkError\b|context deadline exceeded|Client\.Timeout exceeded|i\/o timeout|operation timed out|connection timed out|TLS handshake timeout|connection refused|connection reset by peer|no such host|network is unreachable|network is down|no route to host|proxy authentication required|Remote instance is unreachable|InstanceUnreachableError|is not (?:currently )?available in your (?:country|region|location)|(?:This|Your) account is not eligible|(?:This|Your) account is not supported|(?:organization|administrator)\s+has\s+disabled|must be at least \d+ years old to use))[\s\S]+$/i, (m) => translateAuthErrorDetail(m)],
 
     // 云端资源接入、Notebook 与草稿计数动态模板
     [/^Add\s+(.+?)\s+resources$/i, '添加 $1 资源'],

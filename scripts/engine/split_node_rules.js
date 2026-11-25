@@ -331,6 +331,29 @@ function translateSplitTextNode(node, val, parent) {
     return ' 并重新添加。';
   }
 
+  // 24. 登录引导 / 插件选择 / 服务条款 / 账号资格校验拆分节点
+  const inProdMatch = val.match(/^in\s+(.+?)\s+$/);
+  if (inProdMatch && /Google developer products|Google 开发者产品/.test(parentText)) {
+    return `，在 ${inProdMatch[1]} 中 `;
+  }
+  if (val === 'Error: ' && node.nextSibling) {
+    return '错误：';
+  }
+  if (val === 'Sign-in failed: ' && node.nextSibling) {
+    return '登录失败：';
+  }
+  if (
+    val === 'and' &&
+    /Terms of Service|服务条款/.test(parentText) &&
+    /Privacy Policy|隐私权政策|隐私政策/.test(parentText)
+  ) {
+    return '和';
+  }
+  if (val === '. ' && /Learn more by visiting our|如需了解更多，请访问我们的/.test(parentText)) {
+    const prevText = node.previousSibling ? (node.previousSibling.textContent || '').trim() : '';
+    return /[。！？.]$/.test(prevText) ? ' ' : '。';
+  }
+
   return null;
 }
 

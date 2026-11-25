@@ -99,6 +99,7 @@ function buildPortableRelease(options = {}) {
     'package.json',
     'LICENSE',
     'README.md',
+    'README.en.md',
     '一键修复或更新汉化.bat',
     '一键还原官方英文.bat',
     '一键免TUN启动.bat',

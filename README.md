@@ -5,8 +5,10 @@
 <br />
 <br />
 
+<p><b>简体中文</b> | <a href="README.en.md">English</a></p>
+
 [![Release](https://img.shields.io/github/v/release/downey37/antigravity-zh-cn?style=flat-square&label=当前版本&color=0ea5e9)](https://github.com/downey37/antigravity-zh-cn/releases)
-[![Antigravity](https://img.shields.io/badge/适配客户端-Antigravity%20v2.34.0-blue?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases)
+[![Antigravity](https://img.shields.io/badge/适配客户端-Antigravity%20v2.35.1-blue?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases)
 [![Platforms](https://img.shields.io/badge/支持平台-Windows%20%7C%20macOS-0284c7?style=flat-square)](#快速安装使用)
 [![Portable](https://img.shields.io/badge/零依赖便携包-免%20Node.js-10b981?style=flat-square)](https://github.com/downey37/antigravity-zh-cn/releases/latest)
 [![No-TUN](https://img.shields.io/badge/免%20TUN%20联网-无需开启全局%20TUN-06b6d4?style=flat-square)](#2-免-tun-联网启动windows)
@@ -16,7 +18,7 @@
 
 <p><b>专为 Google Antigravity 桌面客户端打造的高覆盖、无损可逆、支持免 TUN 联网与 OTA 热更的简体中文本地化套件。</b></p>
 
-当前版本：**`v0.5.1`**（适配 Antigravity 客户端 `v2.34.0`）
+当前版本：**`v0.5.1`**（适配 Antigravity 客户端 `v2.35.1`）
 
 [界面预览](#界面效果预览) · [核心特性](#核心特性一览) · [快速安装](#快速安装使用) · [中英切换](#实用进阶功能) · [免 TUN 联网](#2-免-tun-联网启动windows) · [架构原理](#工作原理) · [常见问题](#常见问题-faq) · [参与贡献](#参与贡献与维护)
 
@@ -44,7 +46,7 @@
 
 | 核心能力 | 实现方式与亮点 |
 | :--- | :--- |
-| **全界面高覆盖与精准消歧** | 收录 **4060+ 条静态词库 + 390+ 条属性译文**、动态变量模板与跨节点碎片重组规则；按 DOM 上下文精确区分同词多义（如 `New` 徽章 vs `新建`、`None` 分组为 `不分组` vs 思考深度为 `关闭思考`），并自动避开代码块、终端与用户输入区域，保留 `Antigravity`、`Google Drive`、`Gemini`、`Claude`、`GPT-OSS` 等原名。 |
+| **全界面高覆盖与精准消歧** | 收录 **4250+ 条静态词库 + 440+ 条属性译文**、动态变量模板与跨节点碎片重组规则；按 DOM 上下文精确区分同词多义（如 `New` 徽章 vs `新建`、`None` 分组为 `不分组` vs 思考深度为 `关闭思考`），并自动避开代码块、终端与用户输入区域，保留 `Antigravity`、`Google Drive`、`Gemini`、`Claude`、`GPT-OSS` 等原名。 |
 | **零依赖便携包与跨平台支持** | Releases 提供内置生产依赖的免 Node.js 便携包（`-portable.zip`），直接复用客户端自带 Electron 运行时执行注入；支持 **Windows 10 / 11** 与 **macOS**（修改后自动执行本地 `codesign` 深度签名）。 |
 | **顶部标题栏一键原文 / 译文切换** | 在顶部标题栏常驻 **`[ 中 | EN ]`** 胶囊开关（也可从菜单/托盘触发），基于 `WeakMap` 精确追踪原文并联动主进程 `_i18nT` 动态双语，无需重启即可在简体中文与 100% 纯净官方英文原文间无损切换，并**自动记住切换状态**跨重启保留。 |
 | **云端词库热更新（OTA）** | 启动后自动从 `ota-dist` 通道单向只读拉取纯 JSON 词库与声明式模板（SHA-256 校验、零远端 JS 执行、零遥测），**免重启实时生效**；亦支持菜单手动检查或 `ANTIGRAVITY_I18N_NO_OTA=1` 禁用。 |

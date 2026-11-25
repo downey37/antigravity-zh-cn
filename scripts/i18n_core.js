@@ -65,6 +65,7 @@ function isAsarPatched(targetAsar = asarPath) {
     if (
       !utilsBuf.includes('__antigravityTranslateAll') ||
       !utilsBuf.includes('did-frame-finish-load') ||
+      !utilsBuf.includes('did-navigate-in-page') ||
       !utilsBuf.includes('_getAntigravityI18nOta') ||
       !utilsBuf.includes('getInitialStateScript')
     ) return false;
@@ -215,6 +216,7 @@ async function patchAsar() {
   patchFile(tempDir, 'dist/utils.js', (code) => {
     if (
       code.includes('did-frame-finish-load') &&
+      code.includes('did-navigate-in-page') &&
       code.includes('__antigravityTranslateAll') &&
       code.includes('_getAntigravityI18nCode') &&
       code.includes('_getAntigravityI18nOta') &&
@@ -275,6 +277,7 @@ function _getAntigravityI18nOta() {
             _i18nWc.executeJavaScript(\`
                 if (window.__antigravitySetI18nEnabled) {
                     window.__antigravitySetI18nEnabled(\${enabledFlag ? 'true' : 'false'});
+                    \${enabledFlag ? 'if (window.__antigravityTranslateAll) window.__antigravityTranslateAll();' : ''}
                     true;
                 } else if (window.__antigravityTranslateAll) {
                     window.__antigravityTranslateAll();
@@ -298,6 +301,22 @@ function _getAntigravityI18nOta() {
                     if (otaAfter) otaAfter.applyCachedPackToWebContents(_i18nWc);
                 }
             }).catch(console.error);
+        });
+        _i18nWc.on('did-navigate-in-page', () => {
+            if (_i18nWc.isDestroyed && _i18nWc.isDestroyed()) return;
+            const ota = _getAntigravityI18nOta();
+            const enabledFlag = ota && typeof ota.isI18nEnabled === 'function' ? ota.isI18nEnabled() : true;
+            if (!enabledFlag) return;
+            _i18nWc.executeJavaScript(\`
+                if (window.__antigravityTranslateAll) {
+                    window.__antigravityTranslateAll();
+                    setTimeout(() => {
+                        if (window.__antigravityIsI18nEnabled && window.__antigravityIsI18nEnabled() && window.__antigravityTranslateAll) {
+                            window.__antigravityTranslateAll();
+                        }
+                    }, 320);
+                }
+            \`).catch(() => {});
         });
         _i18nWc.on('did-frame-finish-load', (_event, isMainFrame, frameProcessId, frameRoutingId) => {
             if (isMainFrame || (_i18nWc.isDestroyed && _i18nWc.isDestroyed())) return;
@@ -346,6 +365,7 @@ function _getAntigravityI18nOta() {
   if (
     utilsPatched.includes('__antigravityTranslateAll') &&
     utilsPatched.includes('did-frame-finish-load') &&
+    utilsPatched.includes('did-navigate-in-page') &&
     utilsPatched.includes('_getAntigravityI18nOta') &&
     utilsPatched.includes('getInitialStateScript')
   ) {

@@ -210,10 +210,11 @@ function runVerification() {
       getCodeIdx < createWinIdx &&
       !utilsCode.includes('http://localhost:') &&
       utilsCode.includes('frameOrigin === mainOrigin') &&
+      utilsCode.includes('did-navigate-in-page') &&
       utilsCode.includes('_getAntigravityI18nOta') &&
       utilsCode.includes('applyCachedPackToWebContents') &&
       utilsCode.includes('getInitialStateScript'),
-      'utils.js must define module-level _getAntigravityI18nCode / _getAntigravityI18nOta caches, sync initial enabled state, and use exact frameOrigin matching'
+      'utils.js must define module-level _getAntigravityI18nCode / _getAntigravityI18nOta caches, sync initial enabled state, listen to did-navigate-in-page, and use exact frameOrigin matching'
     );
     assert(secCode.includes('颁发给：') && secCode.includes('请勿在此网站上输入任何敏感信息') && secCode.includes('function _i18nT('), 'webviewPopupSecurity.js must dynamically translate body and certificate fields');
     assert(wizardCode.includes('Antigravity 已全新重构') && wizardCode.includes('function _i18nT('), 'wizardHtml.js must dynamically translate body paragraph');
@@ -601,6 +602,18 @@ function runVerification() {
     '智能体运行期间无法切换模型'
   );
   assert.strictEqual(
+    api.translateString('Permissions cannot be changed while the agent is running'),
+    '智能体运行期间无法更改权限'
+  );
+  assert.strictEqual(
+    api.translateString('Agent permissions preset: Turbo, Permissions cannot be changed while the agent is running'),
+    '智能体权限预设：全自动，智能体运行期间无法更改权限'
+  );
+  assert.strictEqual(
+    api.translateString('Cannot continue as a new conversation while side question is running'),
+    '临时提问运行期间无法继续为新会话'
+  );
+  assert.strictEqual(
     api.translateString('Model: Gemini 3.1 Pro High, Model cannot be changed while the agent is running'),
     '模型：Gemini 3.1 Pro 高，智能体运行期间无法切换模型'
   );
@@ -621,6 +634,58 @@ function runVerification() {
     api.translateString('Where the agent runs, current: This Computer (Cloning locally\u2026)'),
     '智能体运行位置，当前：此电脑（正在克隆到本地...）'
   );
+
+  // 3g. v2.35.1 tooltips, Inbox Mode, Plugin Permissions, Dictation Languages, Remote Clone, Open With & Agents
+  assert.strictEqual(api.translateString('Continue as a New Conversation'), '继续为新会话');
+  assert.strictEqual(
+    api.translateString('Cannot continue as a new conversation during Battle Mode \u2014 end the battle first'),
+    '对战模式期间无法继续为新会话 — 请先结束对战'
+  );
+  assert.strictEqual(
+    api.translateString("Cannot continue a subagent's side question as a new conversation"),
+    '无法将子智能体的临时提问继续为新会话'
+  );
+  assert.strictEqual(api.translateString('Locked while grouped by Status'), '按状态分组时已锁定');
+  assert.strictEqual(api.translateString('Cloud Conversation'), '云端会话');
+  assert.strictEqual(api.translateString('Toggle Virtual Machine'), '切换虚拟机');
+  assert.strictEqual(api.translateString('Live preview unavailable'), '实时预览不可用');
+  assert.strictEqual(
+    api.translateString('You have a conversation in progress. Updating will interrupt it, and it will automatically resume once the update completes.'),
+    '你有一个正在进行的会话。更新会暂时中断它，并在更新完成后自动恢复。'
+  );
+  assert.strictEqual(
+    api.translateString('You have 3 conversations in progress. Updating will interrupt them, and they will automatically resume once the update completes.'),
+    '你有 3 个正在进行的会话。更新会暂时中断它们，并在更新完成后自动恢复。'
+  );
+  assert.strictEqual(
+    api.translateString("You have 2 conversations in progress. Updating will cancel them and you'll need to manually restart them."),
+    '你有 2 个正在进行的会话。更新将取消它们，之后你需要手动重新启动。'
+  );
+  assert.strictEqual(api.translateString('Inbox Mode'), '收件箱模式');
+  assert.strictEqual(api.translateString('Resolve conversation'), '将会话标记为已解决');
+  assert.strictEqual(api.translateString('Working Section'), '进行中分区');
+  assert.strictEqual(api.translateString('Auto-Resolve'), '自动解决');
+  assert.strictEqual(api.translateString('Resolved "My Task"'), '已解决“My Task”');
+  assert.strictEqual(api.translateString('Plugin permissions'), '插件权限');
+  assert.strictEqual(api.translateString('Revoke all: File System'), '全部撤销：File System');
+  assert.strictEqual(
+    api.translateString('All 3 will be revoked. The plugin will ask before doing this again.'),
+    '将撤销全部 3 项权限。插件下次执行此类操作前会再次询问你。'
+  );
+  assert.strictEqual(api.translateString('Allowed in my-project'), '在 my-project 中允许');
+  assert.strictEqual(api.translateString('Yes, always allow in this project'), '是，在此项目中始终允许');
+  assert.strictEqual(api.translateString('Dictation languages'), '语音听写语言');
+  assert.strictEqual(api.translateString('Auto-detect (browser defaults)'), '自动检测（浏览器默认）');
+  assert.strictEqual(api.translateString('Orchestrator model selection'), 'Orchestrator 模型选择');
+  assert.strictEqual(api.translateString('Clone from Remote'), '从远程克隆');
+  assert.strictEqual(api.translateString('Clone from This Computer'), '从此电脑克隆');
+  assert.strictEqual(api.translateString('Open with'), '打开方式');
+  assert.strictEqual(api.translateString('Text viewer'), '文本查看器');
+  assert.strictEqual(api.translateString('PDF viewer'), 'PDF 查看器');
+  assert.strictEqual(api.translateString('New Agent'), '新建智能体');
+  assert.strictEqual(api.translateString('For My Team'), '供团队共享');
+  assert.strictEqual(api.translateString('Type your own answer'), '输入你自己的回答');
+  assert.strictEqual(api.translateString('Search by name or username'), '按姓名或用户名搜索');
 
   // 3d. v2.33.0 Keyboard Shortcuts & Keybinding Scheme translations
   assert.strictEqual(api.translateString('Keybinding Scheme'), '按键绑定方案');
@@ -958,6 +1023,78 @@ function runVerification() {
     '你的账号已关闭遥测功能。这意味着 Antigravity 不会收集你的任何提示词、内容或模型回复，但仍会收集常规使用模式（例如功能采用率和活跃用户数）。'
   );
 
+  // 3g. Unauthenticated onboarding, login/SSO/WIF/auth-code flows & Go/ConnectRPC/network auth errors
+  const onboardingExactCases = [
+    ['Welcome to Antigravity!', '欢迎使用 Antigravity！'],
+    ['WIF Config', 'WIF 配置'],
+    ['E.g. locations/global/workforcePools...', '例如：locations/global/workforcePools...'],
+    ['Sign In with SSO', '使用单点登录 (SSO) 登录'],
+    ['Trouble signing in? Enter authorization code', '登录遇到问题？输入授权码'],
+    ['Submit code', '提交授权码'],
+    ['Authorization code was rejected. Paste a fresh code and try again.', '授权码无效或已被拒绝，请粘贴新的授权码后重试。'],
+    ['Copied sign-in link to clipboard', '已复制登录链接到剪贴板'],
+    ['Switched to authorization code sign-in', '已切换为授权码登录'],
+    ['Select Antigravity Theme', '选择 Antigravity 主题'],
+    ['Select Theme', '选择主题'],
+    ["Let's tailor the experience for you. What best describes your work?", '让我们为你定制使用体验。以下哪项最符合你的工作方向？'],
+    ['Hey there!', '你好！'],
+    ['Learn more by visiting our', '如需了解更多，请访问我们的'],
+    ['FAQ', '常见问题'],
+    ['Verify', '去验证'],
+    ['This account is not eligible for Antigravity.', '此账号无法使用 Antigravity。'],
+    ['Sign-in failed while exchanging authorization code. Return to Antigravity for details and try again.', '交换授权码时登录失败。请返回 Antigravity 查看详情并重试。'],
+    ['Sign-in session is no longer active. Please start sign-in again.', '登录会话已失效，请重新发起登录。'],
+    ['Authorization code submission timed out. Please try again.', '提交授权码超时，请重试。'],
+    ["Sign-in didn't finish. Try again.", '登录未完成，请重试。'],
+    ['Authentication successful! You can close this window.', '登录成功！你可以关闭此窗口。'],
+    ['enterprise license assignment is disabled by administrator policy; pay-as-you-go billing is required', '管理员策略已禁用企业许可证分配，必须使用按量付费计费模式'],
+    ['Authentication failed', '身份验证失败'],
+    ['Authentication expired. Please log back in.', '身份验证已过期，请重新登录。']
+  ];
+  for (const [en, zh] of onboardingExactCases) {
+    assert.strictEqual(api.translateString(en), zh, `Onboarding/Auth static check failed for: ${en}`);
+  }
+  const onboardingAttrCases = [
+    ['Continue with Google', '使用 Google 账号继续'],
+    ['E.g. locations/global/workforcePools...', '例如：locations/global/workforcePools...'],
+    ['Light preview', '浅色预览'],
+    ['Dark preview', '深色预览'],
+    ['Sign-in required', '需要登录']
+  ];
+  for (const [en, zh] of onboardingAttrCases) {
+    assert.strictEqual(api.ATTR_DICT[en], zh, `Onboarding/Auth ATTR_DICT check failed for: ${en}`);
+  }
+  assert.strictEqual(api.translateString('Welcome to Antigravity!'), '欢迎使用 Antigravity！');
+  assert.strictEqual(api.translateString('Select MyApp Theme'), '选择 MyApp 主题');
+  assert.strictEqual(api.translateString('Hey Alice!'), '你好，Alice！');
+  assert.strictEqual(api.translateString('Further action is required to use Antigravity'), '需要进一步操作才能使用 Antigravity');
+  assert.strictEqual(
+    api.translateString("You're signing in on devbox. Your sign-in stays on that machine."),
+    '你正在 devbox 上登录。登录状态将仅保留在该主机上。'
+  );
+  assert.strictEqual(api.translateString('Sign-in failed: access_denied'), '登录失败：访问被拒绝 (access_denied)');
+  assert.strictEqual(api.translateString('Sign-in failed: context deadline exceeded'), '登录失败：网络连接超时（请检查网络或代理设置）');
+  assert.strictEqual(
+    api.translateString('OAuth callback error (access_denied): User denied access'),
+    'OAuth 回调错误 (access_denied)：User denied access'
+  );
+  assert.strictEqual(
+    api.translateString('[unavailable] Rpc failed due to xhr error'),
+    '[服务不可用] 网络请求失败（请检查网络连接或代理设置）'
+  );
+  assert.strictEqual(
+    api.translateString('Antigravity is not currently available in your country.'),
+    'Antigravity 目前暂不支持你所在的地区。'
+  );
+  assert.strictEqual(
+    api.translateString('Your organization has disabled Antigravity.'),
+    '你的组织管理员已禁用 Antigravity。'
+  );
+  assert.strictEqual(
+    api.translateString('Your account is not eligible for higher rate limits through Google AI Pro.'),
+    '你的账号目前无法通过 Google AI Pro 获取更高的请求速率上限。'
+  );
+
   // 4. Split text nodes (including out-of-order translation)
   const t1 = makeTextNode('Add ');
   const t2 = makeTextNode('GitHub');
@@ -1052,6 +1189,37 @@ function runVerification() {
   const pSsh = makeEl({ tag: 'P', children: [ssh1, ssh2, ssh3] });
   assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ssh1, 'No hosts in ', pSsh), '在 ');
   assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(ssh3, ' yet. Type one above.', pSsh), ' 中暂无主机配置，可在上方直接输入。');
+
+  const bwg1 = makeTextNode('Plugins are packaged collections of skills and MCPs to help the Agent');
+  const bwg2 = makeTextNode(' ');
+  const bwg3 = makeTextNode('in Antigravity ');
+  const bwg4 = makeTextNode('work with Google developer products. You can always change your choices in Settings.');
+  const pBwg = makeEl({ tag: 'P', children: [bwg1, bwg2, bwg3, bwg4] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(bwg3, 'in Antigravity ', pBwg), '，在 Antigravity 中 ');
+
+  const err1 = makeTextNode('Error: ');
+  const err2 = makeTextNode('network failure');
+  const divErr = makeEl({ tag: 'DIV', children: [err1, err2] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(err1, 'Error: ', divErr), '错误：');
+
+  const mcpSign1 = makeTextNode('Sign-in failed: ');
+  const mcpSign2 = makeTextNode('token expired');
+  const pMcpSign = makeEl({ tag: 'P', children: [mcpSign1, mcpSign2] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(mcpSign1, 'Sign-in failed: ', pMcpSign), '登录失败：');
+
+  const tosLink1 = makeEl({ tag: 'A', text: 'Google Antigravity Terms of Service' });
+  const tosAnd = makeTextNode('and');
+  const tosLink2 = makeEl({ tag: 'A', text: 'Google Privacy Policy' });
+  const spanTos = makeEl({ tag: 'SPAN', children: [makeTextNode('Allow Google... '), tosLink1, makeTextNode(' '), tosAnd, makeTextNode(' '), tosLink2] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(tosAnd, 'and', spanTos), '和');
+
+  const faqReason = makeTextNode('此账号无法使用 Antigravity');
+  const faqDot = makeTextNode('. ');
+  const faqLead = makeTextNode('Learn more by visiting our');
+  const pFaq = makeEl({ tag: 'P', children: [faqReason, faqDot, faqLead] });
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(faqDot, '. ', pFaq), '。');
+  faqReason.nodeValue = '此账号无法使用 Antigravity。';
+  assert.strictEqual(api.SPLIT_TEXT_TRANSLATOR(faqDot, '. ', pFaq), ' ');
 
   // 5. DOM translateNode + ATTR_DICT + context ignore guards
   const inputEl = makeEl({ tag: 'INPUT', attrs: { placeholder: 'Search conversations...', 'aria-label': 'Antigravity' } });
@@ -1653,14 +1821,43 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(popup.children.length, 3);
   const titleBarToggleBtns = titleBar.querySelectorAll('[data-antigravity-i18n-titlebar-toggle="true"]');
   assert.strictEqual(titleBarToggleBtns.length, 1, 'Top title bar must inject permanent [中 | EN] toggle pill');
+  const titleToggleStyles = html.querySelectorAll('[data-antigravity-i18n-titlebar-style="true"]');
+  assert.strictEqual(titleToggleStyles.length, 1, 'Top title bar toggle must inject shared stylesheet once');
+  const toggleCss = titleToggleStyles[0].textContent;
+  assert(
+    toggleCss.includes('var(--primary') &&
+    toggleCss.includes('var(--primary-foreground') &&
+    toggleCss.includes('var(--background') &&
+    toggleCss.includes('var(--onyx-raised') &&
+    toggleCss.includes('var(--card-border') &&
+    toggleCss.includes('var(--border') &&
+    toggleCss.includes('height:24px') &&
+    toggleCss.includes('border-radius:8px') &&
+    toggleCss.includes('border-radius:6px') &&
+    toggleCss.includes('cursor:pointer') &&
+    !toggleCss.includes('cursor:grab') &&
+    toggleCss.includes('appearance:none') &&
+    toggleCss.includes('box-shadow:none') &&
+    toggleCss.includes('cubic-bezier(0.34,1.56,0.64,1)') &&
+    toggleCss.includes('ag-i18n-jelly-zh') &&
+    toggleCss.includes('ag-i18n-jelly-en'),
+    'Toggle stylesheet must sync with Settings accent CSS vars, native rounded-lg/md geometry, pointer cursor, CSS resets, and spring/jelly animations'
+  );
   const titleToggleBtn = titleBarToggleBtns[0];
-  assert.strictEqual(titleToggleBtn.getAttribute('title'), '当前：简体中文（点击切换为英文原文）');
+  assert.strictEqual(titleToggleBtn.getAttribute('role'), null, 'Titlebar toggle must not use role="switch" to avoid colliding with Antigravity light-theme [role="switch"] CSS');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-lang'), 'zh');
+  assert.strictEqual(titleToggleBtn.getAttribute('aria-pressed'), 'true');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-bounce'), null, 'Initial render must not trigger bounce animation');
+  assert.strictEqual(titleToggleBtn.getAttribute('title'), '当前：简体中文（点击或拖动切换为英文原文）');
+  const thumbPill = titleToggleBtn.querySelector('[data-antigravity-i18n-pill-thumb="true"]');
+  const thumbFillPill = titleToggleBtn.querySelector('[data-antigravity-i18n-pill-thumb-fill="true"]');
+  assert(thumbPill && thumbFillPill, 'Title bar toggle must include sliding capsule thumb and inner fill');
   const zhPill = titleToggleBtn.querySelector('[data-antigravity-i18n-pill-zh="true"]');
   const enPill = titleToggleBtn.querySelector('[data-antigravity-i18n-pill-en="true"]');
   assert.strictEqual(zhPill.textContent, '中');
   assert.strictEqual(enPill.textContent, 'EN');
-  assert(zhPill.getAttribute('style').includes('font-weight:600'));
-  assert(enPill.getAttribute('style').includes('opacity:0.55'));
+  assert.strictEqual(zhPill.getAttribute('data-active'), 'true');
+  assert.strictEqual(enPill.getAttribute('data-active'), 'false');
 
   // Click dispatches Escape to close React menu & triggers IPC checkForUpdates
   injectedBtns[0]._listeners.click[0]({ stopPropagation() {} });
@@ -1682,9 +1879,12 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(verSpan.firstChild.nodeValue, 'Version 2.34.0');
   assert.strictEqual(updSpan.firstChild.nodeValue, 'Check for Updates');
   assert.strictEqual(injectedBtns[0].textContent, 'Check i18n Updates');
-  assert.strictEqual(titleToggleBtn.getAttribute('title'), 'Current: English (Click to switch to 简体中文)');
-  assert(enPill.getAttribute('style').includes('font-weight:600'));
-  assert(zhPill.getAttribute('style').includes('opacity:0.55'));
+  assert.strictEqual(titleToggleBtn.getAttribute('title'), 'Current: English (Click or drag to switch to 简体中文)');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-lang'), 'en');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-bounce'), 'en');
+  assert.strictEqual(titleToggleBtn.getAttribute('aria-pressed'), 'false');
+  assert.strictEqual(enPill.getAttribute('data-active'), 'true');
+  assert.strictEqual(zhPill.getAttribute('data-active'), 'false');
   assert.strictEqual(zhPill.textContent, '中');
   assert.strictEqual(enPill.textContent, 'EN');
 
@@ -1707,7 +1907,53 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(whileEnglishText.nodeValue, '添加资源');
   assert.strictEqual(updSpan.firstChild.nodeValue, '检查更新');
   assert.strictEqual(injectedBtns[0].textContent, '检查汉化更新');
-  assert.strictEqual(titleToggleBtn.getAttribute('title'), '当前：简体中文（点击切换为英文原文）');
+  assert.strictEqual(titleToggleBtn.getAttribute('title'), '当前：简体中文（点击或拖动切换为英文原文）');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-lang'), 'zh');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-bounce'), 'zh');
+  assert.strictEqual(titleToggleBtn.getAttribute('aria-pressed'), 'true');
+  assert.strictEqual(zhPill.getAttribute('data-active'), 'true');
+  assert.strictEqual(enPill.getAttribute('data-active'), 'false');
+
+  // 12b. Pointer drag interaction on title-bar toggle (drag past midpoint toggles & suppresses trailing click; short drag snaps back)
+  titleToggleBtn.getBoundingClientRect = () => ({ width: 58 });
+  thumbPill.style = {};
+  const emitPtr = (type, clientX, pointerId = 1) => {
+    for (const fn of (titleToggleBtn._listeners[type] || [])) {
+      fn({ type, button: 0, pointerId, clientX, stopPropagation() {} });
+    }
+  };
+  // Drag right past midpoint: 中 -> EN
+  emitPtr('pointerdown', 10);
+  emitPtr('pointermove', 30);
+  assert.strictEqual(titleToggleBtn.getAttribute('data-dragging'), 'true');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-drag-target'), 'en');
+  assert(thumbPill.style.transform && thumbPill.style.transform.includes('translate3d('));
+  emitPtr('pointerup', 30);
+  assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), false, 'Dragging past midpoint right must switch to English');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-lang'), 'en');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-dragging'), null);
+  assert.strictEqual(titleToggleBtn.getAttribute('data-drag-target'), null);
+  assert.strictEqual(thumbPill.style.transform, '');
+  // Trailing synthetic click right after drag must be suppressed (must stay in English)
+  titleToggleBtn._listeners.click[0]({ stopPropagation() {} });
+  assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), false, 'Trailing click after drag must not double-toggle');
+
+  // Short drag left (< midpoint) snaps back and keeps English
+  emitPtr('pointerdown', 30);
+  emitPtr('pointermove', 24);
+  emitPtr('pointerup', 24);
+  assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), false, 'Short drag not crossing midpoint must snap back without toggling');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-lang'), 'en');
+  assert.strictEqual(thumbPill.style.transform, '');
+
+  // Drag left past midpoint: EN -> 中
+  emitPtr('pointerdown', 30);
+  emitPtr('pointermove', 10);
+  assert.strictEqual(titleToggleBtn.getAttribute('data-drag-target'), 'zh');
+  emitPtr('pointerup', 10);
+  assert.strictEqual(sandbox.window.__antigravityIsI18nEnabled(), true, 'Dragging past midpoint left must switch back to Simplified Chinese');
+  assert.strictEqual(titleToggleBtn.getAttribute('data-lang'), 'zh');
+  assert.strictEqual(thumbPill.style.transform, '');
 
   // 13. Startup in persisted English mode (__ANTIGRAVITY_I18N_INITIAL_ENABLED__ = false) keeps UI English while injecting clickable [中 | EN] pill
   const { DomNode: DomNodeEn, DomElement: DomElementEn, makeText: makeTextEn } = createMockDomEnv();
@@ -1767,7 +2013,8 @@ function runDomLifecycleVerification(i18nCode) {
   assert.strictEqual(labelTextEn.nodeValue, 'Settings', 'Persisted English startup must keep UI in English');
   const enBarToggles = barEn.querySelectorAll('[data-antigravity-i18n-titlebar-toggle="true"]');
   assert.strictEqual(enBarToggles.length, 1, 'Title bar toggle pill must still be injected when starting in English mode');
-  assert(enBarToggles[0].querySelector('[data-antigravity-i18n-pill-en="true"]').getAttribute('style').includes('font-weight:600'));
+  assert.strictEqual(enBarToggles[0].getAttribute('data-lang'), 'en');
+  assert.strictEqual(enBarToggles[0].querySelector('[data-antigravity-i18n-pill-en="true"]').getAttribute('data-active'), 'true');
   enBarToggles[0]._listeners.click[0]({ stopPropagation() {} });
   assert.strictEqual(sandboxEn.window.__antigravityIsI18nEnabled(), true);
   assert.strictEqual(labelTextEn.nodeValue, '设置', 'Clicking [中 | EN] from English startup must translate UI immediately');
@@ -2211,10 +2458,11 @@ function runMutationConvergenceVerification(i18nCode) {
   flushMutations();
 
   const toggleBtn = titleBar.querySelector('[data-antigravity-i18n-titlebar-toggle="true"]');
+  const thumbPill = toggleBtn.querySelector('[data-antigravity-i18n-pill-thumb="true"]');
   const zhPill = toggleBtn.querySelector('[data-antigravity-i18n-pill-zh="true"]');
   const enPill = toggleBtn.querySelector('[data-antigravity-i18n-pill-en="true"]');
   let titlebarAttrWrites = 0;
-  for (const el of [toggleBtn, zhPill, enPill]) {
+  for (const el of [toggleBtn, thumbPill, zhPill, enPill]) {
     const origSet = el.setAttribute;
     el.setAttribute = function (k, v) {
       titlebarAttrWrites += 1;
@@ -2981,6 +3229,48 @@ async function runAutoMtVerification() {
     sandbox.window.__antigravitySetAutoMtEnabled(true);
     assert.strictEqual(nuxBodyText.nodeValue, 'Carbon 和 Argon 现已包含在整个 Gemini 权益中，因此你可以使用它们更长时间。');
     assert.strictEqual(ipcRequests.length, 1);
+
+    // 3e. Onboarding / auth-error / persona auto-MT whitelist positive & negative guards
+    const authErrBox = new DomElement('DIV');
+    authErrBox.setAttribute('data-testid', 'onboarding-auth-code-error');
+    const authErrText = makeText('Server returned an unexpected authorization error code.');
+    authErrBox.appendChild(authErrText);
+    rootDiv.appendChild(authErrBox);
+    assert(ipcRequests.includes('Server returned an unexpected authorization error code.'), 'onboarding-auth-code-error must trigger auto-MT');
+
+    const blockedScreen = new DomElement('DIV');
+    blockedScreen.setAttribute('data-testid', 'jetbox-access-blocked-screen');
+    const blockedMsg = makeText('Your workspace administrator blocked desktop access.');
+    blockedScreen.appendChild(blockedMsg);
+    rootDiv.appendChild(blockedScreen);
+    assert(ipcRequests.includes('Your workspace administrator blocked desktop access.'), 'jetbox-access-blocked-screen must trigger auto-MT');
+
+    const personaDesc = new DomElement('P');
+    personaDesc.setAttribute('data-testid', 'persona-description');
+    const personaText = makeText('Build software faster with autonomous coding workflows.');
+    personaDesc.appendChild(personaText);
+    rootDiv.appendChild(personaDesc);
+    assert(ipcRequests.includes('Build software faster with autonomous coding workflows.'), 'persona-description must trigger auto-MT');
+
+    const brandShell = new DomElement('DIV');
+    brandShell.setAttribute('data-testid', 'onboarding-brand-shell');
+    const brandP = new DomElement('P');
+    const brandPText = makeText('Unmatched server onboarding guidance message.');
+    brandP.appendChild(brandPText);
+    const brandMono = new DomElement('SPAN');
+    brandMono.className = 'font-mono';
+    const brandMonoText = makeText('locations/global/workforcePools/custom-pool');
+    brandMono.appendChild(brandMonoText);
+    const brandInput = new DomElement('INPUT');
+    const brandInputText = makeText('Raw input placeholder value inside shell');
+    brandInput.appendChild(brandInputText);
+    brandShell.appendChild(brandP);
+    brandShell.appendChild(brandMono);
+    brandShell.appendChild(brandInput);
+    rootDiv.appendChild(brandShell);
+    assert(ipcRequests.includes('Unmatched server onboarding guidance message.'), 'p inside onboarding-brand-shell must trigger auto-MT');
+    assert(!ipcRequests.includes('locations/global/workforcePools/custom-pool'), '.font-mono inside onboarding-brand-shell must NOT trigger auto-MT');
+    assert(!ipcRequests.includes('Raw input placeholder value inside shell'), 'input inside onboarding-brand-shell must NOT trigger auto-MT');
   } finally {
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(tmpCacheDir, { recursive: true, force: true });

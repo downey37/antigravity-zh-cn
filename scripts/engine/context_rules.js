@@ -20,13 +20,21 @@ function createContextRules() {
     '[data-testid="jetbox-service-announcement-banner"]',
     '[data-testid="titlebar-service-announcement-slot"]',
     '[data-testid="terminal-tab-nux"]',
-    '[data-testid="feature-banner"]'
+    '[data-testid="feature-banner"]',
+    '[data-testid="onboarding-auth-code-error"]',
+    '[data-testid="jetbox-access-blocked-screen"]',
+    '[data-testid="persona-description"]',
+    '[data-testid*="persona-option-"]'
   ].join(', ');
 
   function isAutoMtEligibleContext(contextEl) {
     if (!contextEl || !contextEl.closest) return false;
-    if (!contextEl.closest(AUTO_MT_WHITELIST_SELECTOR)) return false;
-    if (contextEl.closest('code, pre, kbd, samp, var, input, textarea, [data-testid="user-message-content"], [data-markdown-root]')) {
+    const isOnboardingShellText = Boolean(
+      contextEl.closest('[data-testid="onboarding-brand-shell"]') &&
+      contextEl.closest('p, [role="alert"], .text-xl, .text-error')
+    );
+    if (!contextEl.closest(AUTO_MT_WHITELIST_SELECTOR) && !isOnboardingShellText) return false;
+    if (contextEl.closest('code, pre, kbd, samp, var, input, textarea, .font-mono, [data-testid="user-message-content"], [data-markdown-root]')) {
       return false;
     }
     return true;

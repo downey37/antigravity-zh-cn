@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="220" viewBox="0 0 960 220" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="960" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0B1220"/>
+      <stop offset="55%" stop-color="#13223F"/>
+      <stop offset="100%" stop-color="#1A1B41"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(800 50) rotate(130) scale(260 180)">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(150 200) rotate(25) scale(260 150)">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="960" height="220" rx="18" fill="url(#bg)"/>
+  <rect x="0.75" y="0.75" width="958.5" height="218.5" rx="17.25" stroke="rgba(148,163,184,0.22)" stroke-width="1.5"/>
+  <rect width="960" height="220" rx="18" fill="url(#glowA)"/>
+  <rect width="960" height="220" rx="18" fill="url(#glowB)"/>
+
+  <!-- Decorative orbit emblem -->
+  <g transform="translate(815 110)">
+    <circle cx="0" cy="0" r="64" stroke="rgba(56,189,248,0.22)" stroke-width="1.5" stroke-dasharray="6 5"/>
+    <ellipse cx="0" cy="0" rx="76" ry="26" transform="rotate(-24)" stroke="url(#accent)" stroke-width="2" stroke-opacity="0.7"/>
+    <circle cx="0" cy="0" r="34" fill="rgba(15,23,42,0.85)" stroke="url(#accent)" stroke-width="2"/>
+    <text x="0" y="9" text-anchor="middle" fill="#F8FAFC" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700">汉</text>
+    <circle cx="62" cy="-26" r="5" fill="#38BDF8"/>
+    <circle cx="-54" cy="24" r="4" fill="#818CF8"/>
+  </g>
+
+  <!-- Title & Subtitle -->
+  <text x="52" y="72" fill="#F8FAFC" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="32" font-weight="800" letter-spacing="0.5">Antigravity Simplified Chinese Patch</text>
+  <text x="54" y="106" fill="#CBD5E1" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="15.5" font-weight="500">antigravity-zh-cn · High-Coverage, Reversible, No-TUN &amp; OTA Localization</text>
+
+  <!-- Feature Pills -->
+  <g transform="translate(52 138)" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="600">
+    <rect x="0" y="0" width="106" height="32" rx="16" fill="rgba(56,189,248,0.14)" stroke="rgba(56,189,248,0.45)"/>
+    <text x="53" y="21" text-anchor="middle" fill="#BAE6FD">Full Coverage</text>
+
+    <rect x="116" y="0" width="90" height="32" rx="16" fill="rgba(129,140,248,0.16)" stroke="rgba(129,140,248,0.45)"/>
+    <text x="161" y="21" text-anchor="middle" fill="#C7D2FE">Cloud OTA</text>
+
+    <rect x="216" y="0" width="110" height="32" rx="16" fill="rgba(52,211,153,0.14)" stroke="rgba(52,211,153,0.42)"/>
+    <text x="271" y="21" text-anchor="middle" fill="#A7F3D0">Instant ZH/EN</text>
+
+    <rect x="336" y="0" width="136" height="32" rx="16" fill="rgba(251,191,36,0.14)" stroke="rgba(251,191,36,0.42)"/>
+    <text x="404" y="21" text-anchor="middle" fill="#FDE68A">Zero-Node Portable</text>
+
+    <rect x="482" y="0" width="106" height="32" rx="16" fill="rgba(244,114,182,0.14)" stroke="rgba(244,114,182,0.45)"/>
+    <text x="535" y="21" text-anchor="middle" fill="#FBCFE8">No-TUN Proxy</text>
+  </g>
+</svg>
