@@ -62,17 +62,14 @@ Current version: **`v0.6.0`** (supports Antigravity client `v2.35.1`)
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-model-selector.png" title="Click to open full-resolution image">
-    <picture>
-      <source media="(prefers-color-scheme: light)" srcset="docs/images/preview-model-selector-light.png" />
-      <img src="docs/images/preview-model-selector.png" alt="Model Selector Localization" width="66%" />
-    </picture>
+    <img src="docs/images/preview-model-selector.png" alt="Model Selector Localization" width="66%" />
   </a>
   &nbsp;
   <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-titlebar-menu.png" title="Click to open full-resolution image">
     <img src="docs/images/preview-titlebar-menu.png" alt="Dark and Light Theme-Synced Title-Bar Toggle and OTA Check Menu" width="31%" />
   </a>
   <br />
-  <sub><b>Left</b>: Model Selector &amp; Reasoning Effort Menu (auto-adapts to GitHub Dark/Light theme) &nbsp;|&nbsp; <b>Right</b>: Dark &amp; Light Theme-Synced <code>[ 中 | EN ]</code> Toggle &amp; OTA Menu</sub>
+  <sub><b>Left</b>: Model Selector &amp; Reasoning Effort Menu (Light Theme · Context-Aware Disambiguation) &nbsp;|&nbsp; <b>Right</b>: Dark &amp; Light Theme-Synced <code>[ 中 | EN ]</code> Toggle &amp; OTA Menu</sub>
 </p>
 
 ---
@@ -83,7 +80,7 @@ Current version: **`v0.6.0`** (supports Antigravity client `v2.35.1`)
 | :--- | :--- |
 | **Full-UI Coverage & Context Disambiguation** | Includes **4250+ static entries + 440+ attribute translations**, dynamic variable templates, and split-node fragment reassembly rules. Uses DOM context to disambiguate homonyms (e.g., `New` badge as `新` vs `新建`, `None` grouping as `不分组` vs reasoning effort as `关闭思考`), skips code blocks, terminals, and user inputs, and preserves brand names (`Antigravity`, `Google Drive`, `Gemini`, `Claude`, `GPT-OSS`). |
 | **Zero-Node Portable & Cross-Platform** | Releases ship a self-contained `-portable.zip` with bundled production dependencies that reuses Antigravity's built-in Electron runtime (`ELECTRON_RUN_AS_NODE=1`) — no Node.js required. Supports **Windows 10 / 11** and **macOS** (with automatic deep local `codesign` re-signing after patching). |
-| **Instant Title-Bar ZH / EN Toggle** | A persistent **`[ 中 | EN ]`** pill button in the title bar (auto-synced to dark/light themes, clickable or draggable with spring animation, and also accessible via Help menu & system tray) uses a `WeakMap` to track original strings alongside main-process `_i18nT` dynamic bilingual state, switching instantly without restart and **persisting your preference** across restarts. |
+| **Instant Title-Bar ZH / EN Toggle** | A persistent **`[ 中 \| EN ]`** pill button in the title bar (auto-synced to dark/light themes, clickable or draggable with spring animation, and also accessible via Help menu & system tray) uses a `WeakMap` to track original strings alongside main-process `_i18nT` dynamic bilingual state, switching instantly without restart and **persisting your preference** across restarts. |
 | **Cloud OTA & Dynamic Notice Auto-MT** | Fetches read-only JSON dictionaries and declarative templates from the `ota-dist` branch on startup (SHA-256 verified, zero remote JS execution, zero telemetry) and applies updates **without restarting**; includes allowlisted dynamic notice auto-MT fallback (keyless `google-gtx` by default, optional OpenAI/Ollama, toggleable via Help → Auto-Translate Announcements) and supports disabling via `ANTIGRAVITY_I18N_NO_OTA=1`. |
 | **No-TUN Networking & Auto Self-Healing** | **No global TUN virtual adapter needed** (no admin rights required; avoids conflicts with corporate VPNs, WSL/Docker, or games). The companion launcher reads the **Windows system proxy** or probes common local proxy ports (`7897` / `10808` / `7890`) and injects proxy settings into both Electron and the Go backend; falls back cleanly to direct/TUN when no local proxy is found, and auto-repatches after official client updates. |
 | **Lossless Backup & One-Click Restore** | Automatically backs up the original core bundle as `app.asar.bak` before first injection, with **one-click restore to official English** and automated Node VM sandbox verification. |

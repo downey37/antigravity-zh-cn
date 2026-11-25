@@ -32,7 +32,7 @@
 | **动态模板** | `scripts/engine/dynamic_rules.js` | 动态数字、日期、配额、通知模板 |
 | **上下文消歧** | `scripts/engine/context_rules.js` | `New`、`None` 等特定场景识别 |
 | **碎片节点** | `scripts/engine/split_node_rules.js` | React 内联拆分 TextNode 处理 |
-| **运行时调度引擎** | `scripts/engine/runtime_bootstrap.js` | 原型链拦截、`WeakMap` 原文追踪、标题栏 `[ 中 | EN ]` 开关与菜单注入 |
+| **运行时调度引擎** | `scripts/engine/runtime_bootstrap.js` | 原型链拦截、`WeakMap` 原文追踪、标题栏 `[ 中 \| EN ]` 开关与菜单注入 |
 | **OTA 与语言状态** | `scripts/ota/i18n_ota_main.js` | 纯 JSON OTA 热更控制器、`state.json` 开关持久化与 `_i18nT` 双语状态广播 |
 | **打包部署入口** | `build_and_deploy.ps1` | 构建 → 部署 `app.asar` → 自动执行 `verify_engine.js` |
 | **更新扫漏脚本** | `scripts/scan_updates.js` | 支持 `--refresh` 自动从缓存提取最新官方版本脚本并扫描未汉化词条 |

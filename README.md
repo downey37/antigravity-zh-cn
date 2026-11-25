@@ -62,17 +62,14 @@
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-model-selector.png" title="点击查看高清原图">
-    <picture>
-      <source media="(prefers-color-scheme: light)" srcset="docs/images/preview-model-selector-light.png" />
-      <img src="docs/images/preview-model-selector.png" alt="模型选择器汉化效果" width="66%" />
-    </picture>
+    <img src="docs/images/preview-model-selector.png" alt="模型选择器汉化效果" width="66%" />
   </a>
   &nbsp;
   <a href="https://raw.githubusercontent.com/downey37/antigravity-zh-cn/main/docs/images/preview-titlebar-menu.png" title="点击查看高清原图">
     <img src="docs/images/preview-titlebar-menu.png" alt="深浅双主题标题栏切换开关与检查汉化更新" width="31%" />
   </a>
   <br />
-  <sub><b>左</b>：模型选择器与思考深度菜单（自动适配 GitHub 深/浅色展示） &nbsp;|&nbsp; <b>右</b>：深/浅双主题联动 <code>[ 中 | EN ]</code> 开关与 OTA 更新入口</sub>
+  <sub><b>左</b>：模型选择器与思考深度菜单（浅色主题 · 含「新」徽章精准消歧） &nbsp;|&nbsp; <b>右</b>：深/浅双主题联动 <code>[ 中 | EN ]</code> 开关与 OTA 更新入口</sub>
 </p>
 
 ---
@@ -83,7 +80,7 @@
 | :--- | :--- |
 | **全界面高覆盖与精准消歧** | 收录 **4250+ 条静态词库 + 440+ 条属性译文**、动态变量模板与跨节点碎片重组规则；按 DOM 上下文精确区分同词多义（如 `New` 徽章 vs `新建`、`None` 分组为 `不分组` vs 思考深度为 `关闭思考`），并自动避开代码块、终端与用户输入区域，保留 `Antigravity`、`Google Drive`、`Gemini`、`Claude`、`GPT-OSS` 等原名。 |
 | **零依赖便携包与跨平台支持** | Releases 提供内置生产依赖的免 Node.js 便携包（`-portable.zip`），直接复用客户端自带 Electron 运行时执行注入；支持 **Windows 10 / 11** 与 **macOS**（修改后自动执行本地 `codesign` 深度签名）。 |
-| **顶部标题栏一键原文 / 译文切换** | 在顶部标题栏常驻 **`[ 中 | EN ]`** 胶囊开关（自动适配客户端深色 / 浅色主题，支持点击或拖拽滑动切换及果冻弹性动效，也可从菜单/托盘触发），基于 `WeakMap` 精确追踪原文并联动主进程 `_i18nT` 动态双语，无需重启即可在简体中文与 100% 纯净官方英文原文间无损切换，并**自动记住切换状态**跨重启保留。 |
+| **顶部标题栏一键原文 / 译文切换** | 在顶部标题栏常驻 **`[ 中 \| EN ]`** 胶囊开关（自动适配客户端深色 / 浅色主题，支持点击或拖拽滑动切换及果冻弹性动效，也可从菜单/托盘触发），基于 `WeakMap` 精确追踪原文并联动主进程 `_i18nT` 动态双语，无需重启即可在简体中文与 100% 纯净官方英文原文间无损切换，并**自动记住切换状态**跨重启保留。 |
 | **云端词库热更新与动态公告兜底** | 启动后自动从 `ota-dist` 通道单向只读拉取纯 JSON 词库与声明式模板（SHA-256 校验、零远端 JS 执行、零遥测），**免重启实时生效**；内置白名单动态公告异步机翻兜底（默认免 Key `google-gtx`，可选 OpenAI/Ollama，可在「帮助 → 自动翻译动态公告」随时开关），亦支持菜单手动检查或 `ANTIGRAVITY_I18N_NO_OTA=1` 禁用。 |
 | **免 TUN 联网与更新自愈** | **无需开启全局 TUN 虚拟网卡**（免管理员权限，不干扰公司内网、VPN、WSL / Docker 与游戏）；配套一键启动脚本自动读取 **Windows 系统代理** 或探测常见本地代理端口（`7897` / `10808` / `7890`），同步为 Electron 前端与后台 Go 核心注入代理参数，普通系统代理即可全链路稳定联网；未检测到本地代理时干净走直连 / TUN，同时在官方客户端更新后自动唤醒自愈重打补丁。 |
 | **无损备份与一键还原** | 首次注入前自动备份原版核心为 `app.asar.bak`，支持 **一键还原官方英文原版** 与自动化 Node VM 沙箱回归校验。 |
