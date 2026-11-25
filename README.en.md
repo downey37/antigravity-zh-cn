@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/banner-en.svg" alt="Antigravity Simplified Chinese Localization Patch" width="100%" />
+<img src="docs/images/social-preview-en.png" alt="Antigravity Simplified Chinese Localization Patch" width="100%" />
 
 <br />
 <br />

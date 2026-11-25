@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/banner.svg" alt="Antigravity 简体中文汉化补丁" width="100%" />
+<img src="docs/images/social-preview.png" alt="Antigravity 简体中文汉化补丁" width="100%" />
 
 <br />
 <br />
