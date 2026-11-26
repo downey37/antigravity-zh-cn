@@ -19,7 +19,7 @@
 
 <p><b>A high-coverage, lossless, reversible Simplified Chinese localization suite for the Google Antigravity desktop client — featuring No-TUN networking and Cloud OTA hot-updates.</b></p>
 
-Current version: **`v0.6.0`** (supports Antigravity client `v2.35.1`)
+Current version: **`v0.7.0`** (supports Antigravity client `v2.35.1`)
 
 [Previews](#ui-previews) · [Features](#key-features) · [Quick Start](#quick-start) · [ZH/EN Toggle](#advanced-features) · [No-TUN Launch](#2-no-tun-launch-windows) · [Architecture](#how-it-works) · [FAQ](#faq) · [Contributing](#contributing)
 
