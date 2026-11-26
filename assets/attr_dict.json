@@ -453,5 +453,7 @@
   "Search triggers...": "搜索触发器...",
   "Approximate; may start a few minutes later": "大约时间，实际启动可能延迟几分钟",
   "Credentials expiring soon. Refresh credentials to keep this automation running": "凭据即将过期。请刷新凭据以保持此自动化任务正常运行",
-  "Credentials expired. This automation will not run until credentials are refreshed": "凭据已过期。刷新凭据后此自动化任务才会继续运行"
+  "Credentials expired. This automation will not run until credentials are refreshed": "凭据已过期。刷新凭据后此自动化任务才会继续运行",
+  "Applies to /btw and messages sent after this turn": "适用于 /btw 及本轮之后发送的消息",
+  "Applies to messages sent after this turn": "适用于本轮之后发送的消息"
 }

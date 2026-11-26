@@ -66,6 +66,12 @@ function runTranslationRulesVerification({ i18nCode, projectRoot, pkgVersion = '
     ['Notice', '提示'],
     ['Outside of Project', '未在项目中'],
     ['Updated 12:11', '更新于 12:11'],
+    ['Updated 下午2:52', '更新于 下午2:52'],
+    ['Updated 11月26日', '更新于 11月26日'],
+    ['Updated 11月26日, 14:52', '更新于 11月26日 14:52'],
+    ['Updated 2026年11月26日, 14:52', '更新于 2026年11月26日 14:52'],
+    ['Updated 11月26日, 下午2:52', '更新于 11月26日 下午2:52'],
+    ['Updated 11/26, 14:52', '更新于 11/26 14:52'],
     ['Updated a minute ago', '更新于 1 分钟前'],
     ['Updated Nov 18, 2026', '更新于 2026年11月18日'],
     ['Updated the configuration file', 'Updated the configuration file'],
@@ -661,6 +667,22 @@ function runTranslationRulesVerification({ i18nCode, projectRoot, pkgVersion = '
   assert.strictEqual(
     api.translateString('Select model, current: Gemini 4 Carbon'),
     '选择模型，当前：Gemini 4 Carbon'
+  );
+  assert.strictEqual(
+    api.translateString('Applies to /btw and messages sent after this turn'),
+    '适用于 /btw 及本轮之后发送的消息'
+  );
+  assert.strictEqual(
+    api.translateString('Applies to messages sent after this turn'),
+    '适用于本轮之后发送的消息'
+  );
+  assert.strictEqual(
+    api.translateString('Select model, current: Orchestrator Gemini 4 Neon High. Applies to /btw and messages sent after this turn'),
+    '选择模型，当前：Orchestrator Gemini 4 Neon 高。适用于 /btw 及本轮之后发送的消息'
+  );
+  assert.strictEqual(
+    api.translateString('Select model, current: Gemini 4 Neon Medium. Applies to messages sent after this turn'),
+    '选择模型，当前：Gemini 4 Neon 中。适用于本轮之后发送的消息'
   );
 
   // 3e-3. Single-variant model labels with parenthesized thinking effort (e.g. "GPT-OSS 120B (Medium)")

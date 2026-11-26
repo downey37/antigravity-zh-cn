@@ -1792,16 +1792,32 @@ function createDynamicRules(helpers) {
       const ctxRaw = ctx.trim();
       return `${effZh} · ${lookupExact(ctxRaw, normalizeKey(ctxRaw)) || ctxRaw}`;
     }],
-    [/^Select model,\s*current:\s*(.+)$/i, (_, current) => {
+    [/^Select model,\s*current:\s*(.+?)(?:\.\s+(Applies to(?:\s+\/btw\s+and)?\s+messages sent after this turn))?$/i, (_, current, note) => {
       const raw = current.trim();
       const exact = lookupExact(raw, normalizeKey(raw));
-      if (exact) return `选择模型，当前：${exact}`;
-      const countMatch = raw.match(/^(\d+)\s+models\s+selected$/i);
-      if (countMatch) return `选择模型，当前：已选 ${countMatch[1]} 个模型`;
-      const parenTranslated = translateModelParenEffort(raw);
-      if (parenTranslated) return `选择模型，当前：${parenTranslated}`;
-      const effortTranslated = translateModelWithEffort(raw);
-      return `选择模型，当前：${effortTranslated || raw}`;
+      let modelZh;
+      if (exact) {
+        modelZh = exact;
+      } else {
+        const countMatch = raw.match(/^(\d+)\s+models\s+selected$/i);
+        if (countMatch) {
+          modelZh = `已选 ${countMatch[1]} 个模型`;
+        } else {
+          const parenTranslated = translateModelParenEffort(raw);
+          if (parenTranslated) {
+            modelZh = parenTranslated;
+          } else {
+            const effortTranslated = translateModelWithEffort(raw);
+            modelZh = effortTranslated || raw;
+          }
+        }
+      }
+      if (note) {
+        const noteTrim = note.trim();
+        const noteZh = lookupExact(noteTrim, normalizeKey(noteTrim)) || noteTrim;
+        return `选择模型，当前：${modelZh}。${noteZh}`;
+      }
+      return `选择模型，当前：${modelZh}`;
     }],
     [/^Agent permissions preset selector,\s*current:\s*(.+)$/i, (_, p) => `智能体权限预设选择器，当前：${lookupExact(p.trim(), normalizeKey(p.trim())) || p.trim()}`],
     [/^Agent permissions preset:\s*(.+?),\s*(.+)$/i, (_, p, reason) => `智能体权限预设：${lookupExact(p.trim(), normalizeKey(p.trim())) || p.trim()}，${lookupExact(reason.trim(), normalizeKey(reason.trim())) || reason.trim()}`],
@@ -2180,8 +2196,19 @@ function createDynamicRules(helpers) {
         const count = agoMatch[1] || '1';
         return `更新于 ${count} ${translateRelativeUnit(agoMatch[3])}前`;
       }
-      if (/^\d{1,2}:\d{2}(?::\d{2})?(?:\s*(?:AM|PM))?$/i.test(t) || /^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(t) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(t)) {
+      const clockPart = '(?:(?:凌晨|上午|中午|下午|晚上)\\s*)?\\d{1,2}:\\d{2}(?::\\d{2})?(?:\\s*(?:AM|PM))?';
+      if (new RegExp(`^${clockPart}$`, 'i').test(t)) {
         return `更新于 ${t}`;
+      }
+      if (
+        new RegExp(`^(?:\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?)(?:[,，]?\\s*${clockPart})?$`, 'i').test(t)
+      ) {
+        return `更新于 ${t.replace(/[,，]\s*/g, ' ')}`;
+      }
+      if (
+        new RegExp(`^(?:\\d{4}年\\s*)?\\d{1,2}月\\s*\\d{1,2}日(?:[,，]?\\s*${clockPart})?$`, 'i').test(t)
+      ) {
+        return `更新于 ${t.replace(/(\d{1,2}月\s*\d{1,2}日)[,，]\s*/g, '$1 ')}`;
       }
       const monthRe = /(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)/i;
       if (monthRe.test(t) && /\d{1,2}/.test(t)) {
