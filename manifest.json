@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "packVersion": "2026.11.27.091856",
+  "builtAt": "2026-11-27T09:18:56.872Z",
+  "engineVersion": "0.7.0",
+  "minEngineVersion": "0.3.0",
+  "packFile": "dict-pack.json",
+  "sha256": "ae4cb03545fecd170c2390fe147885263b31430ea73f66183494f631facabea5",
+  "dictCount": 4742,
+  "attrCount": 457,
+  "ruleCount": 4,
+  "releaseUrl": "https://github.com/downey37/antigravity-zh-cn/releases/latest",
+  "notes": "fix(ota): ship declarative OTA rules for Chinese locale Updated timestamps"
+}
