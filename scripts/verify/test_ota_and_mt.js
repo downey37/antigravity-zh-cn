@@ -9,7 +9,7 @@ const { createMockDomEnv } = require('./mock_dom');
 async function runOtaControllerVerification() {
   const crypto = require('crypto');
   const http = require('http');
-  const { buildOtaPack, validateOtaRules } = require('../build_ota_pack');
+  const { buildOtaPack, validateOtaRules, loadOtaRulesFile } = require('../build_ota_pack');
   const { createOtaController } = require('../ota/i18n_ota_main');
 
   // 1. Validate buildOtaPack & declarative rule guards
@@ -20,6 +20,31 @@ async function runOtaControllerVerification() {
   assert.throws(() => validateOtaRules([{ pattern: '(a+)+$', flags: 'i', replace: 'x' }]), /嵌套量词/);
   assert.throws(() => validateOtaRules([{ pattern: '^a$', flags: 'g', replace: 'x' }]), /flags/);
   assert.strictEqual(validateOtaRules([{ id: 'ok', pattern: '^Hello (.+)$', flags: 'i', replace: '你好 $1' }]).length, 1);
+
+  const shippedOtaRules = loadOtaRulesFile();
+  assert(shippedOtaRules.some((r) => r.id === 'updated-zh-date-time'), 'assets/ota_rules.json must include updated-zh-date-time');
+  const applyShippedOtaRules = (input) => {
+    for (const r of shippedOtaRules) {
+      const re = new RegExp(r.pattern, r.flags);
+      if (re.test(input)) {
+        const res = input.replace(re, r.replace);
+        if (res !== input) return res;
+      }
+    }
+    return input;
+  };
+  const otaCases = [
+    ['Updated 11月26日, 14:52', '更新于 11月26日 14:52'],
+    ['Updated 2026年11月26日, 14:52', '更新于 2026年11月26日 14:52'],
+    ['Updated 11月26日, 下午2:52', '更新于 11月26日 下午2:52'],
+    ['Updated 下午2:52', '更新于 下午2:52'],
+    ['Updated 11月26日', '更新于 11月26日'],
+    ['Updated 11/26, 14:52', '更新于 11/26 14:52'],
+    ['Updated the configuration file', 'Updated the configuration file']
+  ];
+  for (const [input, expected] of otaCases) {
+    assert.strictEqual(applyShippedOtaRules(input), expected, `OTA rule mismatch for: ${input}`);
+  }
 
   // 2. Spin up local mock HTTP OTA server (primary fails 500 -> secondary serves valid manifest + pack with ETag)
   const samplePack = {
